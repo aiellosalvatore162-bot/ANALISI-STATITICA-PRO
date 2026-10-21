@@ -41,6 +41,7 @@ def _raw_matches(days: int = 12) -> pd.DataFrame:
             rows.append({
                 "league": "I1", "season": "2425", "date": start + pd.Timedelta(days=7 * day),
                 "home_team": home, "away_team": away, "home_goals": (day + len(home)) % 3, "away_goals": day % 2,
+                "home_ht_goals": 0, "away_ht_goals": 0,
                 "home_shots": 12, "away_shots": 9, "home_sot": 5, "away_sot": 3,
                 "home_fouls": 11, "away_fouls": 12, "home_corners": 6, "away_corners": 4,
                 "home_yellows": 2, "away_yellows": 2, "referee": "Rossi",
@@ -88,3 +89,40 @@ def test_shot_xg_proxy_is_non_negative_least_squares():
 def test_closing_odds_use_engine_event_keys_and_skip_missing_values():
     row = {"close_home": 2.1, "close_draw": 3.3, "close_away": 3.6, "close_over25": 1.9, "close_under25": np.nan}
     assert baseline.closing_odds(row) == {"1": 2.1, "X": 3.3, "2": 3.6, "Over 2.5 gol": 1.9}
+
+
+def test_secondary_markets_are_coherent_and_match_the_engine():
+    half = engine.HalfTimeParams(0.45, 0.43, 0.15, 2.8)
+    lambdas, mus = np.array([1.2, 2.4]), np.array([1.0, 0.7])
+    markets = baseline.secondary_markets(lambdas, mus, -0.12, half)
+    np.testing.assert_allclose(markets["Somma gol"].sum(axis=1), 1.0)
+    np.testing.assert_allclose(markets["1X2 1T"].sum(axis=1), 1.0)
+    np.testing.assert_allclose(markets["Multigol 1-3"], markets["Somma gol"][:, 1:4].sum(axis=1))
+    assert np.all(markets["Over 1.5 1T"] <= markets["Over 0.5 1T"])
+    matrix = engine.dixon_coles_matrix(2.4, 0.7, -0.12, max_goals=calibrate.MAX_GOALS)
+    shares = engine.first_half_shares(2.4, 0.7, half)
+    first_half = engine.half_time_matrix(matrix, float(shares[0]), float(shares[1]))
+    assert markets["GG 1T"][1] == pytest.approx(first_half[1:, 1:].sum())
+
+
+def test_secondary_outcomes_from_full_and_half_time_goals():
+    frame = pd.DataFrame({"home_goals": [2, 0], "away_goals": [1, 0], "home_ht_goals": [1, 0], "away_ht_goals": [1, 0]})
+    observed = baseline.secondary_outcomes(frame)
+    assert observed["Multigol 2-4"].tolist() == [1, 0]
+    assert observed["Somma gol"].tolist() == [3, 0]
+    assert observed["1X2 1T"].tolist() == [1, 1]
+    assert observed["GG 1T"].tolist() == [1, 0]
+    assert observed["Multigol Casa 1-2"].tolist() == [1, 0]
+
+
+def test_half_time_fit_recovers_known_shares():
+    rng = np.random.default_rng(3)
+    goals = rng.poisson(1.4, (4000, 2))
+    data = pd.DataFrame({
+        "home_goals": goals[:, 0], "away_goals": goals[:, 1],
+        "home_ht_goals": rng.binomial(goals[:, 0], 0.44), "away_ht_goals": rng.binomial(goals[:, 1], 0.41),
+        "final_lambda": 1.4, "final_mu": 1.4,
+    })
+    params = calibrate.fit_half_time(data, with_slope=False)
+    assert params.home_share == pytest.approx(0.44, abs=0.02)
+    assert params.away_share == pytest.approx(0.41, abs=0.02)

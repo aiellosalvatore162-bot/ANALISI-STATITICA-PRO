@@ -62,5 +62,9 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   ancorato alle quote 1X2/O-U 2.5); `expected_goals` resta il solo modello.
   Peso del mercato e metodo di margine si ritarano con
   `python -m tools.baseline --tara-ancoraggio`.
+- La quota di gol del primo tempo (`primo_tempo` in `config/goal_model.json`) si
+  ritara con `python -m tools.calibrate --primo-tempo`; i mercati secondari si
+  misurano con `python -m tools.baseline --mercati-secondari`. Ogni script di
+  taratura aggiorna solo la propria sezione del file di configurazione.
 - Le fonti remote devono degradare con un avviso (come `historical.py` ricade
   al 100% manuale), mai bloccare la simulazione manuale.

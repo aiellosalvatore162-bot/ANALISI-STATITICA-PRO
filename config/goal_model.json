@@ -175,5 +175,59 @@
       ]
     },
     "nota_pareggio": "Shin non sovrastima la X (vedi docs/BASELINE.md, analisi del pareggio); i VALORE sul pareggio nascono dallo scarto tra la X quotata e quella di Poisson + Dixon-Coles e hanno reso in perdita: non vengono segnalati."
+  },
+  "primo_tempo": {
+    "parametri": {
+      "home_share": 0.448334,
+      "away_share": 0.430819,
+      "total_slope": 0.149801,
+      "reference_total": 2.81
+    },
+    "taratura": {
+      "data": "2026-10-21",
+      "scelta": "quote in funzione dei gol attesi",
+      "regola": "la dipendenza dai gol attesi resta solo se migliora il log-loss 1T fuori campione di almeno 0.001",
+      "gol_attesi": "finali, ancorati alle quote di chiusura 1X2 e O/U 2.5",
+      "partite_taratura": 2851,
+      "partite_fuori_campione": 254,
+      "candidati": {
+        "metà e metà": {
+          "parametri": {
+            "home_share": 0.5,
+            "away_share": 0.5,
+            "total_slope": 0.0,
+            "reference_total": 2.7
+          },
+          "nll_binomiale_taratura": 1.92627,
+          "nll_binomiale_fuori_campione": 2.1886,
+          "logloss_mercati_1T_taratura": 2.74277,
+          "logloss_mercati_1T_fuori_campione": 2.76753
+        },
+        "quote fisse casa/ospite": {
+          "parametri": {
+            "home_share": 0.451748,
+            "away_share": 0.432425,
+            "total_slope": 0.0,
+            "reference_total": 2.81
+          },
+          "nll_binomiale_taratura": 1.90758,
+          "nll_binomiale_fuori_campione": 2.1444,
+          "logloss_mercati_1T_taratura": 2.72515,
+          "logloss_mercati_1T_fuori_campione": 2.73847
+        },
+        "quote in funzione dei gol attesi": {
+          "parametri": {
+            "home_share": 0.448334,
+            "away_share": 0.430819,
+            "total_slope": 0.149801,
+            "reference_total": 2.81
+          },
+          "nll_binomiale_taratura": 1.90596,
+          "nll_binomiale_fuori_campione": 2.14789,
+          "logloss_mercati_1T_taratura": 2.72324,
+          "logloss_mercati_1T_fuori_campione": 2.73234
+        }
+      }
+    }
   }
 }

@@ -45,7 +45,7 @@ ELO_HFA = 65.0
 
 _COLUMNS = {
     "Date": "date", "HomeTeam": "home_team", "AwayTeam": "away_team",
-    "FTHG": "home_goals", "FTAG": "away_goals",
+    "FTHG": "home_goals", "FTAG": "away_goals", "HTHG": "home_ht_goals", "HTAG": "away_ht_goals",
     "HS": "home_shots", "AS": "away_shots", "HST": "home_sot", "AST": "away_sot",
     "HF": "home_fouls", "AF": "away_fouls", "HC": "home_corners", "AC": "away_corners",
     "HY": "home_yellows", "AY": "away_yellows", "Referee": "referee",
@@ -218,6 +218,7 @@ def _match_row(match, history, form, elo, league_window, referee_history) -> dic
         "league": match.league, "season": match.season, "date": match.date,
         "home_team": match.home_team, "away_team": match.away_team,
         "home_goals": match.home_goals, "away_goals": match.away_goals,
+        "home_ht_goals": match.home_ht_goals, "away_ht_goals": match.away_ht_goals,
         "home_corners": match.home_corners, "away_corners": match.away_corners,
         "home_yellows": match.home_yellows, "away_yellows": match.away_yellows,
         "close_home": match.close_home, "close_draw": match.close_draw, "close_away": match.close_away,

@@ -5,14 +5,20 @@ usando la stessa ``engine.goal_rates`` dell'app. Il modello tarato diventa
 attivo solo se migliora la formula originale sulla stagione fuori campione;
 altrimenti il file lo salva ma lascia ``modello_attivo = "legacy"``.
 
-Uso: ``python -m tools.calibrate`` (scrive ``config/goal_model.json``).
+Con ``--primo-tempo`` tara invece la quota di gol del primo tempo (casa e
+ospite, eventualmente in funzione dei gol attesi totali).
+
+Uso: ``python -m tools.calibrate [--primo-tempo]`` (aggiorna
+``config/goal_model.json`` lasciando intatte le altre sezioni).
 """
 
 from __future__ import annotations
 
+import argparse
 from dataclasses import asdict, fields
 from datetime import date
 import json
+import math
 
 import numpy as np
 import pandas as pd
@@ -146,7 +152,103 @@ def holdout_loss(features: pd.DataFrame, **overrides) -> float:
             + baseline.log_loss(baseline.binary(predictions["p_over25"]), over))
 
 
+def _update_config(sections: dict) -> dict:
+    """Aggiorna solo le sezioni indicate del file di configurazione."""
+    path = engine.GOAL_MODEL_PATH
+    data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    data.update(sections)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    return data
+
+
+def _logit(value: float) -> float:
+    return math.log(value / (1.0 - value))
+
+
+def half_time_nll(params: engine.HalfTimeParams, data: pd.DataFrame) -> float:
+    """Verosimiglianza binomiale dei gol del primo tempo dato il risultato finale."""
+    home_share, away_share = engine.first_half_shares(data["final_lambda"], data["final_mu"], params)
+    loss = 0.0
+    for share, first, total in (
+        (home_share, data["home_ht_goals"], data["home_goals"]),
+        (away_share, data["away_ht_goals"], data["away_goals"]),
+    ):
+        loss -= np.sum(first * np.log(share) + (total - first) * np.log(1.0 - share))
+    return float(loss / len(data))
+
+
+def fit_half_time(data: pd.DataFrame, *, with_slope: bool) -> engine.HalfTimeParams:
+    reference = round(float((data["final_lambda"] + data["final_mu"]).mean()), 2)
+
+    def build(vector: np.ndarray) -> engine.HalfTimeParams:
+        home, away = 1.0 / (1.0 + np.exp(-vector[:2]))
+        return engine.HalfTimeParams(float(home), float(away), float(vector[2]) if with_slope else 0.0, reference)
+
+    start = np.array([0.0, 0.0, 0.0][: 3 if with_slope else 2])
+    fitted = minimize(lambda vector: half_time_nll(build(vector), data), start, method="L-BFGS-B")
+    if not fitted.success:
+        raise RuntimeError(f"Taratura primo tempo non convergente: {fitted.message}")
+    params = build(fitted.x)
+    return engine.HalfTimeParams(**{key: round(value, 6) for key, value in asdict(params).items()})
+
+
+def first_half_loss(params: engine.HalfTimeParams, data: pd.DataFrame, rho: float) -> float:
+    """Somma dei log-loss dei mercati del primo tempo (1X2 1T, Over 0.5/1.5 1T, GG 1T)."""
+    markets = baseline.secondary_markets(data["final_lambda"], data["final_mu"], rho, params)
+    observed = baseline.secondary_outcomes(data)
+    mask = np.ones(len(data), dtype=bool)
+    scores = baseline.secondary_scores({name: markets[name] for name in baseline.FIRST_HALF_MARKETS}, observed, mask)
+    return float(sum(score["log_loss"] for score in scores.values()))
+
+
+def calibrate_half_time() -> dict:
+    features = baseline.secondary_features(baseline.load_usable_features())
+    data = features.assign(**baseline.secondary_rates(features))
+    train = data[data["season"].isin(dataset.CALIBRATION_SEASONS)]
+    holdout = data[data["season"].isin(dataset.HOLDOUT_SEASONS)]
+    rho = engine.DEFAULT_GOAL_PARAMS.dixon_coles_rho
+
+    candidates = {
+        "metà e metà": engine.HalfTimeParams(),
+        "quote fisse casa/ospite": fit_half_time(train, with_slope=False),
+        "quote in funzione dei gol attesi": fit_half_time(train, with_slope=True),
+    }
+    metrics = {
+        name: {
+            "nll_binomiale_taratura": round(half_time_nll(params, train), 5),
+            "nll_binomiale_fuori_campione": round(half_time_nll(params, holdout), 5),
+            "logloss_mercati_1T_taratura": round(first_half_loss(params, train, rho), 5),
+            "logloss_mercati_1T_fuori_campione": round(first_half_loss(params, holdout, rho), 5),
+        }
+        for name, params in candidates.items()
+    }
+    fixed, sloped = "quote fisse casa/ospite", "quote in funzione dei gol attesi"
+    gain = metrics[fixed]["logloss_mercati_1T_fuori_campione"] - metrics[sloped]["logloss_mercati_1T_fuori_campione"]
+    chosen = sloped if gain >= MIN_IMPROVEMENT else fixed
+    section = {
+        "parametri": asdict(candidates[chosen]),
+        "taratura": {
+            "data": date.today().isoformat(),
+            "scelta": chosen,
+            "regola": f"la dipendenza dai gol attesi resta solo se migliora il log-loss 1T fuori campione di almeno {MIN_IMPROVEMENT}",
+            "gol_attesi": "finali, ancorati alle quote di chiusura 1X2 e O/U 2.5",
+            "partite_taratura": int(len(train)),
+            "partite_fuori_campione": int(len(holdout)),
+            "candidati": {name: {"parametri": asdict(params), **metrics[name]} for name, params in candidates.items()},
+        },
+    }
+    _update_config({"primo_tempo": section})
+    return section
+
+
 def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--primo-tempo", action="store_true", help="Tara solo la quota di gol del primo tempo")
+    args = parser.parse_args()
+    if args.primo_tempo:
+        print(json.dumps(calibrate_half_time(), indent=2, ensure_ascii=False))
+        return
     raw = dataset.load_raw()
     xg_model = dataset.fit_shot_xg(raw)
     features = dataset.build_features(raw, xg_model)
@@ -160,7 +262,7 @@ def main() -> None:
     legacy_holdout = holdout_loss(holdout, goal_model="legacy")
     active = "calibrato" if calibrated_holdout < legacy_holdout else "legacy"
 
-    payload = {
+    sections = {
         "modello_attivo": active,
         "parametri": asdict(params),
         "taratura": {
@@ -183,9 +285,8 @@ def main() -> None:
             "fuori_campione": {"calibrato": round(calibrated_holdout, 5), "legacy": round(legacy_holdout, 5)},
         },
     }
-    engine.GOAL_MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
-    engine.GOAL_MODEL_PATH.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    print(json.dumps(payload, indent=2, ensure_ascii=False))
+    _update_config(sections)
+    print(json.dumps(sections, indent=2, ensure_ascii=False))
 
 
 if __name__ == "__main__":
