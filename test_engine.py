@@ -562,3 +562,59 @@ def test_no_value_markets_is_read_from_the_config_file(tmp_path):
     path = tmp_path / "goal_model.json"
     path.write_text(json.dumps({"ancoraggio_mercato": {"parametri": {"no_value_markets": ["X", "X 1T"]}}}), encoding="utf-8")
     assert engine.load_market_anchor(path).no_value_markets == ("X", "X 1T")
+
+
+def test_all_goal_markets_come_from_the_same_anchored_score_matrix():
+    half = engine.HalfTimeParams(home_share=0.45, away_share=0.43, total_slope=0.15, reference_total=2.8)
+    odds = {"1": 1.85, "X": 3.60, "2": 4.40, "Over 2.5 gol": 1.75, "Under 2.5 gol": 2.05}
+    config = replace(
+        config_from_input(parse_match_input(VALID), simulations=200_000, seed=19),
+        odds=odds, half_time=half, market_anchor=engine.MarketAnchorParams(market_weight=0.7),
+    )
+    result = simulate_match(config)
+    final = result["components"]["finale"]
+    assert result["market_anchoring"]["active"]
+
+    # Coerenza interna sullo stesso campione.
+    assert final["1"] + final["X"] + final["2"] == pytest.approx(100.0, abs=0.02)
+    assert final["Multigol 1-3"] == pytest.approx(sum(final[f"Somma gol {value}"] for value in (1, 2, 3)), abs=0.03)
+    assert final["Multigol 2-4"] == pytest.approx(final["Over 1.5 gol"] - final["Over 4.5 gol"], abs=0.02)
+    assert final["Multigol Casa 1-2"] == pytest.approx(final["Casa Over 0.5 gol"] - final["Casa Over 2.5 gol"], abs=0.02)
+    assert sum(final[f"Somma gol {value}"] for value in range(5)) + final["Somma gol 5+"] == pytest.approx(100.0, abs=0.03)
+    assert final["Over 0.5 gol 1T"] <= final["Over 0.5 gol"]
+    exact = np.array(result["dashboard"]["exact_score_distribution"]["probabilities_pct"])
+    home, away = np.indices(exact.shape)
+    assert exact[home + away >= 3].sum() == pytest.approx(final["Over 2.5 gol"], abs=0.05)
+
+    # Le stesse probabilità escono dalla matrice analitica dei gol attesi finali.
+    lambda_, mu = result["model"]["lambda"], result["model"]["mu"]
+    matrix = dixon_coles_matrix(lambda_, mu, config.dixon_coles_rho, max_goals=15)
+    first_half = engine.half_time_matrix(matrix, *map(float, engine.first_half_shares(lambda_, mu, half)))
+    h, a = np.indices(matrix.shape)
+    analytic = {
+        "1": matrix[h > a].sum(), "X": np.trace(matrix), "2": matrix[h < a].sum(),
+        "Over 2.5 gol": matrix[h + a >= 3].sum(), "Multigol 2-4": matrix[(h + a >= 2) & (h + a <= 4)].sum(),
+        "Multigol Casa 1-2": matrix[(h >= 1) & (h <= 2)].sum(), "Somma gol 0": matrix[0, 0],
+        "1 1T": first_half[h > a].sum(), "X 1T": np.trace(first_half),
+        "Over 1.5 gol 1T": first_half[h + a >= 2].sum(), "Goal 1T": first_half[1:, 1:].sum(),
+    }
+    for market, probability in analytic.items():
+        assert final[market] == pytest.approx(probability * 100.0, abs=0.6), market
+
+
+def test_first_half_shares_follow_the_expected_total():
+    flat = engine.HalfTimeParams(home_share=0.45, away_share=0.43)
+    assert engine.first_half_shares(1.0, 3.0, flat) == pytest.approx((0.45, 0.43))
+    sloped = replace(flat, total_slope=0.2, reference_total=2.8)
+    assert engine.first_half_shares(1.6, 1.2, sloped) == pytest.approx((0.45, 0.43))
+    high, _ = engine.first_half_shares(2.5, 1.5, sloped)
+    assert high > 0.45
+    assert engine.load_half_time(Path("/inesistente.json")) == engine.HalfTimeParams()
+
+
+def test_default_half_time_split_keeps_the_even_share():
+    matrix = dixon_coles_matrix(1.4, 1.1, -0.1)
+    first_half = engine.half_time_matrix(matrix, 0.5, 0.5)
+    assert first_half.sum() == pytest.approx(1.0)
+    goals = np.arange(matrix.shape[0])
+    assert (first_half.sum(axis=1) * goals).sum() == pytest.approx(0.5 * (matrix.sum(axis=1) * goals).sum())
