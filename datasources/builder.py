@@ -21,6 +21,10 @@ from datasources.sources import (
     COMPETITIONS, CUP_COMPETITIONS, FootballDataCoUk, FootballDataOrg, Understat, football_data_org_key,
     season_start,
 )
+from datasources.style import (
+    ProfileStore, StyleProfile, assign_archetype, footballdata_metrics, league_profiles, load_archetypes,
+    understat_league_metrics, understat_team_metrics,
+)
 from datasources.stats import FieldValue, RefereeProfile, TeamProfile, missing, referee_profile, team_match_rows, team_profile
 from tools.dataset import elo_table
 
@@ -98,6 +102,8 @@ class DataProvider:
         return frame
 
     def understat_matches(self, competition: str):
+        if not COMPETITIONS[competition]["understat"]:
+            return pd.DataFrame(), None
         start = season_start(self.today)
         frames = [self.understat.league(COMPETITIONS[competition]["understat"], season, self.max_age if season == start else timedelta(days=30))
                   for season in (start, start - 1)]
@@ -109,6 +115,38 @@ class DataProvider:
             data = data.sort_values(["team", "date"]).reset_index(drop=True)
         updated = max((frame.updated for frame in frames if frame.updated), default=None)
         return data, updated
+
+    def style_profiles(self, competition: str) -> dict[str, StyleProfile]:
+        """Profili di stile del campionato: dalla cache se più giovani della soglia, altrimenti ricalcolati."""
+        store = ProfileStore(self.cache)
+        cached = store.load(competition, self.max_age)
+        if cached is not None:
+            archetypes = load_archetypes()
+            return {team: assign_archetype(profile, archetypes) for team, profile in cached.items()}
+        matches = self.league_matches(competition)
+        if matches.data.empty:
+            return {}
+        rows = team_match_rows(matches.data)
+        current = matches.data[matches.data["season"] == matches.data["season"].max()]
+        teams = sorted(set(current["home_team"]) | set(current["away_team"]))
+        raw = {team: footballdata_metrics(rows, team) for team in teams}
+        understat_rows, _ = self.understat_matches(competition)
+        if not understat_rows.empty:
+            titles = understat_rows["team"].unique()
+            for team in teams:
+                title = match_team(team, titles)
+                if title is None:
+                    continue
+                raw[team].update(understat_league_metrics(understat_rows, title))
+                payload, warnings = self.understat.team(title, season_start(self.today), self.max_age)
+                self.warnings.extend(warnings)
+                if payload:
+                    raw[team].update(understat_team_metrics(payload))
+        archetypes = load_archetypes()
+        profiles = {team: assign_archetype(profile, archetypes)
+                    for team, profile in league_profiles(raw, competition, partial=not COMPETITIONS[competition]["understat"]).items()}
+        store.save(profiles)
+        return profiles
 
     def competition_of(self, team: str) -> str | None:
         """Campionato nazionale (tra quelli coperti) in cui gioca la squadra nella stagione in corso."""
@@ -141,6 +179,11 @@ class DataProvider:
         self.warnings = []
         match_date = match_date or self.today
         leagues = {side: self.competition_of(team) for side, team in (("home", home), ("away", away))}
+        if self.max_age <= timedelta(0):
+            # Aggiornamento forzato: i profili di stile di questi campionati vanno ricalcolati.
+            store = ProfileStore(self.cache)
+            for league in {value for value in leagues.values() if value}:
+                store.invalidate(league)
         profiles: dict[str, TeamProfile] = {}
         updated: dict[str, datetime | None] = {}
         league_rows: dict[str, pd.DataFrame] = {}

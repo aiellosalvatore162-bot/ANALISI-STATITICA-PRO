@@ -95,6 +95,43 @@ qualsiasi, lascia vuoti ed evidenziati quelli mancanti, accetta un blocco
 incollato, controlla la plausibilità (es. xG 25 invece di 2.5, Elo fuori range,
 quote sotto 1.01) e salva la partita nel database come «inserita manualmente».
 
+## Profili di stile
+
+La scheda **Stile** dei risultati mostra il radar delle due squadre
+(percentile nel proprio campionato), l'archetipo e una breve descrizione.
+
+| Metrica | Fonte |
+|---|---|
+| Intensità del pressing | Understat (PPDA) |
+| Altezza del blocco (derivato: pressing e ingressi concessi vicino all'area) | Understat |
+| Manovra vs gioco diretto (derivato dal PPDA concesso) | Understat |
+| Pericolosità in transizione (quota di xG da azioni veloci) | Understat, endpoint squadra |
+| Pericolosità sui piazzati (quota di xG da corner e punizioni) | Understat, endpoint squadra |
+| xG fatti/subiti, tiri, corner prodotti/concessi, falli, cartellini, quota di gol nel primo tempo | football-data.co.uk (xG anche da Understat) |
+
+Esclusi perché nessuna fonte gratuita funzionante li fornisce: **possesso** e
+**uso delle fasce/cross**. Le metriche sono medie delle ultime 20 gare di
+campionato, normalizzate con z-score per campionato. Le squadre di Portogallo,
+Olanda, Belgio, Turchia, Grecia e Scozia hanno un **profilo parziale** (solo
+football-data.co.uk); gli stessi CSV compilano anche il loro blocco di input.
+
+Gli archetipi (`config/style_archetypes.json`, rigenerati con
+`python -m tools.style`) vengono da k-means sulle 7 metriche di comportamento
+(pressing, blocco, manovra, transizioni, piazzati, falli, cartellini) delle 96
+squadre dei 5 campionati top; il numero di gruppi è quello con la silhouette
+più alta tra 2 e 8 (k = 4, silhouette 0.187: struttura debole, gli stili
+sfumano l'uno nell'altro).
+
+| Archetipo | Squadre | Esempi |
+|---|---|---|
+| Forza sui piazzati e blocco basso | 16 | Angers, Betis, Bologna, Brest |
+| Difesa alta e possesso manovrato | 24 | Arsenal, Ath Bilbao, Ath Madrid, Barcelona |
+| Gioco fisico e molti cartellini | 30 | Alaves, Bournemouth, Brentford, Dortmund |
+| Attesa senza pressing e transizioni veloci | 26 | Aston Villa, Atalanta, Augsburg, Auxerre |
+
+I profili sono salvati nella cache SQLite e scadono con la stessa soglia dei
+dati; «Aggiorna dati» li invalida.
+
 ## Input
 
 ```text

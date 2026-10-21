@@ -19,7 +19,7 @@ from historical import (
 from market_catalog import MARKET_GROUPS, definition_for_event, definitions_for_group
 from datasources.builder import plausibility_warnings
 from parser import MatchInputError, MatchInput, parse_match_input
-from ui_data import render_automatic, render_create, show_provenance
+from ui_data import render_automatic, render_create, render_style, show_provenance
 
 
 EXAMPLE = """CASA: Inter
@@ -793,6 +793,7 @@ if result:
         "Parziali",
         "Squadre",
         "Catalogo completo",
+        "Stile",
     ])
     with tabs[0]:
         _cards_section(
@@ -1063,6 +1064,8 @@ if result:
         st.caption("Catalogo centrale: le card sono generate dalle definizioni condivise da parser, motore e dashboard.")
         for group in MARKET_GROUPS:
             _catalog_cards_section(group, result, financial_rows)
+    with tabs[9]:
+        render_style(result["input"]["home"]["name"], result["input"]["away"]["name"])
 
     st.subheader("Scenario condizionato al segno")
     st.caption(

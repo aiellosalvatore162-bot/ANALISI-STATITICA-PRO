@@ -28,6 +28,13 @@ COMPETITIONS = {
     "La Liga": {"footballdata": "SP1", "understat": "La_liga"},
     "Bundesliga": {"footballdata": "D1", "understat": "Bundesliga"},
     "Ligue 1": {"footballdata": "F1", "understat": "Ligue_1"},
+    # Campionati senza Understat: tiri, corner, falli, cartellini, gol e xG da football-data.co.uk.
+    "Primeira Liga": {"footballdata": "P1", "understat": None},
+    "Eredivisie": {"footballdata": "N1", "understat": None},
+    "Jupiler Pro League": {"footballdata": "B1", "understat": None},
+    "Süper Lig": {"footballdata": "T1", "understat": None},
+    "Super League Grecia": {"footballdata": "G1", "understat": None},
+    "Premiership scozzese": {"footballdata": "SC0", "understat": None},
 }
 CUP_COMPETITIONS = {"Champions League": "CL"}
 
@@ -66,9 +73,24 @@ class Understat:
     """xG, xGA, PPDA e deep completions partita per partita (campionati top)."""
 
     URL = "https://understat.com/getLeagueData/{league}/{season}"
+    TEAM_URL = "https://understat.com/getTeamData/{team}/{season}"
 
     def __init__(self, cache: SourceCache) -> None:
         self.cache = cache
+
+    def team(self, title: str, season: int, max_age: timedelta) -> tuple[dict | None, list[str]]:
+        """Statistiche per situazione, velocità d'azione e minuto di una squadra (stagione)."""
+        result = self.cache.get(
+            self.TEAM_URL.format(team=title.replace(" ", "_"), season=season), source="understat", max_age=max_age,
+            headers={"X-Requested-With": "XMLHttpRequest"},
+        )
+        warnings = [result.warning] if result.warning else []
+        if not result.ok:
+            return None, warnings
+        try:
+            return json.loads(result.body), warnings
+        except ValueError:
+            return None, warnings + [f"Understat: risposta non valida per {title}."]
 
     def league(self, league: str, season: int, max_age: timedelta) -> SourceFrame:
         result = self.cache.get(

@@ -71,6 +71,7 @@ def team_match_rows(matches: pd.DataFrame) -> pd.DataFrame:
             "yellows_for": matches[f"{prefix}_yellows"], "fouls_for": matches[f"{prefix}_fouls"],
             "xg_real_for": matches[f"{prefix}_xg_real"], "xg_real_against": matches[f"{other}_xg_real"],
             "sot_for": matches[f"{prefix}_sot"], "sot_against": matches[f"{other}_sot"],
+            "shots_for": matches[f"{prefix}_shots"],
         })
 
     rows = pd.concat([side("home", "away", "home"), side("away", "home", "away")], ignore_index=True)

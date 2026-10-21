@@ -74,5 +74,8 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   nessuna chiamata di rete nei test. Corner e cartellini si ritarano con
   `python -m tools.calibrate --corner-cartellini` e si misurano con
   `python -m tools.baseline --corner-cartellini`.
+- Profili di stile in `datasources/style.py` (z-score per campionato, cache
+  SQLite); archetipi in `config/style_archetypes.json`, rigenerati con
+  `python -m tools.style`.
 - Le fonti remote devono degradare con un avviso (come `historical.py` ricade
   al 100% manuale), mai bloccare la simulazione manuale.

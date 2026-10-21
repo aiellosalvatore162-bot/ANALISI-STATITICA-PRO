@@ -1,0 +1,122 @@
+{
+  "generato_il": "2026-10-21",
+  "metodo": "k-means (k-means++, 25 ripartenze) su z-score per campionato delle metriche di comportamento; k scelto per silhouette massima tra 2 e 8",
+  "squadre": 96,
+  "k": 4,
+  "silhouette": {
+    "2": 0.1748,
+    "3": 0.1799,
+    "4": 0.187,
+    "5": 0.1741,
+    "6": 0.1576,
+    "7": 0.1641,
+    "8": 0.155
+  },
+  "features": [
+    "pressing",
+    "block_height",
+    "build_up",
+    "transitions",
+    "set_pieces",
+    "fouls",
+    "cards"
+  ],
+  "metriche_escluse": {
+    "possesso": "nessuna fonte gratuita funzionante (FBref bloccata; Understat e football-data non lo pubblicano)",
+    "uso delle fasce e cross": "nessuna fonte gratuita con i cross o le zone di attacco"
+  },
+  "groups": [
+    {
+      "name": "Forza sui piazzati e blocco basso",
+      "centroid": {
+        "pressing": -0.738,
+        "block_height": -0.847,
+        "build_up": -0.536,
+        "transitions": -0.83,
+        "set_pieces": 1.312,
+        "fouls": -0.211,
+        "cards": -0.247
+      },
+      "size": 16,
+      "examples": [
+        "Angers (Ligue 1)",
+        "Betis (La Liga)",
+        "Bologna (Serie A)",
+        "Brest (Ligue 1)",
+        "Cagliari (Serie A)",
+        "Everton (Premier League)",
+        "Freiburg (Bundesliga)",
+        "Hamburg (Bundesliga)"
+      ]
+    },
+    {
+      "name": "Difesa alta e possesso manovrato",
+      "centroid": {
+        "pressing": 0.783,
+        "block_height": 1.102,
+        "build_up": 1.07,
+        "transitions": -0.584,
+        "set_pieces": 0.02,
+        "fouls": -0.553,
+        "cards": -0.392
+      },
+      "size": 24,
+      "examples": [
+        "Arsenal (Premier League)",
+        "Ath Bilbao (La Liga)",
+        "Ath Madrid (La Liga)",
+        "Barcelona (La Liga)",
+        "Bayern Munich (Bundesliga)",
+        "Brighton (Premier League)",
+        "Como (Serie A)",
+        "Ein Frankfurt (Bundesliga)"
+      ]
+    },
+    {
+      "name": "Gioco fisico e molti cartellini",
+      "centroid": {
+        "pressing": 0.403,
+        "block_height": 0.165,
+        "build_up": -0.536,
+        "transitions": 0.298,
+        "set_pieces": -0.123,
+        "fouls": 0.937,
+        "cards": 0.844
+      },
+      "size": 30,
+      "examples": [
+        "Alaves (La Liga)",
+        "Bournemouth (Premier League)",
+        "Brentford (Premier League)",
+        "Dortmund (Bundesliga)",
+        "Elche (La Liga)",
+        "Elversberg (Bundesliga)",
+        "Espanol (La Liga)",
+        "Fiorentina (Serie A)"
+      ]
+    },
+    {
+      "name": "Attesa senza pressing e transizioni veloci",
+      "centroid": {
+        "pressing": -0.734,
+        "block_height": -0.686,
+        "build_up": -0.04,
+        "transitions": 0.706,
+        "set_pieces": -0.684,
+        "fouls": -0.442,
+        "cards": -0.46
+      },
+      "size": 26,
+      "examples": [
+        "Aston Villa (Premier League)",
+        "Atalanta (Serie A)",
+        "Augsburg (Bundesliga)",
+        "Auxerre (Ligue 1)",
+        "Celta (La Liga)",
+        "Chelsea (Premier League)",
+        "Coventry (Premier League)",
+        "Crystal Palace (Premier League)"
+      ]
+    }
+  ]
+}

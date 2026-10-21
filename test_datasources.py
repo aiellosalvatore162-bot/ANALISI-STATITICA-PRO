@@ -187,7 +187,7 @@ def test_recency_weights_halve_every_half_life():
 
 def _matches(rows):
     frame = pd.DataFrame(rows)
-    for column in ("ht_goals", "corners", "yellows", "fouls", "xg_real", "sot"):
+    for column in ("ht_goals", "corners", "yellows", "fouls", "xg_real", "sot", "shots"):
         for side in ("home", "away"):
             if f"{side}_{column}" not in frame:
                 frame[f"{side}_{column}"] = 1.0
