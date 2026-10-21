@@ -1,0 +1,13 @@
+Il Napoli ha due titolari squalificati in difesa e l'arbitro designato è più severo della media.
+La Roma arriva da una gara di coppa giovedì: possibile turnover.
+
+```
+CORREZIONI_CLAUDE:
+gol_casa: 0,96 | motivo: assenti Di Lorenzo e Buongiorno | fonte: https://www.esempio.it/napoli-squalificati
+gol_ospite: 1.04 | motivo: Napoli senza due difensori titolari | fonte: https://www.esempio.it/napoli-squalificati
+corner: 1.00 | motivo: nessuna indicazione
+cartellini: 1.10 | motivo: arbitro severo e derby del sud | fonte: https://www.esempio.it/arbitro
+arbitro_gialli_medi: 5.2 | partite: 23 | fonte: https://www.esempio.it/arbitro-statistiche
+confidenza: media
+commento: correzioni moderate, formazioni da confermare un'ora prima.
+```
