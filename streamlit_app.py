@@ -7,7 +7,7 @@ import pandas as pd
 import altair as alt
 import streamlit as st
 
-from engine import config_from_input, expected_goals, simulate_match
+from engine import config_from_input, final_goal_rates, simulate_match
 from historical import (
     HistoricalDataError,
     fetch_public_match_history,
@@ -89,6 +89,9 @@ st.markdown(
     .score-card .positive { color: var(--pitch); background: rgba(59,209,139,.12); }
     .score-card .negative { color: var(--coral); background: rgba(255,110,104,.12); }
     .score-card .neutral { color: var(--yellow); background: rgba(244,201,93,.12); }
+    .score-card .suspicious { color: #1a1300; background: var(--yellow); font-weight: 700; }
+    .score-card.suspicious-card { border-color: var(--yellow); box-shadow: 0 0 0 1px var(--yellow), 0 12px 30px rgba(0,0,0,.13); }
+    .score-card .sources { color: var(--ink); font-size: .76rem; margin-top: 8px; }
     .section-kicker { color: var(--pitch); font: 500 .74rem 'DM Mono', monospace; text-transform: uppercase; margin: 18px 0 8px; }
     .input-card-title { color: var(--ink); font: 700 1.1rem 'Space Grotesk', sans-serif; margin-bottom: 2px; }
     .input-card-subtitle { color: var(--muted); font-size: .82rem; margin-bottom: 12px; }
@@ -435,7 +438,7 @@ if parsed_preview is not None and st.session_state.get("input_touched", False):
         st.session_state.pop("automatic_prediction", None)
         st.session_state["automatic_prediction_signature"] = automatic_signature
         manual_config = config_from_input(parsed_preview)
-        manual_lambda, manual_mu, _ = expected_goals(manual_config)
+        manual_lambda, manual_mu, _ = final_goal_rates(manual_config)
         manual_auxiliary = {
             "home_corners_for": parsed_preview.home.corners_for,
             "home_corners_against": parsed_preview.home.corners_against,
@@ -635,11 +638,28 @@ if st.button("Esegui simulazione", type="primary", width="stretch"):
 if st.session_state.get("warnings"):
     st.warning("Fallback applicati: " + " · ".join(st.session_state["warnings"]))
 
+def _source_probabilities(event_name: str | None) -> str:
+    """Solo-mercato, solo-modello e finale per l'evento, dal risultato corrente."""
+    components = (st.session_state.get("result") or {}).get("components") or {}
+    if not event_name or event_name not in (components.get("finale") or {}):
+        return ""
+
+    def value(name: str) -> str:
+        source = components.get(name)
+        return f"{source[event_name]:.2f}%" if source and event_name in source else "—"
+
+    return (
+        f'<div class="sources">Solo mercato {value("mercato")} · Solo modello {value("modello")} · '
+        f'Finale {value("finale")}</div>'
+    )
+
+
 def _card(
     eyebrow: str,
     label: str,
     market: dict,
     financial: dict,
+    event_name: str | None = None,
 ) -> None:
     probability = float(market["percentage"])
     interval = market.get("confidence_interval_95", [0.0, 0.0])
@@ -657,6 +677,9 @@ def _card(
         comparison = f"Quota bookmaker {float(quote):.2f} · Implicita {float(implied):.2f}%"
         badge_class = "positive" if float(ev) > 0 else "negative"
         badge_text = f"VALORE +{float(ev):.2f}%" if float(ev) > 0 else f"EV {float(ev):.2f}%"
+        if financial.get("suspicious_value"):
+            badge_class = "suspicious"
+            badge_text += f" · valore sospetto: verifica i dati (scarto modello/mercato {financial['model_market_gap_pct']:.1f} punti)"
         badge = f'<span class="badge {badge_class}">{badge_text}</span>'
     fair_meta = f" · Quota equa {float(fair_odds):.3f}" if fair_odds is not None else " · Quota equa —"
     ev_meta = f" · EV {float(ev):+.2f}%" if ev is not None else " · EV —"
@@ -664,12 +687,13 @@ def _card(
     stake_meta = f" · Quarter-Kelly {float(stake):.2f}% bankroll" if stake is not None else " · Quarter-Kelly —"
     st.markdown(
         f"""
-        <div class="score-card">
+        <div class="score-card{' suspicious-card' if financial.get('suspicious_value') else ''}">
           <div class="eyebrow">{eyebrow}</div>
           <div class="confidence">Stabilità campionaria {reliability:.2f}% · Wilson 95% [{float(interval[0]):.2f}%, {float(interval[1]):.2f}%]</div>
           <div class="market">{label}</div>
           <div class="prob">{probability:.2f}%</div>
-          <div class="meta">Score Modello · {comparison}{fair_meta}{ev_meta}{push_meta}{stake_meta}</div>
+          {_source_probabilities(event_name)}
+          <div class="meta">Probabilità finale · {comparison}{fair_meta}{ev_meta}{push_meta}{stake_meta}</div>
           {badge}
         </div>
         """,
@@ -692,8 +716,11 @@ def _cards_section(
         for column, (key, market) in zip(card_columns, entries[start:start + columns]):
             event_name = event_names.get(key, key)
             financial = financial_rows.get(event_name, financial_rows.get(key.replace("_", " "), {}))
+            finale = ((st.session_state.get("result") or {}).get("components") or {}).get("finale") or {}
+            if event_name not in finale:
+                event_name = key.replace("_", " ")
             with column:
-                _card(title, labels.get(key, key), market, financial)
+                _card(title, labels.get(key, key), market, financial, event_name)
 
 
 def _catalog_cards_section(group: str, result: dict, financial_rows: dict) -> None:
@@ -709,7 +736,7 @@ def _catalog_cards_section(group: str, result: dict, financial_rows: dict) -> No
     st.markdown(f'<div class="section-kicker">{group.replace("_", " ").title()}</div>', unsafe_allow_html=True)
     for definition, market in entries:
         financial = financial_rows.get(definition.event_key, {})
-        _card(group.replace("_", " ").title(), definition.label, market, financial)
+        _card(group.replace("_", " ").title(), definition.label, market, financial, definition.event_key)
 
 
 result = st.session_state.get("result")
@@ -737,6 +764,17 @@ if result:
         "Non misurata",
         help="Il modello non è stato confrontato con risultati storici out-of-sample. La precisione Monte Carlo non equivale all’accuratezza delle previsioni.",
     )
+    anchoring = result.get("market_anchoring", {})
+    if anchoring.get("active"):
+        fit = anchoring["market"]
+        st.caption(
+            f'Gol attesi · modello λ {anchoring["model_lambda"]:.3f} / μ {anchoring["model_mu"]:.3f} · '
+            f'mercato λ {anchoring["market_lambda"]:.3f} / μ {anchoring["market_mu"]:.3f} '
+            f'(margine tolto con metodo {fit["method"]}, errore di adattamento max {fit["max_fit_error_pct"]:.2f} punti) · '
+            f'finale λ {model["lambda"]:.3f} / μ {model["mu"]:.3f}. {anchoring["reason"]}'
+        )
+    else:
+        st.caption(f'Gol attesi solo dal modello: {anchoring.get("reason", "ancoraggio non disponibile.")}')
     global_score = summary["most_likely_exact_score"]
     st.caption(
         f'Score più frequente senza vincolo sul segno: '
@@ -1130,7 +1168,16 @@ if result:
             f"EV {best_value['ev_pct']:+.2f}% · Quarter-Kelly "
             f"{best_value['recommended_stake_pct']:.2f}% del bankroll"
         )
-        st.dataframe(pd.DataFrame(value_bets), width="stretch")
+        value_frame = pd.DataFrame(value_bets)
+        st.dataframe(
+            value_frame.style.apply(
+                lambda row: ["background-color: rgba(244,201,93,.35)" if row.get("suspicious_value") else "" for _ in row],
+                axis=1,
+            ),
+            width="stretch",
+        )
+        if value_frame.get("suspicious_value", pd.Series(dtype=bool)).any():
+            st.warning("Righe in giallo: valore sospetto, verifica i dati. Modello e mercato divergono di oltre 10 punti.")
         st.caption(
             "Mostrate solo quote con EV positivo, ordinate dal valore atteso più alto. "
             "La quota equa dei mercati binari è 1 / probabilità simulata; per il DNB il calcolo include il push."
