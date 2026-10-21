@@ -1,0 +1,704 @@
+"""Transparent on-demand football probability engine.
+
+All predictions are derived from the supplied match input. No database,
+calendar, bookmaker fallback, narrative template, or hidden team defaults is
+used here.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+import math
+import re
+from typing import Any, Mapping
+
+import numpy as np
+from scipy.stats import poisson
+
+from market_catalog import MARKET_CATALOG, MULTIGOL_RANGES, definition_for_event
+from parser import MatchInput
+
+
+_DEFAULT_TEAM_MULTIGOL_RANGES = MULTIGOL_RANGES
+_TEAM_MULTIGOL_KEY = re.compile(r"^Multigol (?P<team>Casa|Ospite) (?P<low>\d+)-(?P<high>\d+)$")
+
+
+@dataclass(frozen=True)
+class TeamParams:
+    name: str
+    attack: float
+    defense: float
+    elo: float
+    form: str
+    xg_for: float
+    xg_against: float
+    corners_for: float
+    corners_against: float
+    cards_for: float
+
+
+@dataclass(frozen=True)
+class MatchConfig:
+    home: TeamParams
+    away: TeamParams
+    referee_yellow_avg: float
+    referee_fouls_avg: float
+    simulations: int = 100_000
+    seed: int = 42
+    home_advantage: float = 1.15
+    base_goals_home: float = 1.38
+    base_goals_away: float = 1.12
+    dixon_coles_rho: float = -0.11
+    odds: dict[str, float] | None = None
+
+
+def config_from_input(match: MatchInput, simulations: int = 100_000, seed: int = 42) -> MatchConfig:
+    def team(value: Any) -> TeamParams:
+        return TeamParams(
+            name=value.name,
+            attack=value.attack,
+            defense=value.defense,
+            elo=value.elo,
+            form=value.form,
+            xg_for=value.xg_for,
+            xg_against=value.xg_against,
+            corners_for=value.corners_for,
+            corners_against=value.corners_against,
+            cards_for=value.cards_for,
+        )
+
+    return MatchConfig(
+        home=team(match.home),
+        away=team(match.away),
+        referee_yellow_avg=match.referee.yellow_avg,
+        referee_fouls_avg=match.referee.fouls_avg,
+        simulations=simulations,
+        seed=seed,
+        odds=dict(match.odds),
+    )
+
+
+def _form_multiplier(form: str) -> float:
+    values = {"W": 1.06, "D": 1.0, "L": 0.94}
+    tokens = form.split("-")
+    weights = np.array([0.7 ** index for index in range(len(tokens) - 1, -1, -1)])
+    factors = np.array([values[token] for token in tokens])
+    return float(np.average(factors, weights=weights))
+
+
+def expected_goals(config: MatchConfig) -> tuple[float, float, dict[str, Any]]:
+    """Return lambda/mu and a complete, human-readable contribution ledger."""
+    elo_delta = config.home.elo - config.away.elo
+    elo_home = 10.0 ** (elo_delta / 2400.0)
+    elo_away = 10.0 ** (-elo_delta / 2400.0)
+    home_form = _form_multiplier(config.home.form)
+    away_form = _form_multiplier(config.away.form)
+
+    home_xg_signal = np.mean([config.home.xg_for / config.base_goals_home, config.away.xg_against / config.base_goals_home])
+    away_xg_signal = np.mean([config.away.xg_for / config.base_goals_away, config.home.xg_against / config.base_goals_away])
+    home_attack = (config.home.attack ** 0.35) * (1.0 / config.away.defense) ** 0.25
+    away_attack = (config.away.attack ** 0.35) * (1.0 / config.home.defense) ** 0.25
+    home_strength = home_attack * (home_xg_signal ** 0.20) * (home_form ** 0.10) * (elo_home ** 0.10)
+    away_strength = away_attack * (away_xg_signal ** 0.20) * (away_form ** 0.10) * (elo_away ** 0.10)
+    lambda_ = float(np.clip(config.base_goals_home * config.home_advantage * home_strength, 0.05, 5.0))
+    mu = float(np.clip(config.base_goals_away * away_strength, 0.05, 5.0))
+    ledger = {
+        "formula": "lambda = base_home * home_advantage * attack^0.35 * opponent_defense^-0.25 * xG^0.20 * form^0.10 * Elo^0.10",
+        "home": {"attack_signal": home_attack, "xg_signal": home_xg_signal, "form_multiplier": home_form, "elo_multiplier": elo_home},
+        "away": {"attack_signal": away_attack, "xg_signal": away_xg_signal, "form_multiplier": away_form, "elo_multiplier": elo_away},
+        "weights": {"attack": 0.35, "opponent_defense": 0.25, "xg": 0.20, "form": 0.10, "elo": 0.10},
+    }
+    return lambda_, mu, ledger
+
+
+def dixon_coles_matrix(lambda_: float, mu: float, rho: float, max_goals: int = 12) -> np.ndarray:
+    goals = np.arange(max_goals + 1)
+    matrix = np.outer(poisson.pmf(goals, lambda_), poisson.pmf(goals, mu))
+    corrections = {(0, 0): 1 - lambda_ * mu * rho, (0, 1): 1 + mu * rho, (1, 0): 1 + lambda_ * rho, (1, 1): 1 - rho}
+    for (home, away), factor in corrections.items():
+        if factor < 0.0:
+            raise ValueError("rho produce una probabilità Dixon-Coles negativa.")
+        matrix[home, away] *= factor
+    return matrix / matrix.sum()
+
+
+def _market(mask: np.ndarray) -> dict[str, Any]:
+    count = int(mask.sum())
+    interval = _confidence(mask)
+    probability = count / len(mask)
+    return {
+        "count": count,
+        "percentage": round(probability * 100.0, 2),
+        "fair_odds": round(1.0 / probability, 3) if probability > 0.0 else None,
+        "confidence_interval_95": interval,
+        "reliability_pct": _reliability(interval),
+    }
+
+
+def _confidence(mask: np.ndarray) -> list[float]:
+    n = len(mask)
+    p = float(mask.mean())
+    z = 1.96
+    denominator = 1 + z * z / n
+    center = (p + z * z / (2 * n)) / denominator
+    margin = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / denominator
+    return [round(max(0.0, center - margin) * 100, 2), round(min(1.0, center + margin) * 100, 2)]
+
+
+def _reliability(interval: list[float]) -> float:
+    """Convert a Wilson interval width into a sample-stability indicator."""
+    return round(float(np.clip(100.0 - (interval[1] - interval[0]), 0.0, 100.0)), 2)
+
+
+def _event_catalog(
+    home: np.ndarray,
+    away: np.ndarray,
+    first_home: np.ndarray,
+    first_away: np.ndarray,
+    second_home: np.ndarray,
+    second_away: np.ndarray,
+    home_corners: np.ndarray,
+    away_corners: np.ndarray,
+    home_cards: np.ndarray,
+    away_cards: np.ndarray,
+    team_multigol_ranges: tuple[tuple[int, int], ...] = _DEFAULT_TEAM_MULTIGOL_RANGES,
+) -> dict[str, np.ndarray]:
+    total = home + away
+    first_total = first_home + first_away
+    second_total = second_home + second_away
+    corners = home_corners + away_corners
+    cards = home_cards + away_cards
+    events = {
+        "1": home > away,
+        "1X": home >= away,
+        "12": home != away,
+        "X": home == away,
+        "X2": away >= home,
+        "2": home < away,
+        "Goal": (home > 0) & (away > 0),
+        "No Goal": (home == 0) | (away == 0),
+        "Goal 1T": (first_home > 0) & (first_away > 0),
+        "No Goal 1T": (first_home == 0) | (first_away == 0),
+        "Casa segna": home > 0,
+        "Casa non segna": home == 0,
+        "Ospite segna": away > 0,
+        "Ospite non segna": away == 0,
+        "Casa DNB": home > away,
+        "Ospite DNB": away > home,
+        "Casa DNB push": home == away,
+        "Ospite DNB push": home == away,
+        "BTTS entrambi i tempi": (first_home > 0) & (first_away > 0) & (second_home > 0) & (second_away > 0),
+        "BTTS almeno un tempo": ((first_home > 0) & (first_away > 0)) | ((second_home > 0) & (second_away > 0)),
+        "1 secondo tempo": second_home > second_away,
+        "X secondo tempo": second_home == second_away,
+        "2 secondo tempo": second_home < second_away,
+        "1X secondo tempo": second_home >= second_away,
+        "X2 secondo tempo": second_away >= second_home,
+        "12 secondo tempo": second_home != second_away,
+    }
+    for prefix, values in (("", total), ("1T ", first_total), ("2T ", second_total)):
+        for threshold in (0.5, 1.5, 2.5, 3.5, 4.5):
+            events[f"Over {threshold:g} gol {prefix}".strip()] = values > threshold
+            events[f"Under {threshold:g} gol {prefix}".strip()] = values < threshold
+    for team_name, values in (("Casa", home), ("Ospite", away)):
+        for threshold in (0.5, 1.5, 2.5):
+            events[f"{team_name} Over {threshold:g} gol"] = values > threshold
+            events[f"{team_name} Under {threshold:g} gol"] = values < threshold
+    for low, high in MULTIGOL_RANGES:
+        events[f"Multigol {low}-{high}"] = (total >= low) & (total <= high)
+    for team_name, values in (("Casa", home), ("Ospite", away)):
+        for low, high in team_multigol_ranges:
+            events[f"Multigol {team_name} {low}-{high}"] = (values >= low) & (values <= high)
+    for value in range(5):
+        events[f"Somma gol {value}"] = total == value
+    events["Somma gol 5+"] = total >= 5
+    for result_prefix, result_home, result_away in (
+        ("", home, away),
+        ("1T ", first_home, first_away),
+        ("2T ", second_home, second_away),
+    ):
+        events[f"1 {result_prefix}".strip()] = result_home > result_away
+        events[f"X {result_prefix}".strip()] = result_home == result_away
+        events[f"2 {result_prefix}".strip()] = result_home < result_away
+        events[f"1X {result_prefix}".strip()] = result_home >= result_away
+        events[f"X2 {result_prefix}".strip()] = result_away >= result_home
+        events[f"12 {result_prefix}".strip()] = result_home != result_away
+    for threshold in (7.5, 8.5, 9.5, 10.5, 11.5, 12.5):
+        events[f"Over {threshold:g} corner"] = corners > threshold
+        events[f"Under {threshold:g} corner"] = corners < threshold
+    for team_name, values in (("Casa", home_corners), ("Ospite", away_corners)):
+        for threshold in (2.5, 3.5, 4.5, 5.5, 6.5):
+            events[f"{team_name} Over {threshold:g} corner"] = values > threshold
+            events[f"{team_name} Under {threshold:g} corner"] = values < threshold
+    for threshold in (2.5, 3.5, 4.5, 5.5, 6.5):
+        events[f"Over {threshold:g} cartellini"] = cards > threshold
+        events[f"Under {threshold:g} cartellini"] = cards < threshold
+    for team_name, values in (("Casa", home_cards), ("Ospite", away_cards)):
+        for threshold in (1.5, 2.5, 3.5, 4.5):
+            events[f"{team_name} Over {threshold:g} cartellini"] = values > threshold
+            events[f"{team_name} Under {threshold:g} cartellini"] = values < threshold
+    events.update({
+        "1 corner": home_corners > away_corners,
+        "X corner": home_corners == away_corners,
+        "2 corner": home_corners < away_corners,
+        "1 cartellini": home_cards > away_cards,
+        "X cartellini": home_cards == away_cards,
+        "2 cartellini": home_cards < away_cards,
+    })
+    for first_result, second_result, label in (
+        ("1", "Over 1.5 gol", "1 + Over 1.5"),
+        ("1", "Over 2.5 gol", "1 + Over 2.5"),
+        ("1", "Over 3.5 gol", "1 + Over 3.5"),
+        ("X2", "Under 2.5 gol", "X2 + Under 2.5"),
+        ("X2", "Under 3.5 gol", "X2 + Under 3.5"),
+        ("1X", "Goal", "1X + Goal"),
+        ("1X", "No Goal", "1X + No Goal"),
+        ("2", "Goal", "2 + Goal"),
+        ("2", "No Goal", "2 + No Goal"),
+        ("1", "Multigol 1-3", "1 + Multigol 1-3"),
+    ):
+        events[label] = events[first_result] & events[second_result]
+    for low, high in MULTIGOL_RANGES:
+        events[f"1 + Multigol {low}-{high}"] = events["1"] & events[f"Multigol {low}-{high}"]
+        events[f"2 + Multigol {low}-{high}"] = events["2"] & events[f"Multigol {low}-{high}"]
+    return events
+
+
+def _team_multigol_ranges(odds: Mapping[str, float] | None) -> tuple[tuple[int, int], ...]:
+    """Return default plus every valid team range explicitly requested by odds."""
+    ranges = set(_DEFAULT_TEAM_MULTIGOL_RANGES)
+    for key in odds or {}:
+        match = _TEAM_MULTIGOL_KEY.fullmatch(key.strip())
+        if not match:
+            continue
+        low, high = int(match["low"]), int(match["high"])
+        if low <= high:
+            ranges.add((low, high))
+    return tuple(sorted(ranges))
+
+
+def _validate_event_catalog(events: Mapping[str, np.ndarray], simulations: int) -> None:
+    """Fail fast if any published market can disagree with the score sample."""
+    required_partitions = (
+        (("1", "X", "2"), "1X2"),
+        (("1X", "X2"), "double chance"),
+        (("Goal", "No Goal"), "goal/no goal"),
+    )
+    for keys, label in required_partitions:
+        masks = [events[key] for key in keys]
+        if any(len(mask) != simulations for mask in masks):
+            raise RuntimeError(f"Maschere {label} non allineate al campione dei gol.")
+    if not np.all(events["1"] | events["X"] | events["2"]):
+        raise RuntimeError("Il catalogo 1X2 non copre ogni risultato simulato.")
+    if np.any(events["1"] & events["X"]) or np.any(events["X"] & events["2"]) or np.any(events["1"] & events["2"]):
+        raise RuntimeError("Il catalogo 1X2 contiene esiti sovrapposti.")
+    if not np.array_equal(events["1X"], events["1"] | events["X"]):
+        raise RuntimeError("La doppia chance 1X non è coerente con il risultato esatto.")
+    if not np.array_equal(events["X2"], events["X"] | events["2"]):
+        raise RuntimeError("La doppia chance X2 non è coerente con il risultato esatto.")
+    if not np.array_equal(events["12"], events["1"] | events["2"]):
+        raise RuntimeError("La doppia chance 12 non è coerente con il risultato esatto.")
+    if not np.array_equal(events["Goal"], ~events["No Goal"]):
+        raise RuntimeError("Goal e No Goal non sono complementari.")
+    for threshold in (0.5, 1.5, 2.5, 3.5, 4.5):
+        over = events[f"Over {threshold:g} gol"]
+        under = events[f"Under {threshold:g} gol"]
+        if not np.array_equal(over, ~under):
+            raise RuntimeError(f"Over/Under {threshold:g} non è coerente con la somma gol.")
+    for value in range(5):
+        exact = events[f"Somma gol {value}"]
+        expected = (
+            ~events["Over 0.5 gol"]
+            if value == 0
+            else events[f"Over {value - 0.5:g} gol"] & ~events[f"Over {value + 0.5:g} gol"]
+        )
+        if not np.array_equal(exact, expected):
+            raise RuntimeError(f"Somma gol {value} non è coerente con Over/Under.")
+    if not np.array_equal(events["Somma gol 5+"], events["Over 4.5 gol"]):
+        raise RuntimeError("Somma gol 5+ non è coerente con Over 4.5.")
+
+
+def _probability(mask: np.ndarray) -> float:
+    return float(mask.mean())
+
+
+def _conditional_scenarios(
+    events: Mapping[str, np.ndarray], outcomes: Mapping[str, np.ndarray]
+) -> dict[str, dict[str, Any]]:
+    scenarios: dict[str, dict[str, Any]] = {}
+    for sign, condition in outcomes.items():
+        sample_count = int(condition.sum())
+        markets = {
+            market: round(float(mask[condition].mean()) * 100.0, 2)
+            if sample_count
+            else None
+            for market, mask in events.items()
+        }
+        scenarios[sign] = {
+            "sample_count": sample_count,
+            "sample_share_pct": round(sample_count / len(condition) * 100.0, 2),
+            "markets": markets,
+        }
+    return scenarios
+
+
+def financial_analysis(events: Mapping[str, np.ndarray], odds: Mapping[str, float] | None) -> dict[str, Any]:
+    """Calculate settlement-aware EV and quarter-Kelly stake for user odds."""
+    candidates: list[dict[str, Any]] = []
+    for market, raw_odd in (odds or {}).items():
+        if market not in events:
+            continue
+        try:
+            odd = float(raw_odd)
+        except (TypeError, ValueError):
+            continue
+        if not math.isfinite(odd) or odd <= 1.0:
+            continue
+        probability = _probability(events[market])
+        confidence_interval = _confidence(events[market])
+        definition = definition_for_event(market)
+        push_probability = _probability(events[f"{market} push"]) if definition and definition.settlement == "push" else 0.0
+        loss_probability = max(0.0, 1.0 - probability - push_probability)
+        non_push_probability = probability + loss_probability
+        conditional_win_probability = (
+            probability / non_push_probability if non_push_probability else 0.0
+        )
+        edge = conditional_win_probability - (1.0 / odd)
+        ev = probability * (odd - 1.0) - loss_probability
+        denominator = (odd - 1.0) * (probability + loss_probability)
+        full_kelly = max(0.0, (probability * (odd - 1.0) - loss_probability) / denominator) if denominator else 0.0
+        settlement_fair_odds = (
+            1.0 + loss_probability / probability if probability > 0 else None
+        )
+        fair_odds = settlement_fair_odds
+        candidates.append({
+            "market": market,
+            "odds": odd,
+            "simulated_probability_pct": round(probability * 100.0, 2),
+            "implied_probability_pct": round(100.0 / odd, 2),
+            "edge_pct": round(edge * 100.0, 2),
+            "ev_pct": round(ev * 100.0, 2),
+            "push_probability_pct": round(push_probability * 100.0, 2),
+            "loss_probability_pct": round(loss_probability * 100.0, 2),
+            "fair_odds": round(fair_odds, 3) if fair_odds is not None else None,
+            "settlement_fair_odds": (
+                round(settlement_fair_odds, 3)
+                if settlement_fair_odds is not None
+                else None
+            ),
+            "kelly_pct": round(full_kelly * 100.0, 2),
+            "kelly_fraction": 0.25,
+            "recommended_quarter_kelly_pct": round(full_kelly * 25.0, 2),
+            "recommended_stake_pct": round(full_kelly * 25.0, 2),
+            "confidence_interval_95": confidence_interval,
+            "reliability_pct": _reliability(confidence_interval),
+            "is_value": ev > 0.0,
+        })
+    candidates.sort(key=lambda item: (item["ev_pct"], item["edge_pct"]), reverse=True)
+    value_bets = [item for item in candidates if item["ev_pct"] > 0.0]
+    return {
+        "quotes_provided": len(candidates),
+        "markets": candidates,
+        "value_bets": value_bets,
+        "best_value": value_bets[0] if value_bets else None,
+        "value_threshold_ev_pct": 0.0,
+        "risk_note": "Kelly è una stima sensibile all'errore del modello; viene mostrato un quarto Kelly, non una garanzia.",
+    }
+
+
+def smart_combo(events: Mapping[str, np.ndarray], odds: Mapping[str, float] | None) -> dict[str, Any]:
+    """Rank every quoted two-leg combination by value and stability."""
+    if not odds:
+        return {"status": "no_quotes", "legs": [], "message": "Inserire almeno due quote per calcolare una schedina."}
+    options: list[dict[str, Any]] = []
+    available = [
+        market
+        for market in odds
+        if market in events
+        and definition_for_event(market)
+        and definition_for_event(market).settlement != "push"
+        and " + " not in market
+    ]
+    for index, first in enumerate(available):
+        for second in available[index + 1:]:
+            if first == second:
+                continue
+            try:
+                odd_a, odd_b = float(odds[first]), float(odds[second])
+            except (TypeError, ValueError):
+                continue
+            if odd_a <= 1.0 or odd_b <= 1.0:
+                continue
+            joint = events[first] & events[second]
+            probability = _probability(joint)
+            total_odd = odd_a * odd_b
+            ev = probability * total_odd - 1.0
+            if ev <= 0.0:
+                continue
+            confidence_interval = _confidence(joint)
+            denominator = total_odd - 1.0
+            full_kelly = max(0.0, ev / denominator) if denominator else 0.0
+            reliability = _reliability(confidence_interval)
+            options.append({
+                "legs": [first, second],
+                "odds": [odd_a, odd_b],
+                "combined_odds": round(total_odd, 3),
+                "simulated_probability_pct": round(probability * 100.0, 2),
+                "ev_pct": round(ev * 100.0, 2),
+                "joint_count": int(joint.sum()),
+                "kelly_pct": round(full_kelly * 100.0, 2),
+                "kelly_fraction": 0.25,
+                "recommended_quarter_kelly_pct": round(full_kelly * 25.0, 2),
+                "recommended_stake_pct": round(full_kelly * 25.0, 2),
+                "confidence_interval_95": confidence_interval,
+                "reliability_pct": reliability,
+                "risk_reward_score": round(ev * (reliability / 100.0), 6),
+                "is_value": True,
+            })
+    options.sort(key=lambda item: (item["risk_reward_score"], item["ev_pct"]), reverse=True)
+    return {
+        "status": "ready" if options else "insufficient_quotes",
+        "recommendation": options[0] if options else None,
+        "candidates": options,
+        "message": "La probabilità è congiunta sui campioni simulati, non il prodotto di probabilità indipendenti.",
+    }
+
+
+def _catalog_markets(events: Mapping[str, np.ndarray]) -> dict[str, dict[str, dict[str, Any]]]:
+    """Materialize every catalog definition from the shared event namespace."""
+    groups: dict[str, dict[str, dict[str, Any]]] = {}
+    for definition in MARKET_CATALOG:
+        if definition.event_key not in events:
+            continue
+        groups.setdefault(definition.group, {})[definition.key] = _market(events[definition.event_key])
+    return groups
+
+
+def statistical_report(config: MatchConfig, result: Mapping[str, Any]) -> str:
+    """Generate a metric-only contextual report, with no fixed football claims."""
+    model = result["model"]
+    summary = result["summary"]
+    markets = result["markets"]
+    home, away = config.home.name, config.away.name
+    p1, px, p2 = (markets["1x2"][key]["percentage"] for key in ("1", "X", "2"))
+    leader = home if p1 >= max(px, p2) else away if p2 >= px else "il pareggio"
+    score = summary["modal_score"]
+    xg_gap = model["lambda"] - model["mu"]
+    direction = "favore casa" if xg_gap > 0 else "favore ospite" if xg_gap < 0 else "equilibrato"
+    return (
+        f"Sintesi statistica: {leader} è l'esito 1X2 più frequente "
+        f"({max(p1, px, p2):.2f}%). λ={model['lambda']:.3f}, μ={model['mu']:.3f}, "
+        f"scarto xG {xg_gap:+.3f} ({direction}). Score modale "
+        f"{score['home']}-{score['away']} nel {score['share_pct']:.2f}% dei campioni. "
+        f"Over 2.5: {markets['over_under']['Over_2.5']['percentage']:.2f}%; "
+        f"Goal: {markets['goal_no_goal']['Goal']['percentage']:.2f}%. "
+        f"Il risultato è descrittivo della simulazione, non una certezza."
+    )
+
+
+def simulate_match(config: MatchConfig) -> dict[str, Any]:
+    """Run one reproducible sample and derive every score market from it.
+
+    ``goals_home`` and ``goals_away`` are created once per simulation.  No
+    market below samples goals again, so all score-dependent probabilities are
+    projections of the same exact-score observations.
+    """
+    lambda_, mu, ledger = expected_goals(config)
+    rng = np.random.default_rng(config.seed)
+    max_goals = max(
+        12,
+        int(max(poisson.ppf(1.0 - 1e-12, lambda_), poisson.ppf(1.0 - 1e-12, mu))),
+    )
+    score_probabilities = dixon_coles_matrix(
+        lambda_, mu, config.dixon_coles_rho, max_goals=max_goals
+    )
+    score_samples = rng.choice(
+        score_probabilities.size,
+        size=config.simulations,
+        p=score_probabilities.ravel(),
+    )
+    goals_home, goals_away = np.unravel_index(score_samples, score_probabilities.shape)
+
+    # Split each full-time score across halves so every partial-time outcome
+    # reconciles exactly with the final score.
+    first_home = rng.binomial(goals_home, 0.5)
+    first_away = rng.binomial(goals_away, 0.5)
+    second_home = goals_home - first_home
+    second_away = goals_away - first_away
+
+    # Estimate each team's corners from its average won and its opponent's
+    # average conceded, then sample and allocate one match total.
+    home_corner_signal = (config.home.corners_for + config.away.corners_against) / 2.0
+    away_corner_signal = (config.away.corners_for + config.home.corners_against) / 2.0
+    lambda_corners = home_corner_signal + away_corner_signal
+    corners = rng.poisson(lambda_corners, config.simulations)
+    home_corner_share = (
+        home_corner_signal / lambda_corners if lambda_corners > 0.0 else 0.5
+    )
+    home_corners = rng.binomial(corners, home_corner_share)
+    away_corners = corners - home_corners
+
+    # Team card propensity is adjusted by the referee's observed severity:
+    # yellow average is the level factor and fouls average is the tempo factor.
+    foul_factor = max(0.0, config.referee_fouls_avg / 24.0)
+    referee_severity = max(0.0, config.referee_yellow_avg / 4.5)
+    card_total_mean = max(
+        0.0,
+        (config.home.cards_for + config.away.cards_for)
+        * referee_severity
+        * foul_factor,
+    )
+    cards = rng.poisson(card_total_mean, config.simulations)
+    card_signal_total = max(0.0, config.home.cards_for + config.away.cards_for)
+    home_card_share = (
+        config.home.cards_for / card_signal_total if card_signal_total > 0.0 else 0.5
+    )
+    home_cards = rng.binomial(cards, home_card_share)
+    away_cards = cards - home_cards
+
+    total = goals_home + goals_away
+    events = _event_catalog(
+        goals_home, goals_away, first_home, first_away, second_home, second_away,
+        home_corners, away_corners, home_cards, away_cards,
+        _team_multigol_ranges(getattr(config, "odds", None)),
+    )
+    for market in getattr(config, "odds", {}) or {}:
+        if " + " not in market:
+            continue
+        legs = market.split(" + ")
+        if len(legs) != 2 or any(leg not in events for leg in legs):
+            raise ValueError(f"Combo {market}: una o più gambe non sono supportate dal motore.")
+        events[market] = events[legs[0]] & events[legs[1]]
+    _validate_event_catalog(events, config.simulations)
+    markets = {
+        "1x2": {key: _market(events[key]) for key in ("1", "X", "2")},
+        "double_chance": {key: _market(events[key]) for key in ("1X", "X2", "12")},
+        "first_half_1x2": {key: _market(events[f"{key} 1T"]) for key in ("1", "X", "2")},
+        "first_half_double_chance": {key: _market(events[f"{key} 1T"]) for key in ("1X", "X2", "12")},
+        "second_half_1x2": {key: _market(events[f"{key} 2T"]) for key in ("1", "X", "2")},
+        "second_half_double_chance": {key: _market(events[f"{key} 2T"]) for key in ("1X", "X2", "12")},
+        "draw_no_bet": {"Casa": _market(events["Casa DNB"]), "Ospite": _market(events["Ospite DNB"])},
+        "over_under": {
+            **{f"Over_{threshold}": _market(events[f"Over {threshold:g} gol"]) for threshold in (0.5, 1.5, 2.5, 3.5, 4.5)},
+            **{f"Under_{threshold}": _market(events[f"Under {threshold:g} gol"]) for threshold in (0.5, 1.5, 2.5, 3.5, 4.5)},
+        },
+        "first_half_over_under": {
+            **{f"Over_{threshold}": _market(events[f"Over {threshold:g} gol 1T"]) for threshold in (0.5, 1.5)},
+            **{f"Under_{threshold}": _market(events[f"Under {threshold:g} gol 1T"]) for threshold in (0.5, 1.5)},
+        },
+        "team_goals": {key: _market(events[key]) for key in events if key.startswith(("Casa ", "Ospite ")) and "gol" in key},
+        "multigol": {
+            key.replace("Multigol ", ""): _market(events[f"Multigol {key}"])
+            for key in ("1-2", "1-3", "2-4", "2-5")
+        },
+        "multigol_complete": {key.replace("Multigol ", ""): _market(value) for key, value in events.items() if key.startswith("Multigol ") and key.count(" ") == 1},
+        "team_multigol": {
+            key.replace("Multigol ", ""): _market(value)
+            for key, value in events.items()
+            if key.startswith("Multigol ") and key.count(" ") == 2
+        },
+        "goal_no_goal": {"Goal": _market(events["Goal"]), "No_Goal": _market(events["No Goal"])},
+        "first_half_goal_no_goal": {"Goal": _market(events["Goal 1T"]), "No_Goal": _market(events["No Goal 1T"])},
+        "goal_sums": {str(value): _market(events[f"Somma gol {value}"]) for value in range(5)} | {"5+": _market(events["Somma gol 5+"])},
+        "team_scoring": {key: _market(events[key]) for key in ("Casa segna", "Casa non segna", "Ospite segna", "Ospite non segna")},
+        "both_teams": {key: _market(events[key]) for key in ("BTTS entrambi i tempi", "BTTS almeno un tempo")},
+        "combos": {key: _market(value) for key, value in events.items() if " + " in key},
+        "corners": {
+            "mean": round(float(corners.mean()), 3),
+            **{f"Over_{threshold:g}": _market(events[f"Over {threshold:g} corner"]) for threshold in (7.5, 8.5, 9.5, 10.5, 11.5, 12.5)},
+            **{f"Under_{threshold:g}": _market(events[f"Under {threshold:g} corner"]) for threshold in (7.5, 8.5, 9.5, 10.5, 11.5, 12.5)},
+        },
+        "cards": {
+            "mean": round(float(cards.mean()), 3),
+            **{f"Over_{threshold:g}": _market(events[f"Over {threshold:g} cartellini"]) for threshold in (2.5, 3.5, 4.5, 5.5, 6.5)},
+            **{f"Under_{threshold:g}": _market(events[f"Under {threshold:g} cartellini"]) for threshold in (2.5, 3.5, 4.5, 5.5, 6.5)},
+        },
+        "corner_1x2": {key: _market(events[f"{key} corner"]) for key in ("1", "X", "2")},
+        "team_corners": {key.replace(" ", "_"): _market(value) for key, value in events.items() if key.startswith(("Casa ", "Ospite ")) and "corner" in key},
+        "card_1x2": {key: _market(events[f"{key} cartellini"]) for key in ("1", "X", "2")},
+        "team_cards": {key.replace(" ", "_"): _market(value) for key, value in events.items() if key.startswith(("Casa ", "Ospite ")) and "cartellini" in key},
+    }
+    markets["catalog"] = _catalog_markets(events)
+    outcomes = {"1": goals_home > goals_away, "X": goals_home == goals_away, "2": goals_home < goals_away}
+    conditional_scenarios = _conditional_scenarios(events, outcomes)
+    score_pairs, counts = np.unique(np.column_stack((goals_home, goals_away)), axis=0, return_counts=True)
+    overall_mode_index = int(np.argmax(counts))
+    overall_mode = score_pairs[overall_mode_index]
+    favorite_sign = max(outcomes, key=lambda sign: int(outcomes[sign].sum()))
+    favorite_mask = outcomes[favorite_sign]
+    favorite_pairs, favorite_counts = np.unique(
+        np.column_stack((goals_home[favorite_mask], goals_away[favorite_mask])),
+        axis=0,
+        return_counts=True,
+    )
+    favorite_mode_index = int(np.argmax(favorite_counts))
+    mode = favorite_pairs[favorite_mode_index]
+    fixed_score_mask = (goals_home == mode[0]) & (goals_away == mode[1])
+    fixed_score_scenario = _conditional_scenarios(events, {"score": fixed_score_mask})["score"]
+    result = {
+        "input": {"home": config.home.__dict__, "away": config.away.__dict__, "referee_yellow_avg": config.referee_yellow_avg, "referee_fouls_avg": config.referee_fouls_avg},
+        "model": {"lambda": round(lambda_, 6), "mu": round(mu, 6), "dixon_coles_rho": config.dixon_coles_rho, "simulation_count": config.simulations, "seed": config.seed, "formula_ledger": ledger},
+        "markets": markets,
+        "conditional_scenarios": conditional_scenarios,
+        "fixed_score_scenario": fixed_score_scenario,
+        "summary": {
+            "favorite_sign": favorite_sign,
+            "favorite_sign_probability_pct": round(
+                _probability(favorite_mask) * 100.0, 2
+            ),
+            "modal_score": {
+                "home": int(mode[0]),
+                "away": int(mode[1]),
+                "share_pct": round(float(favorite_counts[favorite_mode_index] / config.simulations * 100), 2),
+                "conditional_share_pct": round(
+                    float(favorite_counts[favorite_mode_index] / favorite_mask.sum() * 100), 2
+                ),
+            },
+            "most_likely_exact_score": {
+                "home": int(overall_mode[0]),
+                "away": int(overall_mode[1]),
+                "share_pct": round(float(counts[overall_mode_index] / config.simulations * 100), 2),
+            },
+            "confidence_intervals_95": {key: _confidence(mask) for key, mask in outcomes.items()},
+        },
+    }
+    interval_width = np.mean([
+        bounds[1] - bounds[0]
+        for bounds in result["summary"]["confidence_intervals_95"].values()
+    ])
+    result["summary"]["reliability"] = {
+        "index_pct": round(float(np.clip(100.0 - interval_width, 0.0, 100.0)), 2),
+        "method": "100 - media ampiezza degli intervalli Wilson 95% sugli esiti 1X2",
+        "warning": "La stabilità Monte Carlo non misura la qualità degli input né l'incertezza strutturale del modello.",
+        "sampling_stability_pct": round(float(np.clip(100.0 - interval_width, 0.0, 100.0)), 2),
+        "model_uncertainty": "Non stimata: richiede una distribuzione sui parametri e validazione out-of-sample.",
+    }
+    result["financial"] = financial_analysis(events, getattr(config, "odds", None))
+    result["smart_combo"] = smart_combo(events, getattr(config, "odds", None))
+    result["statistical_report"] = statistical_report(config, result)
+    result["dashboard"] = {
+        "goals_distribution": {
+            "goals": [*(str(value) for value in range(8)), "8+"],
+            "home": [
+                round(float(np.mean(np.minimum(goals_home, 8) == value) * 100), 2)
+                for value in range(9)
+            ],
+            "away": [
+                round(float(np.mean(np.minimum(goals_away, 8) == value) * 100), 2)
+                for value in range(9)
+            ],
+        },
+        "exact_score_distribution": {
+            "labels": [*(str(value) for value in range(8)), "8+"],
+            "probabilities_pct": np.bincount(
+                np.minimum(goals_home, 8) * 9 + np.minimum(goals_away, 8),
+                minlength=81,
+            ).reshape(9, 9).astype(float).__truediv__(config.simulations).__mul__(100).round(3).tolist(),
+        },
+        "strength_comparison": {
+            "labels": ["Attacco", "Difesa inversa", "xG fatti", "xG subiti", "Elo normalizzato"],
+            "home": [config.home.attack, 1 / config.home.defense, config.home.xg_for, config.home.xg_against, config.home.elo / 1500],
+            "away": [config.away.attack, 1 / config.away.defense, config.away.xg_for, config.away.xg_against, config.away.elo / 1500],
+        },
+    }
+    return result
