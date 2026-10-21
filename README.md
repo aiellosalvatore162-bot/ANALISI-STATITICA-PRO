@@ -58,6 +58,43 @@ Per corner e gialli la stima candidata miscela medie per squadra delle ultime
 ancora la dipendenza dal punteggio, gli infortuni o l'effetto partita sulle
 statistiche disciplinari; i relativi baseline del backtest sono diagnostici.
 
+## Dati automatici
+
+La modalità **Dati automatici** compila il blocco di input da fonti gratuite,
+nel formato attuale del parser; sotto ogni riga squadra un commento `# Fonti:`
+(ignorato dal parser) riporta fonte, data di aggiornamento e ultima partita
+inclusa di ogni valore, e una tabella li mostra con gli avvisi. Il blocco resta
+modificabile a mano.
+
+| Fonte | Stato (21/10/2026) | Cosa fornisce |
+|---|---|---|
+| ClubElo | API `api.clubelo.com` in errore 502; pagine `clubelo.com/<Squadra>` funzionanti | Elo pre-partita dallo storico datato (tutte le squadre europee) |
+| Understat | funzionante (`getLeagueData`) | xG, xGA, PPDA, deep completions dei 5 campionati top |
+| football-data.co.uk | funzionante | risultati, quote, corner, cartellini, falli, primo tempo, calendario con quote; arbitri solo Premier League |
+| football-data.org | richiede `FOOTBALL_DATA_KEY` in `st.secrets` (saltata se manca) | calendario e Champions League |
+| FBref | 403, accesso bloccato (soccerdata richiede Chrome) | non usata |
+
+- Statistiche per squadra separate casa/trasferta sulle ultime N gare (default
+  10) pesate per recenza (emivita configurabile); i valori nel blocco sono
+  riportati alla media generale della lega per non contare due volte il
+  vantaggio casa. Per le squadre di coppa si usano i dati del campionato
+  nazionale e l'Elo ClubElo come confronto tra campionati.
+- Arbitro: gialli e falli medi di campionato avvicinati alla media della
+  competizione con peso 10 partite; sotto 10 partite il dato è segnalato come
+  poco affidabile. Coppe europee: nessuna fonte gratuita con gli arbitri.
+- Cache SQLite in `data/cache/sources.sqlite` con pausa minima tra richieste;
+  se una fonte non risponde si usa l'ultimo dato in cache con un avviso.
+- I dati più vecchi della soglia (24 ore, configurabile) vengono riscaricati
+  quando si seleziona o si crea una partita; **Aggiorna dati** forza il
+  download. L'aggiornamento avviene solo all'apertura o alla selezione (su
+  Streamlit Cloud l'app si addormenta). Un avviso segnala se ClubElo conosce
+  una partita più recente dell'ultima inclusa nelle statistiche.
+
+La modalità **Crea partita** compila i campi disponibili per due squadre
+qualsiasi, lascia vuoti ed evidenziati quelli mancanti, accetta un blocco
+incollato, controlla la plausibilità (es. xG 25 invece di 2.5, Elo fuori range,
+quote sotto 1.01) e salva la partita nel database come «inserita manualmente».
+
 ## Input
 
 ```text
