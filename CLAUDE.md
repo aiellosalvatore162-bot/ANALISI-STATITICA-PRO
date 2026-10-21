@@ -77,5 +77,9 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
 - Profili di stile in `datasources/style.py` (z-score per campionato, cache
   SQLite); archetipi in `config/style_archetypes.json`, rigenerati con
   `python -m tools.style`.
+- Avversari simili in `datasources/similar.py` (profilo al momento della
+  partita, niente dati futuri); validazione e scelta delle correzioni attive con
+  `python -m tools.tactical` (scrive `docs/STILI.md` e la sezione
+  `scenario_tattico` della configurazione).
 - Le fonti remote devono degradare con un avviso (come `historical.py` ricade
   al 100% manuale), mai bloccare la simulazione manuale.
