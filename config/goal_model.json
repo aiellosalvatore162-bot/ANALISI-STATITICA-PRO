@@ -64,7 +64,10 @@
       "devig_method": "shin",
       "correction_min": 0.8,
       "correction_max": 1.2,
-      "suspicious_gap_pct": 10.0
+      "suspicious_gap_pct": 10.0,
+      "no_value_markets": [
+        "X"
+      ]
     },
     "taratura": {
       "data": "2026-10-21",
@@ -170,6 +173,7 @@
           "fuori campione 2026-27": 1.57249
         }
       ]
-    }
+    },
+    "nota_pareggio": "Shin non sovrastima la X (vedi docs/BASELINE.md, analisi del pareggio); i VALORE sul pareggio nascono dallo scarto tra la X quotata e quella di Poisson + Dixon-Coles e hanno reso in perdita: non vengono segnalati."
   }
 }

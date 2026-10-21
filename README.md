@@ -215,6 +215,12 @@ Ogni card mostra probabilità solo-mercato, solo-modello e finale. Un `VALORE`
 in cui modello e mercato divergono di oltre 10 punti è evidenziato in giallo
 con la scritta "valore sospetto: verifica i dati".
 
+Il pareggio (`X`) non viene mai segnalato come `VALORE` (`no_value_markets` in
+`config/goal_model.json`): sulle quote di chiusura storiche quei segnali hanno
+reso in perdita perché Poisson + Dixon-Coles non riproduce esattamente la X
+quotata. L'EV resta visibile nell'audit. Il confronto per esito tra Shin e
+metodo proporzionale si rigenera con `python -m tools.baseline --analisi-pareggio`.
+
 `python -m tools.baseline --label ... --output docs/BASELINE.md` misura Brier,
 log-loss e calibrazione di 1X2, Over 2.5 e GG e l'errore sulle medie di corner
 e cartellini, confrontandoli con le quote di chiusura senza margine. I

@@ -25,7 +25,7 @@ from dataclasses import asdict, fields, replace
 from datetime import date
 import json
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 import numpy as np
 import pandas as pd
@@ -39,6 +39,7 @@ EVALUATION_SETS = {
     "fuori campione 2026-27": dataset.HOLDOUT_SEASONS,
 }
 FAVORITE_THRESHOLD = 0.70
+SIGNS = ("1", "X", "2")
 ANCHOR_WEIGHTS = (0.5, 0.6, 0.7, 0.8, 0.9)
 
 
@@ -172,7 +173,25 @@ def predict(features: pd.DataFrame, *, anchored: bool = False, **overrides: Any)
 
 # --- Valutazione --------------------------------------------------------------
 
-def evaluate(features: pd.DataFrame, predictions: pd.DataFrame) -> dict[str, Any]:
+def value_returns(probabilities: np.ndarray, odds: np.ndarray, outcomes: np.ndarray,
+                  no_value: Sequence[str] = ()) -> dict[str, dict[str, float]]:
+    """Segnali VALORE 1X2 (EV > 0 alla quota data) e rendimento puntando 1 su ognuno."""
+    value = probabilities * odds - 1.0 > 0.0
+    for index, sign in enumerate(SIGNS):
+        if sign in no_value:
+            value[:, index] = False
+    won = np.eye(3, dtype=bool)[outcomes]
+    profit = np.where(won, odds - 1.0, -1.0)
+    report = {
+        sign: {"n": int(value[:, index].sum()),
+               "roi": float(profit[value[:, index], index].mean()) if value[:, index].any() else float("nan")}
+        for index, sign in enumerate(SIGNS)
+    }
+    report["totale"] = {"n": int(value.sum()), "roi": float(profit[value].mean()) if value.any() else float("nan")}
+    return report
+
+
+def evaluate(features: pd.DataFrame, predictions: pd.DataFrame, no_value: Sequence[str] = ()) -> dict[str, Any]:
     has_odds = features[["close_home", "close_draw", "close_away", "close_over25", "close_under25"]].gt(1.0).all(axis=1)
     data, model = features[has_odds], predictions[has_odds]
     outcome_1x2 = np.select(
@@ -187,9 +206,7 @@ def evaluate(features: pd.DataFrame, predictions: pd.DataFrame) -> dict[str, Any
     market_over = de_vig(data["close_under25"], data["close_over25"])
 
     odds_1x2 = data[["close_home", "close_draw", "close_away"]].to_numpy(float)
-    value = model_1x2 * odds_1x2 - 1.0 > 0.0
-    won = np.eye(3, dtype=bool)[outcome_1x2]
-    profit = np.where(won, odds_1x2 - 1.0, -1.0)
+    returns = value_returns(model_1x2, odds_1x2, outcome_1x2, no_value)
 
     favorite = market_1x2.max(axis=1) >= FAVORITE_THRESHOLD
     favorite_index = market_1x2.argmax(axis=1)
@@ -209,9 +226,10 @@ def evaluate(features: pd.DataFrame, predictions: pd.DataFrame) -> dict[str, Any
             "modello": float(model_1x2[rows, favorite_index][favorite].mean()) if favorite.any() else float("nan"),
         },
         "valore_1x2": {
-            "segnali_per_partita": float(value.sum() / len(data)),
-            "per_esito": {sign: int(value[:, index].sum()) for index, sign in enumerate(("1", "X", "2"))},
-            "roi": float(profit[value].mean()) if value.any() else float("nan"),
+            "segnali_per_partita": returns["totale"]["n"] / len(data),
+            "per_esito": {sign: returns[sign]["n"] for sign in SIGNS},
+            "roi": returns["totale"]["roi"],
+            "esclusi": list(no_value),
         },
         "corner_mae": float(np.mean(np.abs(model["corner_mean"].to_numpy() - actual_corners)[corner_mask])),
         "cartellini_mae": float(np.mean(np.abs(model["card_mean"].to_numpy() - actual_cards)[card_mask])),
@@ -247,7 +265,8 @@ def render_markdown(label: str, description: str, results: Mapping[str, dict[str
             f"- Segnali VALORE 1X2 alle quote di chiusura: {_fmt(result['valore_1x2']['segnali_per_partita'], 2)} "
             f"per partita (1: {result['valore_1x2']['per_esito']['1']}, X: {result['valore_1x2']['per_esito']['X']}, "
             f"2: {result['valore_1x2']['per_esito']['2']}); rendimento medio puntando 1 su ciascuno: "
-            f"{_fmt(result['valore_1x2']['roi'] * 100, 1)}%.",
+            f"{_fmt(result['valore_1x2']['roi'] * 100, 1)}%"
+            + (f" (VALORE non segnalato su: {', '.join(result['valore_1x2']['esclusi'])})." if result['valore_1x2']['esclusi'] else "."),
             f"- Errore medio assoluto sulla media corner: {_fmt(result['corner_mae'], 2)}; "
             f"cartellini gialli: {_fmt(result['cartellini_mae'], 2)}.",
             "",
@@ -268,8 +287,11 @@ def load_usable_features() -> pd.DataFrame:
 def run(overrides: Mapping[str, Any] | None = None, *, anchored: bool = False) -> dict[str, dict[str, Any]]:
     features = load_usable_features()
     predictions = predict(features, anchored=anchored, **(overrides or {}))
+    no_value = engine.DEFAULT_MARKET_ANCHOR.no_value_markets if anchored else ()
     return {
-        name: evaluate(features[features["season"].isin(seasons)], predictions[features["season"].isin(seasons)])
+        name: evaluate(
+            features[features["season"].isin(seasons)], predictions[features["season"].isin(seasons)], no_value
+        )
         for name, seasons in EVALUATION_SETS.items()
     }
 
@@ -367,15 +389,83 @@ def render_tuning(tuning: Mapping[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def draw_analysis(features: pd.DataFrame) -> str:
+    """Confronta i metodi di margine per esito (1, X, 2) e il rendimento dei VALORE 1X2."""
+    from tools.calibrate import market_probabilities, outcomes, score_matrices
+
+    has_odds = features[["close_home", "close_draw", "close_away", "close_over25", "close_under25"]].gt(1.0).all(axis=1)
+    evaluated = features["season"].isin([season for seasons in EVALUATION_SETS.values() for season in seasons])
+    features = features[has_odds & evaluated]
+    rows = features.to_dict("records")
+    rho = engine.DEFAULT_GOAL_PARAMS.dixon_coles_rho
+    odds = features[["close_home", "close_draw", "close_away"]].to_numpy(float)
+    result, _ = outcomes(features)
+    model = np.array([engine.expected_goals(config_for_row(row))[:2] for row in rows])
+    weight = engine.DEFAULT_MARKET_ANCHOR.market_weight
+
+    sources: dict[str, np.ndarray] = {}
+    for method in engine.DEVIG_METHODS:
+        sources[f"quote senza margine · {method}"] = np.array([engine.remove_margin(row, method) for row in odds])
+    for method in engine.DEVIG_METHODS:
+        market = np.array([
+            [fit["lambda"], fit["mu"]]
+            for fit in (engine.market_goal_rates(closing_odds(row), method, rho) for row in rows)
+        ])
+        sources[f"Dixon-Coles adattato al mercato · {method}"] = market_probabilities(
+            score_matrices(market[:, 0], market[:, 1], rho))["1x2"]
+        params = replace(engine.MarketAnchorParams(), market_weight=weight, devig_method=method)
+        lambda_, mu, *_ = engine.anchor_goal_rates(model[:, 0], model[:, 1], market[:, 0], market[:, 1], params)
+        sources[f"finale (peso {weight:g}) · {method}"] = market_probabilities(score_matrices(lambda_, mu, rho))["1x2"]
+
+    final_name = f"finale (peso {weight:g}) · shin"
+    scenarios = {
+        f"PRIMA: finale shin, VALORE su 1, X e 2": (sources[final_name], ()),
+        f"alternativa: finale proporzionale": (sources[f"finale (peso {weight:g}) · proporzionale"], ()),
+        f"DOPO: finale shin, nessun VALORE sul pareggio": (sources[final_name], ("X",)),
+    }
+    lines = [
+        "## Analisi del pareggio (1, X, 2 separati)", "",
+        f"Generato il {date.today():%d/%m/%Y} con `python -m tools.baseline --analisi-pareggio`. "
+        "Probabilità media prevista contro frequenza osservata; i VALORE sono calcolati alle quote "
+        "di chiusura (con margine) puntando 1 su ciascun segnale.", "",
+    ]
+    for set_name, seasons in EVALUATION_SETS.items():
+        mask = features["season"].isin(seasons).to_numpy()
+        observed = np.eye(3)[result[mask]].mean(axis=0)
+        lines += [
+            f"### {set_name} ({int(mask.sum())} partite; osservato 1 {observed[0]:.1%}, X {observed[1]:.1%}, 2 {observed[2]:.1%})", "",
+            "| Fonte | 1 prevista | X prevista | 2 prevista | Scarto X (punti) | Log-loss 1X2 |", "|---|---|---|---|---|---|",
+        ]
+        for name, probabilities in sources.items():
+            mean = probabilities[mask].mean(axis=0)
+            lines.append(
+                f"| {name} | {mean[0]:.1%} | {mean[1]:.1%} | {mean[2]:.1%} | "
+                f"{(mean[1] - observed[1]) * 100:+.2f} | {log_loss(probabilities[mask], result[mask]):.4f} |"
+            )
+        lines += ["", "| Scenario VALORE | 1: n / rend. | X: n / rend. | 2: n / rend. | Totale: n / rend. |", "|---|---|---|---|---|"]
+        for name, (probabilities, no_value) in scenarios.items():
+            returns = value_returns(probabilities[mask], odds[mask], result[mask], no_value)
+            cells = [
+                f"{returns[key]['n']} / " + ("—" if returns[key]["n"] == 0 else f"{returns[key]['roi'] * 100:.1f}%")
+                for key in (*SIGNS, "totale")
+            ]
+            lines.append(f"| {name} | " + " | ".join(cells) + " |")
+        lines.append("")
+    return "\n".join(lines)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--label", help="Titolo della sezione, es. PRIMA o DOPO")
     parser.add_argument("--goal-model", help="Valore di MatchConfig.goal_model (se supportato)")
     parser.add_argument("--ancorato", action="store_true", help="Passa le quote di chiusura al motore")
     parser.add_argument("--tara-ancoraggio", action="store_true", help="Tara peso del mercato e metodo di margine")
+    parser.add_argument("--analisi-pareggio", action="store_true", help="Confronta Shin e proporzionale per 1, X e 2")
     parser.add_argument("--output", type=Path, help="File markdown a cui aggiungere la sezione")
     args = parser.parse_args()
-    if args.tara_ancoraggio:
+    if args.analisi_pareggio:
+        markdown = draw_analysis(load_usable_features())
+    elif args.tara_ancoraggio:
         tuning = tune_market_anchor(load_usable_features())
         save_market_anchor(tuning)
         markdown = render_tuning(tuning)
