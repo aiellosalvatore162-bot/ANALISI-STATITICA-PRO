@@ -528,3 +528,24 @@ def test_market_anchor_defaults_when_the_file_has_no_section(tmp_path):
     assert engine.load_market_anchor(tmp_path / "assente.json") == engine.MarketAnchorParams()
     with pytest.raises(ValueError):
         replace(_with_odds({}), market_anchor=engine.MarketAnchorParams(devig_method="altro"))
+
+
+def test_draw_is_never_flagged_as_value_but_keeps_its_ev():
+    # Quote del pareggio molto alte: EV positivo ma nessun VALORE sulla X.
+    result = simulate_match(_with_odds({"1": 2.6, "X": 9.0, "2": 2.9}))
+    rows = {item["market"]: item for item in result["financial"]["markets"]}
+    assert rows["X"]["ev_pct"] > 0
+    assert rows["X"]["value_excluded"] and not rows["X"]["is_value"] and not rows["X"]["suspicious_value"]
+    assert "X" not in {item["market"] for item in result["financial"]["value_bets"]}
+    assert all("X" not in combo["legs"] for combo in result["smart_combo"]["candidates"])
+    allowed = replace(engine.MarketAnchorParams(market_weight=0.7), no_value_markets=())
+    rows = {item["market"]: item for item in simulate_match(
+        replace(_with_odds({"1": 2.6, "X": 9.0, "2": 2.9}), market_anchor=allowed)
+    )["financial"]["markets"]}
+    assert rows["X"]["is_value"]
+
+
+def test_no_value_markets_is_read_from_the_config_file(tmp_path):
+    path = tmp_path / "goal_model.json"
+    path.write_text(json.dumps({"ancoraggio_mercato": {"parametri": {"no_value_markets": ["X", "X 1T"]}}}), encoding="utf-8")
+    assert engine.load_market_anchor(path).no_value_markets == ("X", "X 1T")

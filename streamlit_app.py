@@ -677,6 +677,9 @@ def _card(
         comparison = f"Quota bookmaker {float(quote):.2f} · Implicita {float(implied):.2f}%"
         badge_class = "positive" if float(ev) > 0 else "negative"
         badge_text = f"VALORE +{float(ev):.2f}%" if float(ev) > 0 else f"EV {float(ev):.2f}%"
+        if financial.get("value_excluded") and float(ev) > 0:
+            badge_class = "neutral"
+            badge_text = f"EV {float(ev):+.2f}% · VALORE non segnalato su questo mercato (storicamente in perdita)"
         if financial.get("suspicious_value"):
             badge_class = "suspicious"
             badge_text += f" · valore sospetto: verifica i dati (scarto modello/mercato {financial['model_market_gap_pct']:.1f} punti)"

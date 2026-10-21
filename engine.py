@@ -87,6 +87,9 @@ class MarketAnchorParams:
 
     ``market_weight`` is the market share in log scale; the model may move the
     market rates only within ``[correction_min, correction_max]``.
+    ``no_value_markets`` keeps EV visible but never flags those markets as
+    VALORE: on historical closing odds the draw signals lost money because
+    Poisson + Dixon-Coles cannot reprice the quoted draw exactly.
     """
 
     active: bool = True
@@ -95,13 +98,17 @@ class MarketAnchorParams:
     correction_min: float = 0.80
     correction_max: float = 1.20
     suspicious_gap_pct: float = 10.0
+    no_value_markets: tuple[str, ...] = ("X",)
 
 
 def load_market_anchor(path: Path = GOAL_MODEL_PATH) -> MarketAnchorParams:
     if not path.exists():
         return MarketAnchorParams()
     data = json.loads(path.read_text(encoding="utf-8"))
-    return MarketAnchorParams(**data.get("ancoraggio_mercato", {}).get("parametri", {}))
+    params = dict(data.get("ancoraggio_mercato", {}).get("parametri", {}))
+    if "no_value_markets" in params:
+        params["no_value_markets"] = tuple(params["no_value_markets"])
+    return MarketAnchorParams(**params)
 
 
 DEFAULT_MARKET_ANCHOR = load_market_anchor()
@@ -667,12 +674,14 @@ def financial_analysis(
     odds: Mapping[str, float] | None,
     components: Mapping[str, Mapping[str, float] | None] | None = None,
     suspicious_gap_pct: float = MarketAnchorParams().suspicious_gap_pct,
+    no_value_markets: Sequence[str] = MarketAnchorParams().no_value_markets,
 ) -> dict[str, Any]:
     """Calculate settlement-aware EV and quarter-Kelly stake for user odds.
 
     With ``components`` (model-only and market-only percentages per event) a
     positive-EV market is flagged as suspicious when the two sources diverge
-    by more than ``suspicious_gap_pct`` points.
+    by more than ``suspicious_gap_pct`` points.  Markets in
+    ``no_value_markets`` keep their EV but are never reported as value.
     """
     model_only = (components or {}).get("modello") or {}
     market_only = (components or {}).get("mercato") or {}
@@ -708,6 +717,7 @@ def financial_analysis(
             if market in model_only and market in market_only
             else None
         )
+        value_allowed = market not in no_value_markets
         candidates.append({
             "market": market,
             "odds": odd,
@@ -729,25 +739,31 @@ def financial_analysis(
             "recommended_stake_pct": round(full_kelly * 25.0, 2),
             "confidence_interval_95": confidence_interval,
             "reliability_pct": _reliability(confidence_interval),
-            "is_value": ev > 0.0,
+            "is_value": ev > 0.0 and value_allowed,
+            "value_excluded": not value_allowed,
             "model_only_probability_pct": model_only.get(market),
             "market_only_probability_pct": market_only.get(market),
             "model_market_gap_pct": gap,
-            "suspicious_value": ev > 0.0 and gap is not None and gap > suspicious_gap_pct,
+            "suspicious_value": ev > 0.0 and value_allowed and gap is not None and gap > suspicious_gap_pct,
         })
     candidates.sort(key=lambda item: (item["ev_pct"], item["edge_pct"]), reverse=True)
-    value_bets = [item for item in candidates if item["ev_pct"] > 0.0]
+    value_bets = [item for item in candidates if item["is_value"]]
     return {
         "quotes_provided": len(candidates),
         "markets": candidates,
         "value_bets": value_bets,
         "best_value": value_bets[0] if value_bets else None,
         "value_threshold_ev_pct": 0.0,
+        "no_value_markets": list(no_value_markets),
         "risk_note": "Kelly è una stima sensibile all'errore del modello; viene mostrato un quarto Kelly, non una garanzia.",
     }
 
 
-def smart_combo(events: Mapping[str, np.ndarray], odds: Mapping[str, float] | None) -> dict[str, Any]:
+def smart_combo(
+    events: Mapping[str, np.ndarray],
+    odds: Mapping[str, float] | None,
+    no_value_markets: Sequence[str] = (),
+) -> dict[str, Any]:
     """Rank every quoted two-leg combination by value and stability."""
     if not odds:
         return {"status": "no_quotes", "legs": [], "message": "Inserire almeno due quote per calcolare una schedina."}
@@ -759,6 +775,7 @@ def smart_combo(events: Mapping[str, np.ndarray], odds: Mapping[str, float] | No
         and definition_for_event(market)
         and definition_for_event(market).settlement != "push"
         and " + " not in market
+        and market not in no_value_markets
     ]
     for index, first in enumerate(available):
         for second in available[index + 1:]:
@@ -1060,9 +1077,12 @@ def simulate_match(config: MatchConfig) -> dict[str, Any]:
     result["market_anchoring"] = anchoring
     result["components"] = components
     result["financial"] = financial_analysis(
-        events, getattr(config, "odds", None), components, config.market_anchor.suspicious_gap_pct
+        events, getattr(config, "odds", None), components,
+        config.market_anchor.suspicious_gap_pct, config.market_anchor.no_value_markets,
     )
-    result["smart_combo"] = smart_combo(events, getattr(config, "odds", None))
+    result["smart_combo"] = smart_combo(
+        events, getattr(config, "odds", None), config.market_anchor.no_value_markets
+    )
     result["statistical_report"] = statistical_report(config, result)
     result["dashboard"] = {
         "goals_distribution": {
