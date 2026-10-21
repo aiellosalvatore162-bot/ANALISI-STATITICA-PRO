@@ -1,0 +1,7 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Segreti e configurazione locale
+.env
+.streamlit/secrets.toml
