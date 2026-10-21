@@ -1,0 +1,60 @@
+{
+  "modello_attivo": "calibrato",
+  "parametri": {
+    "base_goals": 1.410691,
+    "home_advantage": 0.213033,
+    "attack_weight": 0.446603,
+    "defense_weight": 0.289019,
+    "attack_xg_share": 1.0,
+    "defense_xg_share": 0.839499,
+    "elo_k": 0.979982,
+    "form_weight": 0.0,
+    "dixon_coles_rho": -0.119405
+  },
+  "taratura": {
+    "data": "2026-10-21",
+    "fonte": "football-data.co.uk",
+    "campionati": [
+      "I1",
+      "E0",
+      "SP1",
+      "D1"
+    ],
+    "stagioni_taratura": [
+      "2425",
+      "2526"
+    ],
+    "stagioni_fuori_campione": [
+      "2627"
+    ],
+    "stagioni_riscaldamento_elo": [
+      "1920",
+      "2021",
+      "2122",
+      "2223",
+      "2324"
+    ],
+    "partite_taratura": 2852,
+    "partite_fuori_campione": 254,
+    "obiettivo": "log-loss 1X2 + log-loss Over/Under 2.5",
+    "elo": "calcolato dai risultati stile ClubElo (K=20, vantaggio casa 65)",
+    "xg": "proxy dai tiri: 0.3083·tiri in porta + 0.0000·tiri fuori",
+    "medie_mobili": "ultime 10 gare di campionato, minimo 5"
+  },
+  "componenti": {
+    "forma": {
+      "attiva": false,
+      "miglioramento_fuori_campione": 0.00042
+    }
+  },
+  "metriche": {
+    "taratura": {
+      "calibrato": 1.66637,
+      "legacy": 1.71035
+    },
+    "fuori_campione": {
+      "calibrato": 1.60101,
+      "legacy": 1.68061
+    }
+  }
+}
