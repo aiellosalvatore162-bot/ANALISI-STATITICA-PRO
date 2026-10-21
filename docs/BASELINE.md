@@ -340,3 +340,37 @@ Generato il 21/10/2026 con `python -m tools.baseline --mercati-secondari`. Tutti
 | Over 1.5 1T | 0.6476 | 0.6404 | 0.6398 | 0.6527 | 0.4558 | 0.4496 | 0.0531 | 0.0262 |  | ⚠️ +0.013 |
 | GG 1T | 0.4948 | 0.4856 | 0.4853 | 0.4920 | 0.3156 | 0.3096 | 0.0591 | 0.0344 |  | ⚠️ +0.007 |
 
+## Corner e cartellini (prima/dopo la taratura sui dati reali)
+
+Generato il 21/10/2026 con `python -m tools.baseline --corner-cartellini`. Medie calcolate dalle funzioni del motore (`corner_signals`, `card_total_mean`); distribuzione Poisson o binomiale negativa come nella simulazione. Dopo: dispersione corner 51.3032, gialli 0 (0 = Poisson), peso gialli arbitro 0.248, peso falli arbitro 0.048. football-data non ha quote su corner e cartellini: nessun confronto con il mercato.
+
+### taratura 2024-25/2025-26 (2851 partite)
+
+| Mercato | Misura | Prima | Dopo |
+|---|---|---|---|
+| Corner totali | errore medio assoluto | 2.723 | 2.700 |
+| Corner totali | log-verosimiglianza negativa | 2.6408 | 2.6230 |
+| Corner totali Over 8.5 | log-loss / Brier / ECE | 0.6735 / 0.4795 / 0.0378 | 0.6666 / 0.4737 / 0.0171 |
+| Corner totali Over 9.5 | log-loss / Brier / ECE | 0.6984 / 0.5042 / 0.0468 | 0.6905 / 0.4971 / 0.0275 |
+| Corner totali Over 10.5 | log-loss / Brier / ECE | 0.6682 / 0.4739 / 0.0314 | 0.6612 / 0.4683 / 0.0217 |
+| Gialli totali | errore medio assoluto | 1.801 | 1.670 |
+| Gialli totali | log-verosimiglianza negativa | 2.2694 | 2.1458 |
+| Gialli totali Over 3.5 | log-loss / Brier / ECE | 0.7634 / 0.5547 / 0.1405 | 0.6788 / 0.4858 / 0.0055 |
+| Gialli totali Over 4.5 | log-loss / Brier / ECE | 0.7373 / 0.5103 / 0.1348 | 0.6549 / 0.4623 / 0.0107 |
+| Gialli totali Over 5.5 | log-loss / Brier / ECE | 0.5770 / 0.3582 / 0.0791 | 0.5153 / 0.3342 / 0.0030 |
+
+### fuori campione 2026-27 (254 partite)
+
+| Mercato | Misura | Prima | Dopo |
+|---|---|---|---|
+| Corner totali | errore medio assoluto | 2.871 | 2.873 |
+| Corner totali | log-verosimiglianza negativa | 2.6989 | 2.6780 |
+| Corner totali Over 8.5 | log-loss / Brier / ECE | 0.6812 / 0.4874 / 0.0779 | 0.6748 / 0.4823 / 0.0517 |
+| Corner totali Over 9.5 | log-loss / Brier / ECE | 0.6788 / 0.4862 / 0.0437 | 0.6740 / 0.4815 / 0.0404 |
+| Corner totali Over 10.5 | log-loss / Brier / ECE | 0.6578 / 0.4655 / 0.0212 | 0.6544 / 0.4625 / 0.0387 |
+| Gialli totali | errore medio assoluto | 1.821 | 1.633 |
+| Gialli totali | log-verosimiglianza negativa | 2.2858 | 2.1026 |
+| Gialli totali Over 3.5 | log-loss / Brier / ECE | 0.8089 / 0.5938 / 0.2094 | 0.6775 / 0.4846 / 0.0125 |
+| Gialli totali Over 4.5 | log-loss / Brier / ECE | 0.7352 / 0.4941 / 0.1606 | 0.6351 / 0.4440 / 0.0103 |
+| Gialli totali Over 5.5 | log-loss / Brier / ECE | 0.6117 / 0.3637 / 0.1457 | 0.5158 / 0.3361 / 0.0275 |
+

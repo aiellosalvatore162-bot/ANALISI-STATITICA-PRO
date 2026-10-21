@@ -612,17 +612,77 @@ def secondary_analysis(features: pd.DataFrame, before: "engine.HalfTimeParams", 
     return "\n".join(lines)
 
 
+# --- Corner e cartellini ---------------------------------------------------------------
+
+def count_predictions(features: pd.DataFrame, params: "engine.CountModelParams") -> pd.DataFrame:
+    """Medie di corner e gialli calcolate dalle funzioni del motore per ogni partita."""
+    rows = []
+    for row in features.to_dict("records"):
+        config = config_for_row(row, count_model=params)
+        home, away = engine.corner_signals(config)
+        rows.append({"corner_home": home, "corner_away": away, "cards": engine.card_total_mean(config)})
+    return pd.DataFrame(rows, index=features.index)
+
+
+def count_analysis(features: pd.DataFrame, before: "engine.CountModelParams", after: "engine.CountModelParams") -> str:
+    from tools.calibrate import CARD_LINES, CORNER_LINES, count_data, count_logpmf, count_sf
+
+    data = count_data(features)
+    data = data[data["season"].isin([season for seasons in EVALUATION_SETS.values() for season in seasons])]
+    variants = {"prima": before, "dopo": after}
+    predictions = {name: count_predictions(data, params) for name, params in variants.items()}
+    corners = (data["home_corners"] + data["away_corners"]).to_numpy(int)
+    cards = (data["home_yellows"] + data["away_yellows"]).to_numpy(int)
+    lines = [
+        "## Corner e cartellini (prima/dopo la taratura sui dati reali)", "",
+        f"Generato il {date.today():%d/%m/%Y} con `python -m tools.baseline --corner-cartellini`. Medie calcolate "
+        "dalle funzioni del motore (`corner_signals`, `card_total_mean`); distribuzione Poisson o binomiale negativa "
+        f"come nella simulazione. Dopo: dispersione corner {after.corner_dispersion:g}, gialli "
+        f"{after.card_dispersion:g} (0 = Poisson), peso gialli arbitro {after.card_referee_yellow_weight:.3f}, "
+        f"peso falli arbitro {after.card_referee_fouls_weight:.3f}. football-data non ha quote su corner e "
+        "cartellini: nessun confronto con il mercato.", "",
+    ]
+    for set_name, seasons in EVALUATION_SETS.items():
+        mask = data["season"].isin(seasons).to_numpy()
+        lines += [f"### {set_name} ({int(mask.sum())} partite)", "",
+                  "| Mercato | Misura | Prima | Dopo |", "|---|---|---|---|"]
+        for label, observed, key, lines_set, dispersion in (
+            ("Corner totali", corners, "corner", CORNER_LINES, "corner_dispersion"),
+            ("Gialli totali", cards, "cards", CARD_LINES, "card_dispersion"),
+        ):
+            means = {name: (prediction["corner_home"] + prediction["corner_away"]).to_numpy() if key == "corner"
+                     else prediction["cards"].to_numpy() for name, prediction in predictions.items()}
+            shape = {name: (getattr(params, dispersion) if params.active else 0.0) for name, params in variants.items()}
+            mae = {name: float(np.mean(np.abs(means[name][mask] - observed[mask]))) for name in variants}
+            nll = {name: float(-np.mean(count_logpmf(observed[mask], means[name][mask], shape[name]))) for name in variants}
+            lines.append(f"| {label} | errore medio assoluto | {mae['prima']:.3f} | {mae['dopo']:.3f} |")
+            lines.append(f"| {label} | log-verosimiglianza negativa | {nll['prima']:.4f} | {nll['dopo']:.4f} |")
+            for threshold in lines_set:
+                outcome = (observed[mask] > threshold).astype(int)
+                scores = {name: summarize(binary(count_sf(threshold, means[name][mask], shape[name])), outcome) for name in variants}
+                lines.append(
+                    f"| {label} Over {threshold:g} | log-loss / Brier / ECE | "
+                    f"{scores['prima']['log_loss']:.4f} / {scores['prima']['brier']:.4f} / {scores['prima']['ece']:.4f} | "
+                    f"{scores['dopo']['log_loss']:.4f} / {scores['dopo']['brier']:.4f} / {scores['dopo']['ece']:.4f} |"
+                )
+        lines.append("")
+    return "\n".join(lines)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--label", help="Titolo della sezione, es. PRIMA o DOPO")
     parser.add_argument("--goal-model", help="Valore di MatchConfig.goal_model (se supportato)")
     parser.add_argument("--ancorato", action="store_true", help="Passa le quote di chiusura al motore")
     parser.add_argument("--tara-ancoraggio", action="store_true", help="Tara peso del mercato e metodo di margine")
+    parser.add_argument("--corner-cartellini", action="store_true", help="Corner e gialli prima/dopo la taratura")
     parser.add_argument("--mercati-secondari", action="store_true", help="Multigol, somma gol e primo tempo prima/dopo")
     parser.add_argument("--analisi-pareggio", action="store_true", help="Confronta Shin e proporzionale per 1, X e 2")
     parser.add_argument("--output", type=Path, help="File markdown a cui aggiungere la sezione")
     args = parser.parse_args()
-    if args.mercati_secondari:
+    if args.corner_cartellini:
+        markdown = count_analysis(load_usable_features(), engine.CountModelParams(), engine.DEFAULT_COUNT_MODEL)
+    elif args.mercati_secondari:
         markdown = secondary_analysis(load_usable_features(), engine.HalfTimeParams(), engine.DEFAULT_HALF_TIME)
     elif args.analisi_pareggio:
         markdown = draw_analysis(load_usable_features())

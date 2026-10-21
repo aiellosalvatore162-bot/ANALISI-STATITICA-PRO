@@ -15,7 +15,7 @@ Uso: ``python -m tools.calibrate [--primo-tempo]`` (aggiorna
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict, fields
+from dataclasses import asdict, fields, replace
 from datetime import date
 import json
 import math
@@ -242,10 +242,167 @@ def calibrate_half_time() -> dict:
     return section
 
 
+# --- Corner e cartellini ----------------------------------------------------------------
+
+CORNER_LINES = (8.5, 9.5, 10.5)
+CARD_LINES = (3.5, 4.5, 5.5)
+
+
+def count_data(features: pd.DataFrame) -> pd.DataFrame:
+    """Partite con input e risultati di corner e gialli disponibili."""
+    required = ["home_corners", "away_corners", "home_yellows", "away_yellows", "referee_yellow_avg", "referee_fouls_avg"]
+    return features.dropna(subset=required)
+
+
+def count_means(params: engine.CountModelParams, data: pd.DataFrame) -> dict[str, np.ndarray]:
+    """Versione vettoriale di ``engine.corner_signals`` e ``engine.card_total_mean``."""
+    def log(column: str) -> np.ndarray:
+        return np.log(np.maximum(data[column].to_numpy(float), 0.1))
+
+    if params.active:
+        home = np.exp(params.corner_home_intercept + params.corner_for_weight * log("home_corners_for")
+                      + params.corner_against_weight * log("away_corners_against"))
+        away = np.exp(params.corner_away_intercept + params.corner_for_weight * log("away_corners_for")
+                      + params.corner_against_weight * log("home_corners_against"))
+        team_cards = (data["home_cards_for"] + data["away_cards_for"]).to_numpy(float)
+        cards = np.exp(params.card_intercept + params.card_team_weight * np.log(np.maximum(team_cards, 1e-9))
+                       + params.card_referee_yellow_weight * np.log(data["referee_yellow_avg"].to_numpy(float))
+                       + params.card_referee_fouls_weight * np.log(data["referee_fouls_avg"].to_numpy(float)))
+    else:
+        home = ((data["home_corners_for"] + data["away_corners_against"]) / 2.0).to_numpy(float)
+        away = ((data["away_corners_for"] + data["home_corners_against"]) / 2.0).to_numpy(float)
+        cards = ((data["home_cards_for"] + data["away_cards_for"]) * np.maximum(data["referee_yellow_avg"] / 4.5, 0)
+                 * np.maximum(data["referee_fouls_avg"] / 24.0, 0)).to_numpy(float)
+    return {"corner_home": home, "corner_away": away, "cards": cards}
+
+
+def count_logpmf(counts: np.ndarray, mean: np.ndarray, dispersion: float) -> np.ndarray:
+    from scipy.stats import nbinom
+
+    mean = np.maximum(mean, 1e-9)
+    if dispersion > 0:
+        return nbinom.logpmf(counts, dispersion, dispersion / (dispersion + mean))
+    return poisson.logpmf(counts, mean)
+
+
+def count_sf(threshold: float, mean: np.ndarray, dispersion: float) -> np.ndarray:
+    """P(conteggio > threshold) con la stessa distribuzione del motore."""
+    from scipy.stats import nbinom
+
+    mean = np.maximum(mean, 1e-9)
+    if dispersion > 0:
+        return nbinom.sf(np.floor(threshold), dispersion, dispersion / (dispersion + mean))
+    return poisson.sf(np.floor(threshold), mean)
+
+
+def corner_nll(params: engine.CountModelParams, data: pd.DataFrame) -> float:
+    """Totale binomiale negativo/Poisson più ripartizione binomiale casa/ospite, come nel motore."""
+    from scipy.stats import binom
+
+    means = count_means(params, data)
+    total_mean = means["corner_home"] + means["corner_away"]
+    home, away = data["home_corners"].to_numpy(int), data["away_corners"].to_numpy(int)
+    dispersion = params.corner_dispersion if params.active else 0.0
+    loglik = count_logpmf(home + away, total_mean, dispersion) + binom.logpmf(home, home + away, means["corner_home"] / total_mean)
+    return float(-np.mean(loglik))
+
+
+def card_nll(params: engine.CountModelParams, data: pd.DataFrame) -> float:
+    total = (data["home_yellows"] + data["away_yellows"]).to_numpy(int)
+    dispersion = params.card_dispersion if params.active else 0.0
+    return float(-np.mean(count_logpmf(total, count_means(params, data)["cards"], dispersion)))
+
+
+def _fit_counts(data: pd.DataFrame, names: list[str], loss, fixed: dict) -> engine.CountModelParams:
+    start = {"corner_home_intercept": 0.0, "corner_away_intercept": 0.0, "corner_for_weight": 0.5,
+             "corner_against_weight": 0.5, "corner_dispersion": 1.0, "card_intercept": 0.0, "card_team_weight": 1.0,
+             "card_referee_yellow_weight": 0.5, "card_referee_fouls_weight": 0.0, "card_dispersion": 1.0}
+
+    def build(vector: np.ndarray) -> engine.CountModelParams:
+        values = dict(zip(names, vector))
+        for key in ("corner_dispersion", "card_dispersion"):
+            if key in values:
+                values[key] = float(np.exp(values[key]))
+        return engine.CountModelParams(active=True, **fixed, **values)
+
+    initial = [math.log(start[name]) if name.endswith("dispersion") else start[name] for name in names]
+    fitted = minimize(lambda vector: loss(build(vector), data), initial, method="L-BFGS-B")
+    params = build(fitted.x)
+    return engine.CountModelParams(**{key: (round(value, 6) if isinstance(value, float) else value)
+                                      for key, value in asdict(params).items()})
+
+
+def calibrate_counts() -> dict:
+    features = baseline.load_usable_features()
+    data = count_data(features)
+    train = data[data["season"].isin(dataset.CALIBRATION_SEASONS)]
+    holdout = data[data["season"].isin(dataset.HOLDOUT_SEASONS)]
+    corner_names = ["corner_home_intercept", "corner_away_intercept", "corner_for_weight", "corner_against_weight"]
+    card_names = ["card_intercept", "card_team_weight"]
+    referee_names = ["card_referee_yellow_weight", "card_referee_fouls_weight"]
+    choices: dict[str, dict] = {}
+
+    # Corner: Poisson oppure binomiale negativa.
+    poisson_fit = _fit_counts(train, corner_names, corner_nll, {"corner_dispersion": 0.0})
+    nb_fit = _fit_counts(train, corner_names + ["corner_dispersion"], corner_nll, {})
+    gain = corner_nll(poisson_fit, holdout) - corner_nll(nb_fit, holdout)
+    corners = nb_fit if gain >= MIN_IMPROVEMENT else poisson_fit
+    choices["corner_dispersione"] = {"attiva": bool(gain >= MIN_IMPROVEMENT), "miglioramento_fuori_campione": round(gain, 5)}
+
+    # Cartellini: variabili dell'arbitro e dispersione.
+    no_referee = {"card_referee_yellow_weight": 0.0, "card_referee_fouls_weight": 0.0}
+    without_ref = _fit_counts(train, card_names + ["card_dispersion"], card_nll, no_referee)
+    with_ref = _fit_counts(train, card_names + referee_names + ["card_dispersion"], card_nll, {})
+    gain = card_nll(without_ref, holdout) - card_nll(with_ref, holdout)
+    use_referee = gain >= MIN_IMPROVEMENT
+    choices["cartellini_arbitro"] = {"attiva": bool(use_referee), "miglioramento_fuori_campione": round(gain, 5)}
+    names = card_names + (referee_names if use_referee else [])
+    fixed = {} if use_referee else no_referee
+    cards_nb = with_ref if use_referee else without_ref
+    cards_poisson = _fit_counts(train, names, card_nll, {**fixed, "card_dispersion": 0.0})
+    gain = card_nll(cards_poisson, holdout) - card_nll(cards_nb, holdout)
+    cards = cards_nb if gain >= MIN_IMPROVEMENT else cards_poisson
+    choices["cartellini_dispersione"] = {"attiva": bool(gain >= MIN_IMPROVEMENT), "miglioramento_fuori_campione": round(gain, 5)}
+
+    corner_fields = {key: value for key, value in asdict(corners).items() if key.startswith("corner")}
+    card_fields = {key: value for key, value in asdict(cards).items() if key.startswith("card")}
+    calibrated = engine.CountModelParams(active=True, **corner_fields, **card_fields)
+    legacy = engine.CountModelParams()
+    metrics = {
+        name: {
+            "corner_nll": {"prima": round(corner_nll(legacy, subset), 5), "dopo": round(corner_nll(calibrated, subset), 5)},
+            "cartellini_nll": {"prima": round(card_nll(legacy, subset), 5), "dopo": round(card_nll(calibrated, subset), 5)},
+        }
+        for name, subset in (("taratura", train), ("fuori_campione", holdout))
+    }
+    improves = (metrics["fuori_campione"]["corner_nll"]["dopo"] + metrics["fuori_campione"]["cartellini_nll"]["dopo"]
+                < metrics["fuori_campione"]["corner_nll"]["prima"] + metrics["fuori_campione"]["cartellini_nll"]["prima"])
+    section = {
+        "parametri": asdict(replace(calibrated, active=bool(improves))),
+        "taratura": {
+            "data": date.today().isoformat(),
+            "dati": "corner e gialli reali football-data.co.uk; input = medie mobili delle 10 gare precedenti; "
+                    "arbitro = media mobile dell'arbitro (solo Premier League) o della lega",
+            "obiettivo": "log-verosimiglianza del totale (e ripartizione casa/ospite per i corner)",
+            "partite_taratura": int(len(train)),
+            "partite_fuori_campione": int(len(holdout)),
+            "componenti": choices,
+            "metriche": metrics,
+            "regola": "attivo solo se migliora la log-verosimiglianza fuori campione rispetto alle formule originali",
+        },
+    }
+    _update_config({"corner_cartellini": section})
+    return section
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--primo-tempo", action="store_true", help="Tara solo la quota di gol del primo tempo")
+    parser.add_argument("--corner-cartellini", action="store_true", help="Tara i modelli di corner e cartellini")
     args = parser.parse_args()
+    if args.corner_cartellini:
+        print(json.dumps(calibrate_counts(), indent=2, ensure_ascii=False))
+        return
     if args.primo_tempo:
         print(json.dumps(calibrate_half_time(), indent=2, ensure_ascii=False))
         return

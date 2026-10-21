@@ -229,5 +229,64 @@
         }
       }
     }
+  },
+  "corner_cartellini": {
+    "parametri": {
+      "active": true,
+      "corner_home_intercept": 0.38274,
+      "corner_away_intercept": 0.154063,
+      "corner_for_weight": 0.42906,
+      "corner_against_weight": 0.404986,
+      "corner_dispersion": 51.303222,
+      "card_intercept": 0.469869,
+      "card_team_weight": 0.304781,
+      "card_referee_yellow_weight": 0.24755,
+      "card_referee_fouls_weight": 0.047841,
+      "card_dispersion": 0.0
+    },
+    "taratura": {
+      "data": "2026-10-21",
+      "dati": "corner e gialli reali football-data.co.uk; input = medie mobili delle 10 gare precedenti; arbitro = media mobile dell'arbitro (solo Premier League) o della lega",
+      "obiettivo": "log-verosimiglianza del totale (e ripartizione casa/ospite per i corner)",
+      "partite_taratura": 2851,
+      "partite_fuori_campione": 254,
+      "componenti": {
+        "corner_dispersione": {
+          "attiva": true,
+          "miglioramento_fuori_campione": 0.01657
+        },
+        "cartellini_arbitro": {
+          "attiva": true,
+          "miglioramento_fuori_campione": 0.00417
+        },
+        "cartellini_dispersione": {
+          "attiva": false,
+          "miglioramento_fuori_campione": 0.00029
+        }
+      },
+      "metriche": {
+        "taratura": {
+          "corner_nll": {
+            "prima": 4.85878,
+            "dopo": 4.7823
+          },
+          "cartellini_nll": {
+            "prima": 2.26944,
+            "dopo": 2.14581
+          }
+        },
+        "fuori_campione": {
+          "corner_nll": {
+            "prima": 4.81766,
+            "dopo": 4.79507
+          },
+          "cartellini_nll": {
+            "prima": 2.28576,
+            "dopo": 2.10257
+          }
+        }
+      },
+      "regola": "attivo solo se migliora la log-verosimiglianza fuori campione rispetto alle formule originali"
+    }
   }
 }
