@@ -496,6 +496,27 @@ def statistical_report(config: MatchConfig, result: Mapping[str, Any]) -> str:
     )
 
 
+def corner_signals(config: MatchConfig) -> tuple[float, float]:
+    """Expected corners per team: own average won and opponent's conceded."""
+    home = (config.home.corners_for + config.away.corners_against) / 2.0
+    away = (config.away.corners_for + config.home.corners_against) / 2.0
+    return home, away
+
+
+def card_total_mean(config: MatchConfig) -> float:
+    """Team card propensity adjusted by the referee's observed severity.
+
+    The yellow average is the level factor and the fouls average is the tempo
+    factor.
+    """
+    foul_factor = max(0.0, config.referee_fouls_avg / 24.0)
+    referee_severity = max(0.0, config.referee_yellow_avg / 4.5)
+    return max(
+        0.0,
+        (config.home.cards_for + config.away.cards_for) * referee_severity * foul_factor,
+    )
+
+
 def simulate_match(config: MatchConfig) -> dict[str, Any]:
     """Run one reproducible sample and derive every score market from it.
 
@@ -528,8 +549,7 @@ def simulate_match(config: MatchConfig) -> dict[str, Any]:
 
     # Estimate each team's corners from its average won and its opponent's
     # average conceded, then sample and allocate one match total.
-    home_corner_signal = (config.home.corners_for + config.away.corners_against) / 2.0
-    away_corner_signal = (config.away.corners_for + config.home.corners_against) / 2.0
+    home_corner_signal, away_corner_signal = corner_signals(config)
     lambda_corners = home_corner_signal + away_corner_signal
     corners = rng.poisson(lambda_corners, config.simulations)
     home_corner_share = (
@@ -538,17 +558,7 @@ def simulate_match(config: MatchConfig) -> dict[str, Any]:
     home_corners = rng.binomial(corners, home_corner_share)
     away_corners = corners - home_corners
 
-    # Team card propensity is adjusted by the referee's observed severity:
-    # yellow average is the level factor and fouls average is the tempo factor.
-    foul_factor = max(0.0, config.referee_fouls_avg / 24.0)
-    referee_severity = max(0.0, config.referee_yellow_avg / 4.5)
-    card_total_mean = max(
-        0.0,
-        (config.home.cards_for + config.away.cards_for)
-        * referee_severity
-        * foul_factor,
-    )
-    cards = rng.poisson(card_total_mean, config.simulations)
+    cards = rng.poisson(card_total_mean(config), config.simulations)
     card_signal_total = max(0.0, config.home.cards_for + config.away.cards_for)
     home_card_share = (
         config.home.cards_for / card_signal_total if card_signal_total > 0.0 else 0.5
