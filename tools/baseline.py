@@ -6,19 +6,26 @@ modello vengono dalle funzioni del motore (``expected_goals`` e
 ``dixon_coles_matrix``, senza rumore Monte Carlo); quelle del mercato dalle
 quote medie di chiusura senza margine.
 
+Con ``--ancorato`` le quote di chiusura entrano anche come input del motore
+(ancoraggio al mercato); ``--tara-ancoraggio`` sceglie peso del mercato e metodo
+di rimozione del margine e li salva in ``config/goal_model.json``.
+
 Uso::
 
     python -m tools.baseline --label "PRIMA" --output docs/BASELINE.md
     python -m tools.baseline --goal-model calibrato --label "DOPO" --output docs/BASELINE.md
+    python -m tools.baseline --tara-ancoraggio --output docs/BASELINE.md
+    python -m tools.baseline --ancorato --label "DOPO ancoraggio" --output docs/BASELINE.md
 """
 
 from __future__ import annotations
 
 import argparse
-from dataclasses import fields
+from dataclasses import asdict, fields, replace
 from datetime import date
+import json
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 import numpy as np
 import pandas as pd
@@ -32,6 +39,8 @@ EVALUATION_SETS = {
     "fuori campione 2026-27": dataset.HOLDOUT_SEASONS,
 }
 FAVORITE_THRESHOLD = 0.70
+SIGNS = ("1", "X", "2")
+ANCHOR_WEIGHTS = (0.5, 0.6, 0.7, 0.8, 0.9)
 
 
 # --- Metriche -----------------------------------------------------------------
@@ -97,6 +106,15 @@ def summarize(probabilities: np.ndarray, outcomes: np.ndarray) -> dict[str, floa
 _CONFIG_FIELDS = {item.name for item in fields(engine.MatchConfig)}
 
 
+def closing_odds(row: Mapping[str, Any]) -> dict[str, float]:
+    """Quote medie di chiusura con le chiavi evento del motore."""
+    columns = {
+        "1": "close_home", "X": "close_draw", "2": "close_away",
+        "Over 2.5 gol": "close_over25", "Under 2.5 gol": "close_under25",
+    }
+    return {key: float(row[column]) for key, column in columns.items() if np.isfinite(row[column])}
+
+
 def config_for_row(row: Mapping[str, Any], **overrides: Any) -> engine.MatchConfig:
     """Costruisce la stessa ``MatchConfig`` che l'utente otterrebbe dal parser."""
 
@@ -126,12 +144,16 @@ def config_for_row(row: Mapping[str, Any], **overrides: Any) -> engine.MatchConf
     )
 
 
-def predict(features: pd.DataFrame, **overrides: Any) -> pd.DataFrame:
-    """Probabilità analitiche del motore per ogni partita."""
+def predict(features: pd.DataFrame, *, anchored: bool = False, **overrides: Any) -> pd.DataFrame:
+    """Probabilità analitiche del motore per ogni partita.
+
+    Con ``anchored`` le quote di chiusura sono passate al motore, che usa i gol
+    attesi finali (modello ancorato al mercato) come nella simulazione.
+    """
     rows = []
     for row in features.to_dict("records"):
-        config = config_for_row(row, **overrides)
-        lambda_, mu, _ = engine.expected_goals(config)
+        config = config_for_row(row, **({"odds": closing_odds(row)} if anchored else {}), **overrides)
+        lambda_, mu, _ = engine.final_goal_rates(config)
         matrix = engine.dixon_coles_matrix(lambda_, mu, config.dixon_coles_rho, max_goals=12)
         home_goals, away_goals = np.indices(matrix.shape)
         corners_home, corners_away = engine.corner_signals(config)
@@ -151,7 +173,25 @@ def predict(features: pd.DataFrame, **overrides: Any) -> pd.DataFrame:
 
 # --- Valutazione --------------------------------------------------------------
 
-def evaluate(features: pd.DataFrame, predictions: pd.DataFrame) -> dict[str, Any]:
+def value_returns(probabilities: np.ndarray, odds: np.ndarray, outcomes: np.ndarray,
+                  no_value: Sequence[str] = ()) -> dict[str, dict[str, float]]:
+    """Segnali VALORE 1X2 (EV > 0 alla quota data) e rendimento puntando 1 su ognuno."""
+    value = probabilities * odds - 1.0 > 0.0
+    for index, sign in enumerate(SIGNS):
+        if sign in no_value:
+            value[:, index] = False
+    won = np.eye(3, dtype=bool)[outcomes]
+    profit = np.where(won, odds - 1.0, -1.0)
+    report = {
+        sign: {"n": int(value[:, index].sum()),
+               "roi": float(profit[value[:, index], index].mean()) if value[:, index].any() else float("nan")}
+        for index, sign in enumerate(SIGNS)
+    }
+    report["totale"] = {"n": int(value.sum()), "roi": float(profit[value].mean()) if value.any() else float("nan")}
+    return report
+
+
+def evaluate(features: pd.DataFrame, predictions: pd.DataFrame, no_value: Sequence[str] = ()) -> dict[str, Any]:
     has_odds = features[["close_home", "close_draw", "close_away", "close_over25", "close_under25"]].gt(1.0).all(axis=1)
     data, model = features[has_odds], predictions[has_odds]
     outcome_1x2 = np.select(
@@ -164,6 +204,9 @@ def evaluate(features: pd.DataFrame, predictions: pd.DataFrame) -> dict[str, Any
     market_1x2 = de_vig(data["close_home"], data["close_draw"], data["close_away"])
     model_over = binary(model["p_over25"])
     market_over = de_vig(data["close_under25"], data["close_over25"])
+
+    odds_1x2 = data[["close_home", "close_draw", "close_away"]].to_numpy(float)
+    returns = value_returns(model_1x2, odds_1x2, outcome_1x2, no_value)
 
     favorite = market_1x2.max(axis=1) >= FAVORITE_THRESHOLD
     favorite_index = market_1x2.argmax(axis=1)
@@ -181,6 +224,12 @@ def evaluate(features: pd.DataFrame, predictions: pd.DataFrame) -> dict[str, Any
             "n": int(favorite.sum()),
             "mercato": float(market_1x2[rows, favorite_index][favorite].mean()) if favorite.any() else float("nan"),
             "modello": float(model_1x2[rows, favorite_index][favorite].mean()) if favorite.any() else float("nan"),
+        },
+        "valore_1x2": {
+            "segnali_per_partita": returns["totale"]["n"] / len(data),
+            "per_esito": {sign: returns[sign]["n"] for sign in SIGNS},
+            "roi": returns["totale"]["roi"],
+            "esclusi": list(no_value),
         },
         "corner_mae": float(np.mean(np.abs(model["corner_mean"].to_numpy() - actual_corners)[corner_mask])),
         "cartellini_mae": float(np.mean(np.abs(model["card_mean"].to_numpy() - actual_cards)[card_mask])),
@@ -213,6 +262,11 @@ def render_markdown(label: str, description: str, results: Mapping[str, dict[str
             f"- Favorite nette (mercato ≥ {FAVORITE_THRESHOLD:.0%}, {favorite['n']} partite): "
             f"probabilità media mercato {_fmt(favorite['mercato'] * 100, 1)}%, "
             f"modello {_fmt(favorite['modello'] * 100, 1)}%.",
+            f"- Segnali VALORE 1X2 alle quote di chiusura: {_fmt(result['valore_1x2']['segnali_per_partita'], 2)} "
+            f"per partita (1: {result['valore_1x2']['per_esito']['1']}, X: {result['valore_1x2']['per_esito']['X']}, "
+            f"2: {result['valore_1x2']['per_esito']['2']}); rendimento medio puntando 1 su ciascuno: "
+            f"{_fmt(result['valore_1x2']['roi'] * 100, 1)}%"
+            + (f" (VALORE non segnalato su: {', '.join(result['valore_1x2']['esclusi'])})." if result['valore_1x2']['esclusi'] else "."),
             f"- Errore medio assoluto sulla media corner: {_fmt(result['corner_mae'], 2)}; "
             f"cartellini gialli: {_fmt(result['cartellini_mae'], 2)}.",
             "",
@@ -225,30 +279,213 @@ def render_markdown(label: str, description: str, results: Mapping[str, dict[str
     return "\n".join(lines)
 
 
-def run(overrides: Mapping[str, Any] | None = None) -> dict[str, dict[str, Any]]:
+def load_usable_features() -> pd.DataFrame:
     features = dataset.load_features()
-    features = features[dataset.usable(features)]
-    predictions = predict(features, **(overrides or {}))
+    return features[dataset.usable(features)]
+
+
+def run(overrides: Mapping[str, Any] | None = None, *, anchored: bool = False) -> dict[str, dict[str, Any]]:
+    features = load_usable_features()
+    predictions = predict(features, anchored=anchored, **(overrides or {}))
+    no_value = engine.DEFAULT_MARKET_ANCHOR.no_value_markets if anchored else ()
     return {
-        name: evaluate(features[features["season"].isin(seasons)], predictions[features["season"].isin(seasons)])
+        name: evaluate(
+            features[features["season"].isin(seasons)], predictions[features["season"].isin(seasons)], no_value
+        )
         for name, seasons in EVALUATION_SETS.items()
     }
 
 
+def tune_market_anchor(features: pd.DataFrame) -> dict[str, Any]:
+    """Prova i pesi ``ANCHOR_WEIGHTS`` per ogni metodo di margine sulle stagioni di taratura.
+
+    Sceglie la combinazione con il log-loss (1X2 + Over/Under 2.5) più basso e
+    la attiva solo se migliora anche il fuori campione rispetto al solo modello.
+    """
+    from tools.calibrate import market_probabilities, outcomes, score_matrices
+
+    has_odds = features[["close_home", "close_draw", "close_away", "close_over25", "close_under25"]].gt(1.0).all(axis=1)
+    evaluated = features["season"].isin([season for seasons in EVALUATION_SETS.values() for season in seasons])
+    features = features[has_odds & evaluated]
+    rows = features.to_dict("records")
+    rho = engine.MatchConfig(
+        home=config_for_row(rows[0]).home, away=config_for_row(rows[0]).away,
+        referee_yellow_avg=4.5, referee_fouls_avg=24.0,
+    ).dixon_coles_rho
+    model = np.array([engine.expected_goals(config_for_row(row))[:2] for row in rows])
+    splits = {name: features["season"].isin(seasons).to_numpy() for name, seasons in EVALUATION_SETS.items()}
+    result_1x2, over = outcomes(features)
+
+    def losses(lambda_, mu) -> dict[str, float]:
+        probabilities = market_probabilities(score_matrices(np.asarray(lambda_), np.asarray(mu), rho))
+        return {
+            name: log_loss(probabilities["1x2"][mask], result_1x2[mask])
+            + log_loss(binary(probabilities["over25"][mask]), over[mask])
+            for name, mask in splits.items()
+        }
+
+    grid = [{"metodo": "—", "peso_mercato": 0.0, "descrizione": "solo modello", **losses(model[:, 0], model[:, 1])}]
+    for method in engine.DEVIG_METHODS:
+        market = np.array([
+            [fit["lambda"], fit["mu"]]
+            for fit in (engine.market_goal_rates(closing_odds(row), method, rho) for row in rows)
+        ])
+        for weight in (*ANCHOR_WEIGHTS, 1.0):
+            params = replace(engine.MarketAnchorParams(), market_weight=weight, devig_method=method)
+            lambda_, mu, *_ = engine.anchor_goal_rates(model[:, 0], model[:, 1], market[:, 0], market[:, 1], params)
+            description = "solo mercato" if weight == 1.0 else "ancorato"
+            grid.append({"metodo": method, "peso_mercato": weight, "descrizione": description, **losses(lambda_, mu)})
+
+    calibration_set, holdout_set = EVALUATION_SETS
+    candidates = [row for row in grid if row["peso_mercato"] in ANCHOR_WEIGHTS]
+    best = min(candidates, key=lambda row: row[calibration_set])
+    active = best[holdout_set] < grid[0][holdout_set]
+    params = replace(
+        engine.MarketAnchorParams(), active=bool(active),
+        market_weight=best["peso_mercato"], devig_method=best["metodo"],
+    )
+    return {"params": params, "grid": grid, "best": best, "n": len(features)}
+
+
+def save_market_anchor(tuning: Mapping[str, Any]) -> None:
+    data = json.loads(engine.GOAL_MODEL_PATH.read_text(encoding="utf-8"))
+    data["ancoraggio_mercato"] = {
+        "parametri": asdict(tuning["params"]),
+        "taratura": {
+            "data": date.today().isoformat(),
+            "quote": "medie di chiusura football-data.co.uk (1X2 e Over/Under 2.5)",
+            "obiettivo": "log-loss 1X2 + log-loss Over/Under 2.5 sulle stagioni di taratura",
+            "pesi_provati": list(ANCHOR_WEIGHTS),
+            "griglia": [
+                {key: (round(value, 5) if isinstance(value, float) else value) for key, value in row.items()}
+                for row in tuning["grid"]
+            ],
+        },
+    }
+    engine.GOAL_MODEL_PATH.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
+def render_tuning(tuning: Mapping[str, Any]) -> str:
+    calibration_set, holdout_set = EVALUATION_SETS
+    params = tuning["params"]
+    lines = [
+        "## Taratura dell'ancoraggio al mercato", "",
+        f"Generato il {date.today():%d/%m/%Y} con `python -m tools.baseline --tara-ancoraggio` "
+        f"({tuning['n']} partite con quote di chiusura). Log-loss 1X2 + Over/Under 2.5, più basso è meglio.", "",
+        f"| Metodo margine | Peso mercato | Tipo | {calibration_set} | {holdout_set} |", "|---|---|---|---|---|",
+    ]
+    for row in tuning["grid"]:
+        lines.append(
+            f"| {row['metodo']} | {row['peso_mercato']:.1f} | {row['descrizione']} | "
+            f"{row[calibration_set]:.4f} | {row[holdout_set]:.4f} |"
+        )
+    lines += [
+        "",
+        f"Scelta: metodo **{params.devig_method}**, peso mercato **{params.market_weight:g}**, "
+        f"correzione del modello limitata a [{params.correction_min:g}, {params.correction_max:g}]; "
+        f"ancoraggio {'attivo' if params.active else 'disattivato (non migliora il fuori campione)'}.",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def draw_analysis(features: pd.DataFrame) -> str:
+    """Confronta i metodi di margine per esito (1, X, 2) e il rendimento dei VALORE 1X2."""
+    from tools.calibrate import market_probabilities, outcomes, score_matrices
+
+    has_odds = features[["close_home", "close_draw", "close_away", "close_over25", "close_under25"]].gt(1.0).all(axis=1)
+    evaluated = features["season"].isin([season for seasons in EVALUATION_SETS.values() for season in seasons])
+    features = features[has_odds & evaluated]
+    rows = features.to_dict("records")
+    rho = engine.DEFAULT_GOAL_PARAMS.dixon_coles_rho
+    odds = features[["close_home", "close_draw", "close_away"]].to_numpy(float)
+    result, _ = outcomes(features)
+    model = np.array([engine.expected_goals(config_for_row(row))[:2] for row in rows])
+    weight = engine.DEFAULT_MARKET_ANCHOR.market_weight
+
+    sources: dict[str, np.ndarray] = {}
+    for method in engine.DEVIG_METHODS:
+        sources[f"quote senza margine · {method}"] = np.array([engine.remove_margin(row, method) for row in odds])
+    for method in engine.DEVIG_METHODS:
+        market = np.array([
+            [fit["lambda"], fit["mu"]]
+            for fit in (engine.market_goal_rates(closing_odds(row), method, rho) for row in rows)
+        ])
+        sources[f"Dixon-Coles adattato al mercato · {method}"] = market_probabilities(
+            score_matrices(market[:, 0], market[:, 1], rho))["1x2"]
+        params = replace(engine.MarketAnchorParams(), market_weight=weight, devig_method=method)
+        lambda_, mu, *_ = engine.anchor_goal_rates(model[:, 0], model[:, 1], market[:, 0], market[:, 1], params)
+        sources[f"finale (peso {weight:g}) · {method}"] = market_probabilities(score_matrices(lambda_, mu, rho))["1x2"]
+
+    final_name = f"finale (peso {weight:g}) · shin"
+    scenarios = {
+        f"PRIMA: finale shin, VALORE su 1, X e 2": (sources[final_name], ()),
+        f"alternativa: finale proporzionale": (sources[f"finale (peso {weight:g}) · proporzionale"], ()),
+        f"DOPO: finale shin, nessun VALORE sul pareggio": (sources[final_name], ("X",)),
+    }
+    lines = [
+        "## Analisi del pareggio (1, X, 2 separati)", "",
+        f"Generato il {date.today():%d/%m/%Y} con `python -m tools.baseline --analisi-pareggio`. "
+        "Probabilità media prevista contro frequenza osservata; i VALORE sono calcolati alle quote "
+        "di chiusura (con margine) puntando 1 su ciascun segnale.", "",
+    ]
+    for set_name, seasons in EVALUATION_SETS.items():
+        mask = features["season"].isin(seasons).to_numpy()
+        observed = np.eye(3)[result[mask]].mean(axis=0)
+        lines += [
+            f"### {set_name} ({int(mask.sum())} partite; osservato 1 {observed[0]:.1%}, X {observed[1]:.1%}, 2 {observed[2]:.1%})", "",
+            "| Fonte | 1 prevista | X prevista | 2 prevista | Scarto X (punti) | Log-loss 1X2 |", "|---|---|---|---|---|---|",
+        ]
+        for name, probabilities in sources.items():
+            mean = probabilities[mask].mean(axis=0)
+            lines.append(
+                f"| {name} | {mean[0]:.1%} | {mean[1]:.1%} | {mean[2]:.1%} | "
+                f"{(mean[1] - observed[1]) * 100:+.2f} | {log_loss(probabilities[mask], result[mask]):.4f} |"
+            )
+        lines += ["", "| Scenario VALORE | 1: n / rend. | X: n / rend. | 2: n / rend. | Totale: n / rend. |", "|---|---|---|---|---|"]
+        for name, (probabilities, no_value) in scenarios.items():
+            returns = value_returns(probabilities[mask], odds[mask], result[mask], no_value)
+            cells = [
+                f"{returns[key]['n']} / " + ("—" if returns[key]["n"] == 0 else f"{returns[key]['roi'] * 100:.1f}%")
+                for key in (*SIGNS, "totale")
+            ]
+            lines.append(f"| {name} | " + " | ".join(cells) + " |")
+        lines.append("")
+    return "\n".join(lines)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--label", required=True, help="Titolo della sezione, es. PRIMA o DOPO")
+    parser.add_argument("--label", help="Titolo della sezione, es. PRIMA o DOPO")
     parser.add_argument("--goal-model", help="Valore di MatchConfig.goal_model (se supportato)")
+    parser.add_argument("--ancorato", action="store_true", help="Passa le quote di chiusura al motore")
+    parser.add_argument("--tara-ancoraggio", action="store_true", help="Tara peso del mercato e metodo di margine")
+    parser.add_argument("--analisi-pareggio", action="store_true", help="Confronta Shin e proporzionale per 1, X e 2")
     parser.add_argument("--output", type=Path, help="File markdown a cui aggiungere la sezione")
     args = parser.parse_args()
-    overrides = {"goal_model": args.goal_model} if args.goal_model else {}
-    results = run(overrides)
-    description = (
-        f"Generato il {date.today():%d/%m/%Y} con `python -m tools.baseline"
-        f"{' --goal-model ' + args.goal_model if args.goal_model else ''}`. "
-        "Campionati: Serie A, Premier League, Liga, Bundesliga (football-data.co.uk)."
-    )
-    markdown = render_markdown(args.label, description, results)
+    if args.analisi_pareggio:
+        markdown = draw_analysis(load_usable_features())
+    elif args.tara_ancoraggio:
+        tuning = tune_market_anchor(load_usable_features())
+        save_market_anchor(tuning)
+        markdown = render_tuning(tuning)
+    else:
+        if not args.label:
+            parser.error("--label è obbligatorio per la misura")
+        overrides = {"goal_model": args.goal_model} if args.goal_model else {}
+        results = run(overrides, anchored=args.ancorato)
+        command = " ".join(
+            part for part in (
+                "python -m tools.baseline",
+                f"--goal-model {args.goal_model}" if args.goal_model else "",
+                "--ancorato" if args.ancorato else "",
+            ) if part
+        )
+        description = (
+            f"Generato il {date.today():%d/%m/%Y} con `{command}`. "
+            "Campionati: Serie A, Premier League, Liga, Bundesliga (football-data.co.uk)."
+        )
+        markdown = render_markdown(args.label, description, results)
     print(markdown)
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)

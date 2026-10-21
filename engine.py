@@ -12,9 +12,10 @@ import json
 import math
 from pathlib import Path
 import re
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 import numpy as np
+from scipy.optimize import brentq, minimize
 from scipy.stats import poisson
 
 from market_catalog import MARKET_CATALOG, MULTIGOL_RANGES, definition_for_event
@@ -76,6 +77,42 @@ def load_goal_model(path: Path = GOAL_MODEL_PATH) -> tuple[str, GoalModelParams]
 
 DEFAULT_GOAL_MODEL, DEFAULT_GOAL_PARAMS = load_goal_model()
 
+DEVIG_METHODS = ("proporzionale", "shin")
+ANCHOR_MARKETS = ("1", "X", "2", "Over 2.5 gol", "Under 2.5 gol")
+
+
+@dataclass(frozen=True)
+class MarketAnchorParams:
+    """Blend of model and market goal rates, tuned by ``tools/baseline.py``.
+
+    ``market_weight`` is the market share in log scale; the model may move the
+    market rates only within ``[correction_min, correction_max]``.
+    ``no_value_markets`` keeps EV visible but never flags those markets as
+    VALORE: on historical closing odds the draw signals lost money because
+    Poisson + Dixon-Coles cannot reprice the quoted draw exactly.
+    """
+
+    active: bool = True
+    market_weight: float = 0.7
+    devig_method: str = "proporzionale"
+    correction_min: float = 0.80
+    correction_max: float = 1.20
+    suspicious_gap_pct: float = 10.0
+    no_value_markets: tuple[str, ...] = ("X",)
+
+
+def load_market_anchor(path: Path = GOAL_MODEL_PATH) -> MarketAnchorParams:
+    if not path.exists():
+        return MarketAnchorParams()
+    data = json.loads(path.read_text(encoding="utf-8"))
+    params = dict(data.get("ancoraggio_mercato", {}).get("parametri", {}))
+    if "no_value_markets" in params:
+        params["no_value_markets"] = tuple(params["no_value_markets"])
+    return MarketAnchorParams(**params)
+
+
+DEFAULT_MARKET_ANCHOR = load_market_anchor()
+
 
 @dataclass(frozen=True)
 class MatchConfig:
@@ -92,10 +129,13 @@ class MatchConfig:
     odds: dict[str, float] | None = None
     goal_model: str = DEFAULT_GOAL_MODEL
     goal_params: GoalModelParams = DEFAULT_GOAL_PARAMS
+    market_anchor: MarketAnchorParams = DEFAULT_MARKET_ANCHOR
 
     def __post_init__(self) -> None:
         if self.goal_model not in GOAL_MODELS:
             raise ValueError(f"goal_model deve essere uno di {GOAL_MODELS}.")
+        if self.market_anchor.devig_method not in DEVIG_METHODS:
+            raise ValueError(f"devig_method deve essere uno di {DEVIG_METHODS}.")
         if self.dixon_coles_rho is None:
             rho = _LEGACY_RHO if self.goal_model == "legacy" else self.goal_params.dixon_coles_rho
             object.__setattr__(self, "dixon_coles_rho", rho)
@@ -266,6 +306,147 @@ def dixon_coles_matrix(lambda_: float, mu: float, rho: float, max_goals: int = 1
             raise ValueError("rho produce una probabilità Dixon-Coles negativa.")
         matrix[home, away] *= factor
     return matrix / matrix.sum()
+
+
+def remove_margin(odds: Sequence[float], method: str = "proporzionale") -> np.ndarray:
+    """Fair probabilities of one market's mutually exclusive outcomes.
+
+    ``proporzionale`` rescales the implied probabilities; ``shin`` assumes the
+    margin protects against insiders and removes more of it from longshots.
+    """
+    implied = 1.0 / np.asarray(odds, dtype=float)
+    total = implied.sum()
+    if method == "proporzionale" or total <= 1.0:
+        return implied / total
+    if method != "shin":
+        raise ValueError(f"Metodo di rimozione del margine sconosciuto: {method}")
+
+    def shin(z: float) -> np.ndarray:
+        return (np.sqrt(z * z + 4.0 * (1.0 - z) * implied ** 2 / total) - z) / (2.0 * (1.0 - z))
+
+    z = brentq(lambda value: shin(value).sum() - 1.0, 0.0, 0.999)
+    probabilities = shin(z)
+    return probabilities / probabilities.sum()
+
+
+def _score_market_probabilities(lambda_: float, mu: float, rho: float) -> dict[str, float]:
+    matrix = dixon_coles_matrix(lambda_, mu, rho, max_goals=10)
+    home, away = np.indices(matrix.shape)
+    over = float(matrix[home + away > 2].sum())
+    return {
+        "1": float(matrix[home > away].sum()),
+        "X": float(np.trace(matrix)),
+        "2": float(matrix[home < away].sum()),
+        "Over 2.5 gol": over,
+        "Under 2.5 gol": 1.0 - over,
+    }
+
+
+def market_goal_rates(
+    odds: Mapping[str, float] | None, method: str = "proporzionale", rho: float = _LEGACY_RHO
+) -> dict[str, Any] | None:
+    """Goal rates whose Poisson + Dixon-Coles prices best match the market.
+
+    Needs the 1X2 odds; Under/Over 2.5 is used when both sides are quoted.
+    Returns ``None`` when the 1X2 quotes are missing or invalid.
+    """
+    odds = odds or {}
+
+    def valid(key: str) -> bool:
+        try:
+            value = float(odds[key])
+        except (KeyError, TypeError, ValueError):
+            return False
+        return math.isfinite(value) and value > 1.0
+
+    if not all(valid(key) for key in ("1", "X", "2")):
+        return None
+    target = dict(zip(("1", "X", "2"), remove_margin([odds[key] for key in ("1", "X", "2")], method)))
+    if valid("Over 2.5 gol") and valid("Under 2.5 gol"):
+        over, under = remove_margin([odds["Over 2.5 gol"], odds["Under 2.5 gol"]], method)
+        target |= {"Over 2.5 gol": float(over), "Under 2.5 gol": float(under)}
+
+    def cross_entropy(log_rates: np.ndarray) -> float:
+        fitted = _score_market_probabilities(*np.exp(log_rates), rho)
+        return -sum(
+            probability * math.log(max(fitted[key], 1e-12)) for key, probability in target.items()
+        )
+
+    bounds = [(math.log(0.05), math.log(5.0))] * 2
+    fitted = minimize(cross_entropy, np.log([1.4, 1.1]), method="L-BFGS-B", bounds=bounds)
+    lambda_, mu = (float(value) for value in np.exp(fitted.x))
+    fitted_probabilities = _score_market_probabilities(lambda_, mu, rho)
+    return {
+        "lambda": lambda_,
+        "mu": mu,
+        "method": method,
+        "markets_used": list(target),
+        "probabilities_pct": {key: round(value * 100.0, 2) for key, value in target.items()},
+        "fitted_probabilities_pct": {key: round(fitted_probabilities[key] * 100.0, 2) for key in target},
+        "max_fit_error_pct": round(
+            max(abs(fitted_probabilities[key] - value) for key, value in target.items()) * 100.0, 2
+        ),
+    }
+
+
+def anchor_goal_rates(model_lambda, model_mu, market_lambda, market_mu, params: MarketAnchorParams):
+    """Log-scale blend; the model correction to the market rate is bounded.
+
+    Works on scalars and numpy arrays.  Returns final lambda, final mu and the
+    two applied corrections (final / market).
+    """
+    shift = 1.0 - params.market_weight
+    corrections = [
+        np.clip(np.exp(shift * (np.log(model) - np.log(market))), params.correction_min, params.correction_max)
+        for model, market in ((model_lambda, market_lambda), (model_mu, market_mu))
+    ]
+    return (
+        np.asarray(market_lambda) * corrections[0],
+        np.asarray(market_mu) * corrections[1],
+        corrections[0],
+        corrections[1],
+    )
+
+
+def final_goal_rates(config: MatchConfig) -> tuple[float, float, dict[str, Any]]:
+    """Expected goals used by the simulation: model anchored to market odds.
+
+    Without valid 1X2 odds, or with anchoring disabled, the model rates are
+    returned unchanged.
+    """
+    model_lambda, model_mu, ledger = expected_goals(config)
+    params = config.market_anchor
+    anchoring: dict[str, Any] = {
+        "active": False,
+        "model_lambda": model_lambda,
+        "model_mu": model_mu,
+        "params": asdict(params),
+    }
+    market = (
+        market_goal_rates(config.odds, params.devig_method, config.dixon_coles_rho)
+        if params.active
+        else None
+    )
+    if market is None:
+        anchoring["reason"] = (
+            "Ancoraggio disattivato nella configurazione." if not params.active
+            else "Quote 1X2 assenti: si usa solo il modello."
+        )
+        return model_lambda, model_mu, {"ledger": ledger, "anchoring": anchoring}
+    lambda_, mu, correction_home, correction_away = anchor_goal_rates(
+        model_lambda, model_mu, market["lambda"], market["mu"], params
+    )
+    anchoring.update({
+        "active": True,
+        "reason": f"Gol attesi = mercato^{params.market_weight:g} · modello^{1 - params.market_weight:g}, "
+                  f"correzione limitata a [{params.correction_min:g}, {params.correction_max:g}].",
+        "market": market,
+        "market_lambda": market["lambda"],
+        "market_mu": market["mu"],
+        "correction_home": float(correction_home),
+        "correction_away": float(correction_away),
+    })
+    return float(lambda_), float(mu), {"ledger": ledger, "anchoring": anchoring}
 
 
 def _market(mask: np.ndarray) -> dict[str, Any]:
@@ -488,8 +669,22 @@ def _conditional_scenarios(
     return scenarios
 
 
-def financial_analysis(events: Mapping[str, np.ndarray], odds: Mapping[str, float] | None) -> dict[str, Any]:
-    """Calculate settlement-aware EV and quarter-Kelly stake for user odds."""
+def financial_analysis(
+    events: Mapping[str, np.ndarray],
+    odds: Mapping[str, float] | None,
+    components: Mapping[str, Mapping[str, float] | None] | None = None,
+    suspicious_gap_pct: float = MarketAnchorParams().suspicious_gap_pct,
+    no_value_markets: Sequence[str] = MarketAnchorParams().no_value_markets,
+) -> dict[str, Any]:
+    """Calculate settlement-aware EV and quarter-Kelly stake for user odds.
+
+    With ``components`` (model-only and market-only percentages per event) a
+    positive-EV market is flagged as suspicious when the two sources diverge
+    by more than ``suspicious_gap_pct`` points.  Markets in
+    ``no_value_markets`` keep their EV but are never reported as value.
+    """
+    model_only = (components or {}).get("modello") or {}
+    market_only = (components or {}).get("mercato") or {}
     candidates: list[dict[str, Any]] = []
     for market, raw_odd in (odds or {}).items():
         if market not in events:
@@ -517,6 +712,12 @@ def financial_analysis(events: Mapping[str, np.ndarray], odds: Mapping[str, floa
             1.0 + loss_probability / probability if probability > 0 else None
         )
         fair_odds = settlement_fair_odds
+        gap = (
+            round(abs(model_only[market] - market_only[market]), 2)
+            if market in model_only and market in market_only
+            else None
+        )
+        value_allowed = market not in no_value_markets
         candidates.append({
             "market": market,
             "odds": odd,
@@ -538,21 +739,31 @@ def financial_analysis(events: Mapping[str, np.ndarray], odds: Mapping[str, floa
             "recommended_stake_pct": round(full_kelly * 25.0, 2),
             "confidence_interval_95": confidence_interval,
             "reliability_pct": _reliability(confidence_interval),
-            "is_value": ev > 0.0,
+            "is_value": ev > 0.0 and value_allowed,
+            "value_excluded": not value_allowed,
+            "model_only_probability_pct": model_only.get(market),
+            "market_only_probability_pct": market_only.get(market),
+            "model_market_gap_pct": gap,
+            "suspicious_value": ev > 0.0 and value_allowed and gap is not None and gap > suspicious_gap_pct,
         })
     candidates.sort(key=lambda item: (item["ev_pct"], item["edge_pct"]), reverse=True)
-    value_bets = [item for item in candidates if item["ev_pct"] > 0.0]
+    value_bets = [item for item in candidates if item["is_value"]]
     return {
         "quotes_provided": len(candidates),
         "markets": candidates,
         "value_bets": value_bets,
         "best_value": value_bets[0] if value_bets else None,
         "value_threshold_ev_pct": 0.0,
+        "no_value_markets": list(no_value_markets),
         "risk_note": "Kelly è una stima sensibile all'errore del modello; viene mostrato un quarto Kelly, non una garanzia.",
     }
 
 
-def smart_combo(events: Mapping[str, np.ndarray], odds: Mapping[str, float] | None) -> dict[str, Any]:
+def smart_combo(
+    events: Mapping[str, np.ndarray],
+    odds: Mapping[str, float] | None,
+    no_value_markets: Sequence[str] = (),
+) -> dict[str, Any]:
     """Rank every quoted two-leg combination by value and stability."""
     if not odds:
         return {"status": "no_quotes", "legs": [], "message": "Inserire almeno due quote per calcolare una schedina."}
@@ -564,6 +775,7 @@ def smart_combo(events: Mapping[str, np.ndarray], odds: Mapping[str, float] | No
         and definition_for_event(market)
         and definition_for_event(market).settlement != "push"
         and " + " not in market
+        and market not in no_value_markets
     ]
     for index, first in enumerate(available):
         for second in available[index + 1:]:
@@ -663,14 +875,12 @@ def card_total_mean(config: MatchConfig) -> float:
     )
 
 
-def simulate_match(config: MatchConfig) -> dict[str, Any]:
-    """Run one reproducible sample and derive every score market from it.
+def _sample_scores(config: MatchConfig, lambda_: float, mu: float) -> tuple[np.ndarray, ...]:
+    """Sample full-time scores from Dixon-Coles and split them across halves.
 
-    ``goals_home`` and ``goals_away`` are created once per simulation.  No
-    market below samples goals again, so all score-dependent probabilities are
-    projections of the same exact-score observations.
+    The half split reconciles every partial-time outcome exactly with the
+    final score.
     """
-    lambda_, mu, ledger = expected_goals(config)
     rng = np.random.default_rng(config.seed)
     max_goals = max(
         12,
@@ -685,14 +895,50 @@ def simulate_match(config: MatchConfig) -> dict[str, Any]:
         p=score_probabilities.ravel(),
     )
     goals_home, goals_away = np.unravel_index(score_samples, score_probabilities.shape)
+    return goals_home, goals_away, rng.binomial(goals_home, 0.5), rng.binomial(goals_away, 0.5)
 
-    # Split each full-time score across halves so every partial-time outcome
-    # reconciles exactly with the final score.
-    first_home = rng.binomial(goals_home, 0.5)
-    first_away = rng.binomial(goals_away, 0.5)
+
+def _events_for_scores(
+    config: MatchConfig, scores: tuple[np.ndarray, ...], counts: tuple[np.ndarray, ...]
+) -> dict[str, np.ndarray]:
+    goals_home, goals_away, first_home, first_away = scores
+    events = _event_catalog(
+        goals_home, goals_away, first_home, first_away,
+        goals_home - first_home, goals_away - first_away,
+        *counts,
+        _team_multigol_ranges(getattr(config, "odds", None)),
+    )
+    for market in getattr(config, "odds", {}) or {}:
+        if " + " not in market:
+            continue
+        legs = market.split(" + ")
+        if len(legs) != 2 or any(leg not in events for leg in legs):
+            raise ValueError(f"Combo {market}: una o più gambe non sono supportate dal motore.")
+        events[market] = events[legs[0]] & events[legs[1]]
+    _validate_event_catalog(events, config.simulations)
+    return events
+
+
+def _event_percentages(events: Mapping[str, np.ndarray]) -> dict[str, float]:
+    return {key: round(float(mask.mean()) * 100.0, 2) for key, mask in events.items()}
+
+
+def simulate_match(config: MatchConfig) -> dict[str, Any]:
+    """Run one reproducible sample and derive every score market from it.
+
+    ``goals_home`` and ``goals_away`` are created once per simulation.  No
+    market below samples goals again, so all score-dependent probabilities are
+    projections of the same exact-score observations.
+    """
+    lambda_, mu, details = final_goal_rates(config)
+    ledger, anchoring = details["ledger"], details["anchoring"]
+    goals_home, goals_away, first_home, first_away = _sample_scores(config, lambda_, mu)
     second_home = goals_home - first_home
     second_away = goals_away - first_away
 
+    # Corners and cards use their own random stream, so the model-only and
+    # market-only score samples below share exactly the same count samples.
+    rng = np.random.default_rng([config.seed, 1])
     # Estimate each team's corners from its average won and its opponent's
     # average conceded, then sample and allocate one match total.
     home_corner_signal, away_corner_signal = corner_signals(config)
@@ -711,21 +957,20 @@ def simulate_match(config: MatchConfig) -> dict[str, Any]:
     )
     home_cards = rng.binomial(cards, home_card_share)
     away_cards = cards - home_cards
+    counts = (home_corners, away_corners, home_cards, away_cards)
 
-    total = goals_home + goals_away
-    events = _event_catalog(
-        goals_home, goals_away, first_home, first_away, second_home, second_away,
-        home_corners, away_corners, home_cards, away_cards,
-        _team_multigol_ranges(getattr(config, "odds", None)),
-    )
-    for market in getattr(config, "odds", {}) or {}:
-        if " + " not in market:
-            continue
-        legs = market.split(" + ")
-        if len(legs) != 2 or any(leg not in events for leg in legs):
-            raise ValueError(f"Combo {market}: una o più gambe non sono supportate dal motore.")
-        events[market] = events[legs[0]] & events[legs[1]]
-    _validate_event_catalog(events, config.simulations)
+    events = _events_for_scores(config, (goals_home, goals_away, first_home, first_away), counts)
+    components = {"finale": _event_percentages(events), "modello": None, "mercato": None}
+    if anchoring["active"]:
+        for name, rates in (
+            ("modello", (anchoring["model_lambda"], anchoring["model_mu"])),
+            ("mercato", (anchoring["market_lambda"], anchoring["market_mu"])),
+        ):
+            components[name] = _event_percentages(
+                _events_for_scores(config, _sample_scores(config, *rates), counts)
+            )
+    else:
+        components["modello"] = components["finale"]
     markets = {
         "1x2": {key: _market(events[key]) for key in ("1", "X", "2")},
         "double_chance": {key: _market(events[key]) for key in ("1X", "X2", "12")},
@@ -793,7 +1038,7 @@ def simulate_match(config: MatchConfig) -> dict[str, Any]:
     fixed_score_scenario = _conditional_scenarios(events, {"score": fixed_score_mask})["score"]
     result = {
         "input": {"home": config.home.__dict__, "away": config.away.__dict__, "referee_yellow_avg": config.referee_yellow_avg, "referee_fouls_avg": config.referee_fouls_avg},
-        "model": {"lambda": round(lambda_, 6), "mu": round(mu, 6), "goal_model": config.goal_model, "dixon_coles_rho": config.dixon_coles_rho, "simulation_count": config.simulations, "seed": config.seed, "formula_ledger": ledger},
+        "model": {"lambda": round(lambda_, 6), "mu": round(mu, 6), "lambda_modello": round(anchoring["model_lambda"], 6), "mu_modello": round(anchoring["model_mu"], 6), "goal_model": config.goal_model, "dixon_coles_rho": config.dixon_coles_rho, "simulation_count": config.simulations, "seed": config.seed, "formula_ledger": ledger},
         "markets": markets,
         "conditional_scenarios": conditional_scenarios,
         "fixed_score_scenario": fixed_score_scenario,
@@ -829,8 +1074,15 @@ def simulate_match(config: MatchConfig) -> dict[str, Any]:
         "sampling_stability_pct": round(float(np.clip(100.0 - interval_width, 0.0, 100.0)), 2),
         "model_uncertainty": "Non stimata: richiede una distribuzione sui parametri e validazione out-of-sample.",
     }
-    result["financial"] = financial_analysis(events, getattr(config, "odds", None))
-    result["smart_combo"] = smart_combo(events, getattr(config, "odds", None))
+    result["market_anchoring"] = anchoring
+    result["components"] = components
+    result["financial"] = financial_analysis(
+        events, getattr(config, "odds", None), components,
+        config.market_anchor.suspicious_gap_pct, config.market_anchor.no_value_markets,
+    )
+    result["smart_combo"] = smart_combo(
+        events, getattr(config, "odds", None), config.market_anchor.no_value_markets
+    )
     result["statistical_report"] = statistical_report(config, result)
     result["dashboard"] = {
         "goals_distribution": {

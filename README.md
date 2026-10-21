@@ -198,6 +198,29 @@ fuori campione di almeno 0.001 di log-loss. La formula originale resta
 disponibile con `MatchConfig(goal_model="legacy")`; senza file di taratura il
 motore usa quella.
 
+### Ancoraggio alle quote di mercato
+
+Se il blocco contiene le quote 1X2 (e, facoltativamente, Over e Under 2.5), il
+motore toglie il margine (metodo proporzionale o di Shin) e trova `λ_mercato` e
+`μ_mercato` che con Poisson + Dixon-Coles riproducono al meglio quelle
+probabilità. I gol attesi finali sono
+`mercato^w · modello^(1-w)` in scala logaritmica, con la correzione del modello
+rispetto al mercato limitata a `[0.80, 1.20]`. Senza quote 1X2 si usa solo il
+modello. Peso `w` e metodo sono tarati con
+`python -m tools.baseline --tara-ancoraggio` (pesi 0.5-0.9) e salvati nella
+sezione `ancoraggio_mercato` di `config/goal_model.json`, dove
+`"active": false` disattiva l'ancoraggio.
+
+Ogni card mostra probabilità solo-mercato, solo-modello e finale. Un `VALORE`
+in cui modello e mercato divergono di oltre 10 punti è evidenziato in giallo
+con la scritta "valore sospetto: verifica i dati".
+
+Il pareggio (`X`) non viene mai segnalato come `VALORE` (`no_value_markets` in
+`config/goal_model.json`): sulle quote di chiusura storiche quei segnali hanno
+reso in perdita perché Poisson + Dixon-Coles non riproduce esattamente la X
+quotata. L'EV resta visibile nell'audit. Il confronto per esito tra Shin e
+metodo proporzionale si rigenera con `python -m tools.baseline --analisi-pareggio`.
+
 `python -m tools.baseline --label ... --output docs/BASELINE.md` misura Brier,
 log-loss e calibrazione di 1X2, Over 2.5 e GG e l'errore sulle medie di corner
 e cartellini, confrontandoli con le quote di chiusura senza margine. I
