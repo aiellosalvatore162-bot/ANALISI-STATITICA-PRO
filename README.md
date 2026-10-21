@@ -221,6 +221,17 @@ reso in perdita perché Poisson + Dixon-Coles non riproduce esattamente la X
 quotata. L'EV resta visibile nell'audit. Il confronto per esito tra Shin e
 metodo proporzionale si rigenera con `python -m tools.baseline --analisi-pareggio`.
 
+### Primo tempo e mercati secondari
+
+Ogni gol del punteggio finale simulato cade nel primo tempo con una quota
+tarata separatamente per casa e ospite e crescente con i gol attesi totali
+(sezione `primo_tempo` di `config/goal_model.json`, generata da
+`python -m tools.calibrate --primo-tempo` sui gol del primo tempo dei CSV
+football-data). Tutti i mercati gol (finale, primo tempo, multigol, somma gol,
+risultati esatti) derivano dallo stesso campione di punteggi dei gol attesi
+finali. `python -m tools.baseline --mercati-secondari` misura multigol, somma
+gol e mercati del primo tempo prima/dopo.
+
 `python -m tools.baseline --label ... --output docs/BASELINE.md` misura Brier,
 log-loss e calibrazione di 1X2, Over 2.5 e GG e l'errore sulle medie di corner
 e cartellini, confrontandoli con le quote di chiusura senza margine. I
