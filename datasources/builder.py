@@ -365,10 +365,10 @@ def plausibility_warnings(text: str) -> list[str]:
                 warnings.append(f"{label}: {field} mancante.")
                 continue
             value = float(match.group(1).replace(",", "."))
+            hint = f" (forse {value / 10:g}?)" if field.startswith("xG") and value > 5 else ""
             if not hard_low <= value <= hard_high:
-                warnings.append(f"{label}: {field} {value:g} fuori dal range accettato ({hard_low:g}-{hard_high:g}).")
+                warnings.append(f"{label}: {field} {value:g} fuori dal range accettato ({hard_low:g}-{hard_high:g}){hint}.")
             elif not low <= value <= high:
-                hint = f" (forse {value / 10:g}?)" if field.startswith("xG") and value > 5 else ""
                 warnings.append(f"{label}: {field} {value:g} insolito (atteso {low:g}-{high:g}){hint}.")
         if not re.search(r"Forma\s*:\s*[WDL](?:-[WDL]){0,4}\b", body, re.I):
             warnings.append(f"{label}: Forma mancante o non nel formato W-D-L.")
@@ -400,3 +400,68 @@ def plausibility_warnings(text: str) -> list[str]:
         elif odd > 200:
             warnings.append(f"Quota {match.group(1).strip()} {odd:g}: insolitamente alta.")
     return warnings
+
+
+# --- Modifiche manuali -----------------------------------------------------------------
+
+_LABEL_TO_KEY = {label: key for key, label in TEAM_FIELDS}
+_REFEREE_KEYS = {"Gialli medi": "yellow", "Falli medi": "fouls"}
+_ODDS_KEYS = {label: key for key, label in ODDS_FIELDS}
+
+
+def _parse_value(key: str, text: str):
+    text = str(text).strip()
+    if key in ("form", "corners"):
+        return text.upper().replace(" ", "") if key == "form" else text.replace(" ", "").replace(",", ".")
+    return float(text.replace(",", "."))
+
+
+def empty_sheet(home: str, away: str, match_date: date, competition: str | None = None) -> MatchSheet:
+    """Scheda con tutti i campi mancanti, da completare a mano."""
+    note = "da inserire a mano"
+    team = {key: missing(note) for key, _ in TEAM_FIELDS}
+    return MatchSheet(home, away, match_date, competition, dict(team), dict(team),
+                      {"yellow": missing(note), "fouls": missing(note)}, origin="inserimento manuale")
+
+
+def apply_edits(sheet: MatchSheet, rows: list[dict]) -> tuple[MatchSheet, list[str]]:
+    """Applica i valori della tabella modificata; un valore cambiato diventa «inserito manualmente»."""
+    errors: list[str] = []
+    fields = {sheet.home: dict(sheet.home_fields), sheet.away: dict(sheet.away_fields),
+              "Arbitro": dict(sheet.referee_fields), "Quote": dict(sheet.odds)}
+    for row in rows:
+        subject, label, text = row.get("Soggetto"), row.get("Campo"), row.get("Valore")
+        if subject not in fields or str(label).startswith("(info)"):
+            continue
+        key = (_REFEREE_KEYS if subject == "Arbitro" else _ODDS_KEYS if subject == "Quote" else _LABEL_TO_KEY).get(label)
+        if key is None:
+            continue
+        current = fields[subject].get(key)
+        if text is None or str(text).strip() == "":
+            fields[subject][key] = missing("da inserire a mano") if subject != "Quote" else None
+            continue
+        try:
+            value = _parse_value(key, text)
+        except ValueError:
+            errors.append(f"{subject} · {label}: «{text}» non è un numero.")
+            continue
+        unchanged = current is not None and not current.missing and (
+            _format(key, current.value) == _format(key, value) if key in dict(TEAM_FIELDS) else current.value == value)
+        if not unchanged:
+            fields[subject][key] = FieldValue(value, "inserito manualmente", datetime.now().astimezone(), None,
+                                              "valore modificato o aggiunto a mano", "avviso")
+    edited = MatchSheet(
+        sheet.home, sheet.away, sheet.match_date, sheet.competition,
+        fields[sheet.home], fields[sheet.away], fields["Arbitro"],
+        {key: value for key, value in fields["Quote"].items() if value is not None},
+        sheet.extras, sheet.warnings, sheet.origin,
+    )
+    return edited, errors
+
+
+def missing_fields(sheet: MatchSheet) -> list[str]:
+    result = []
+    for subject, fields, labels in ((sheet.home, sheet.home_fields, TEAM_FIELDS), (sheet.away, sheet.away_fields, TEAM_FIELDS),
+                                    ("Arbitro", sheet.referee_fields, (("yellow", "Gialli medi"), ("fouls", "Falli medi")))):
+        result += [f"{subject} · {label}" for key, label in labels if key in fields and fields[key].missing]
+    return result
