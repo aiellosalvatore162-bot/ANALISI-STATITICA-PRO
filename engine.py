@@ -202,6 +202,20 @@ class TacticalFactors:
     cards: float = 1.0
 
 
+@dataclass(frozen=True)
+class ClaudeAdjustment:
+    """Corrections pasted from a Claude answer (``claude_bridge.py``), already bounded.
+
+    Goal factors multiply the final rates *after* the market blend; corner
+    and card factors multiply the respective means.
+    """
+
+    goals_home: float = 1.0
+    goals_away: float = 1.0
+    corners: float = 1.0
+    cards: float = 1.0
+
+
 def load_tactical_switches(path: Path = GOAL_MODEL_PATH) -> TacticalSwitches:
     if not path.exists():
         return TacticalSwitches()
@@ -243,6 +257,7 @@ class MatchConfig:
     count_model: CountModelParams = DEFAULT_COUNT_MODEL
     tactical: TacticalFactors | None = None
     tactical_switches: TacticalSwitches = DEFAULT_TACTICAL_SWITCHES
+    claude: ClaudeAdjustment | None = None
 
     def __post_init__(self) -> None:
         if self.goal_model not in GOAL_MODELS:
@@ -539,8 +554,18 @@ def final_goal_rates(config: MatchConfig) -> tuple[float, float, dict[str, Any]]
     """Expected goals used by the simulation: model anchored to market odds.
 
     Without valid 1X2 odds, or with anchoring disabled, the model rates are
-    returned unchanged.
+    returned unchanged. Claude's goal corrections, when present, multiply the
+    rates after the market blend.
     """
+    lambda_, mu, details = _anchored_goal_rates(config)
+    if config.claude is not None:
+        details = {**details, "claude": {"lambda_before": lambda_, "mu_before": mu,
+                                         "goals_home": config.claude.goals_home, "goals_away": config.claude.goals_away}}
+        lambda_, mu = lambda_ * config.claude.goals_home, mu * config.claude.goals_away
+    return lambda_, mu, details
+
+
+def _anchored_goal_rates(config: MatchConfig) -> tuple[float, float, dict[str, Any]]:
     model_lambda, model_mu, ledger = expected_goals(config)
     tactical = _tactical(config, "goals")
     supremacy = _tactical(config, "goals_supremacy")
@@ -1017,6 +1042,8 @@ def corner_signals(config: MatchConfig) -> tuple[float, float]:
     tactical = _tactical(config, "corners")
     if tactical is not None:
         home, away = home * tactical.corners_home, away * tactical.corners_away
+    if config.claude is not None:
+        home, away = home * config.claude.corners, away * config.claude.corners
     return home, away
 
 
@@ -1029,7 +1056,7 @@ def card_total_mean(config: MatchConfig) -> float:
     team_cards = config.home.cards_for + config.away.cards_for
     params = config.count_model
     tactical = _tactical(config, "cards")
-    factor = tactical.cards if tactical is not None else 1.0
+    factor = (tactical.cards if tactical is not None else 1.0) * (config.claude.cards if config.claude is not None else 1.0)
     if params.active:
         if team_cards <= 0.0 or config.referee_yellow_avg <= 0.0 or config.referee_fouls_avg <= 0.0:
             return 0.0
