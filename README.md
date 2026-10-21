@@ -152,6 +152,38 @@ di default sono accese solo quelle validate da `python -m tools.tactical`
 su stagioni intere (risultati in [`docs/STILI.md`](./docs/STILI.md), interruttori
 nella sezione `scenario_tattico` di `config/goal_model.json`).
 
+## Analisi con Claude (copia e incolla, senza API)
+
+Dopo la simulazione, **Prepara analisi per Claude** genera un testo da copiare
+(pulsante di copia del riquadro) con: istruzioni per verificare sul web
+formazioni, assenze, squalifiche, turnover, arbitro designato e sue medie,
+motivazioni, meteo e incoerenze con gli input; il blocco di input con fonti e
+date; le probabilità principali e i gol attesi solo-mercato, solo-modello e
+finali; il formato di risposta:
+
+```
+CORREZIONI_CLAUDE:
+gol_casa: 0.95 | motivo: ... | fonte: https://...
+gol_ospite: 1.05 | motivo: ... | fonte: https://...
+corner: 1.00 | motivo: ... | fonte: https://...
+cartellini: 1.10 | motivo: ... | fonte: https://...
+arbitro_gialli_medi: 4.6 | partite: 23 | fonte: https://...
+confidenza: media
+commento: ...
+```
+
+La risposta incollata viene letta da `claude_bridge.py`: limiti gol e corner
+0.90-1.10, cartellini 0.85-1.15; ogni correzione diversa da 1 senza un link come
+fonte viene ignorata; la media gialli dell'arbitro (con fonte e numero di
+partite) sostituisce quella del blocco con lo stesso shrinkage della fase D. Le
+correzioni sui gol si applicano dopo l'ancoraggio al mercato. Un interruttore
+le applica e mostra il confronto prima/dopo; **Salva nel registro** scrive le
+probabilità prima e dopo (colonna `Prob_Claude`) in `prediction_log.py`.
+
+In **Crea partita**, **Prepara estrazione dati per Claude** genera le istruzioni
+per trasformare il testo copiato da un sito nel blocco del parser; il blocco
+restituito si incolla nel campo apposito e passa dal controllo di plausibilità.
+
 ## Input
 
 ```text

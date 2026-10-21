@@ -81,5 +81,10 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   partita, niente dati futuri); validazione e scelta delle correzioni attive con
   `python -m tools.tactical` (scrive `docs/STILI.md` e la sezione
   `scenario_tattico` della configurazione).
+- Integrazione con Claude solo via copia e incolla (`claude_bridge.py`): niente
+  SDK anthropic né chiavi API. Le correzioni incollate sui gol si applicano dopo
+  l'ancoraggio al mercato (`MatchConfig.claude`). Registro minimo delle
+  previsioni in `prediction_log.py` (colonna `Prob_Claude`), da estendere nella
+  fase H.
 - Le fonti remote devono degradare con un avviso (come `historical.py` ricade
   al 100% manuale), mai bloccare la simulazione manuale.
