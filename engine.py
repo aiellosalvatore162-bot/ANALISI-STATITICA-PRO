@@ -140,6 +140,41 @@ def load_half_time(path: Path = GOAL_MODEL_PATH) -> HalfTimeParams:
 DEFAULT_HALF_TIME = load_half_time()
 
 
+@dataclass(frozen=True)
+class CountModelParams:
+    """Log-linear corner and card means, fitted by ``python -m tools.calibrate --corner-cartellini``.
+
+    Corners: ``log m_home = corner_home_intercept + corner_for_weight·log(corner pro casa)
+    + corner_against_weight·log(corner sub ospite)`` (away symmetric).
+    Cards: ``log m = card_intercept + card_team_weight·log(cartellini casa + ospite)
+    + card_referee_yellow_weight·log(gialli arbitro) + card_referee_fouls_weight·log(falli arbitro)``.
+    ``*_dispersion`` is the negative-binomial shape (0 = Poisson). With
+    ``active=False`` the original averages are used.
+    """
+
+    active: bool = False
+    corner_home_intercept: float = 0.0
+    corner_away_intercept: float = 0.0
+    corner_for_weight: float = 0.5
+    corner_against_weight: float = 0.5
+    corner_dispersion: float = 0.0
+    card_intercept: float = 0.0
+    card_team_weight: float = 1.0
+    card_referee_yellow_weight: float = 1.0
+    card_referee_fouls_weight: float = 1.0
+    card_dispersion: float = 0.0
+
+
+def load_count_model(path: Path = GOAL_MODEL_PATH) -> CountModelParams:
+    if not path.exists():
+        return CountModelParams()
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return CountModelParams(**data.get("corner_cartellini", {}).get("parametri", {}))
+
+
+DEFAULT_COUNT_MODEL = load_count_model()
+
+
 def first_half_shares(lambda_, mu, params: HalfTimeParams):
     """First-half goal shares for home and away; scalars or numpy arrays."""
     shift = params.total_slope * (np.asarray(lambda_, dtype=float) + np.asarray(mu, dtype=float) - params.reference_total)
@@ -167,6 +202,7 @@ class MatchConfig:
     goal_params: GoalModelParams = DEFAULT_GOAL_PARAMS
     market_anchor: MarketAnchorParams = DEFAULT_MARKET_ANCHOR
     half_time: HalfTimeParams = DEFAULT_HALF_TIME
+    count_model: CountModelParams = DEFAULT_COUNT_MODEL
 
     def __post_init__(self) -> None:
         if self.goal_model not in GOAL_MODELS:
@@ -905,10 +941,21 @@ def statistical_report(config: MatchConfig, result: Mapping[str, Any]) -> str:
     )
 
 
+def _log(value: float) -> float:
+    return math.log(max(float(value), 0.1))
+
+
 def corner_signals(config: MatchConfig) -> tuple[float, float]:
-    """Expected corners per team: own average won and opponent's conceded."""
-    home = (config.home.corners_for + config.away.corners_against) / 2.0
-    away = (config.away.corners_for + config.home.corners_against) / 2.0
+    """Expected corners per team from own average won and opponent's conceded."""
+    params = config.count_model
+    if not params.active:
+        home = (config.home.corners_for + config.away.corners_against) / 2.0
+        away = (config.away.corners_for + config.home.corners_against) / 2.0
+        return home, away
+    home = math.exp(params.corner_home_intercept + params.corner_for_weight * _log(config.home.corners_for)
+                    + params.corner_against_weight * _log(config.away.corners_against))
+    away = math.exp(params.corner_away_intercept + params.corner_for_weight * _log(config.away.corners_for)
+                    + params.corner_against_weight * _log(config.home.corners_against))
     return home, away
 
 
@@ -918,12 +965,26 @@ def card_total_mean(config: MatchConfig) -> float:
     The yellow average is the level factor and the fouls average is the tempo
     factor.
     """
+    team_cards = config.home.cards_for + config.away.cards_for
+    params = config.count_model
+    if params.active:
+        if team_cards <= 0.0 or config.referee_yellow_avg <= 0.0 or config.referee_fouls_avg <= 0.0:
+            return 0.0
+        return math.exp(
+            params.card_intercept + params.card_team_weight * math.log(team_cards)
+            + params.card_referee_yellow_weight * math.log(config.referee_yellow_avg)
+            + params.card_referee_fouls_weight * math.log(config.referee_fouls_avg)
+        )
     foul_factor = max(0.0, config.referee_fouls_avg / 24.0)
     referee_severity = max(0.0, config.referee_yellow_avg / 4.5)
-    return max(
-        0.0,
-        (config.home.cards_for + config.away.cards_for) * referee_severity * foul_factor,
-    )
+    return max(0.0, team_cards * referee_severity * foul_factor)
+
+
+def _count_samples(rng: np.random.Generator, mean: float, dispersion: float, size: int) -> np.ndarray:
+    """Poisson counts, or negative binomial (gamma-Poisson) when ``dispersion`` > 0."""
+    if dispersion > 0.0 and mean > 0.0:
+        return rng.poisson(rng.gamma(dispersion, mean / dispersion, size))
+    return rng.poisson(mean, size)
 
 
 def _sample_scores(config: MatchConfig, lambda_: float, mu: float) -> tuple[np.ndarray, ...]:
@@ -998,14 +1059,14 @@ def simulate_match(config: MatchConfig) -> dict[str, Any]:
     # average conceded, then sample and allocate one match total.
     home_corner_signal, away_corner_signal = corner_signals(config)
     lambda_corners = home_corner_signal + away_corner_signal
-    corners = rng.poisson(lambda_corners, config.simulations)
+    corners = _count_samples(rng, lambda_corners, config.count_model.corner_dispersion if config.count_model.active else 0.0, config.simulations)
     home_corner_share = (
         home_corner_signal / lambda_corners if lambda_corners > 0.0 else 0.5
     )
     home_corners = rng.binomial(corners, home_corner_share)
     away_corners = corners - home_corners
 
-    cards = rng.poisson(card_total_mean(config), config.simulations)
+    cards = _count_samples(rng, card_total_mean(config), config.count_model.card_dispersion if config.count_model.active else 0.0, config.simulations)
     card_signal_total = max(0.0, config.home.cards_for + config.away.cards_for)
     home_card_share = (
         config.home.cards_for / card_signal_total if card_signal_total > 0.0 else 0.5

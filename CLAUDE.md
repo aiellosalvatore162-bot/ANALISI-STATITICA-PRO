@@ -14,9 +14,11 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
    medie gol (`expected_goals`), verificando con `test_engine.py`.
 2. **Recupero automatico dei dati da fonti gratuite** al posto dell'inserimento
    manuale: ClubElo per l'Elo; FBref/Understat tramite la libreria `soccerdata`
-   per xG, corner, cartellini e arbitri. Quando ClubElo è integrato, rifare il
-   test delle partite del 20/10/2026 (PSG-Barcellona è `xfail` perché Elo e xG
-   della scheda erano stime) con l'Elo reale.
+   per xG, corner, cartellini e arbitri. Fatto nella fase D con richieste
+   dirette (ClubElo dalle pagine squadra; FBref bloccata; soccerdata tolta
+   perché i suoi lettori ClubElo e FBref non funzionano). Il test del
+   20/10/2026 usa l'Elo ClubElo reale; PSG-Barcellona e Napoli-Bodø sono
+   `xfail` per input stimati.
 3. **Registro delle previsioni** (probabilità stimata, quota, risultato) per
    misurare la calibrazione e il confronto con la quota di chiusura (CLV).
 
@@ -66,5 +68,11 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   ritara con `python -m tools.calibrate --primo-tempo`; i mercati secondari si
   misurano con `python -m tools.baseline --mercati-secondari`. Ogni script di
   taratura aggiorna solo la propria sezione del file di configurazione.
+- Livello dati in `datasources/` (cache SQLite, nomi squadra, ClubElo, Understat,
+  football-data.co.uk/.org, statistiche, compilazione del blocco) e interfaccia in
+  `ui_data.py`. I test usano solo risposte salvate in `tests/fixtures/sources/`:
+  nessuna chiamata di rete nei test. Corner e cartellini si ritarano con
+  `python -m tools.calibrate --corner-cartellini` e si misurano con
+  `python -m tools.baseline --corner-cartellini`.
 - Le fonti remote devono degradare con un avviso (come `historical.py` ricade
   al 100% manuale), mai bloccare la simulazione manuale.

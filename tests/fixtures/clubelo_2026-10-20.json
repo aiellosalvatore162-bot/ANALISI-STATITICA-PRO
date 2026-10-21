@@ -1,0 +1,92 @@
+{
+  "fonte": "ClubElo (pagine squadra clubelo.com, storico datato)",
+  "scaricato_il": "2026-10-21",
+  "data_partite": "2026-10-20",
+  "regola": "Elo pre-partita = ultimo punto dello storico con data precedente al 2026-10-20",
+  "squadre": {
+    "FC Porto": {
+      "slug": "porto",
+      "elo": 1837.46,
+      "data_punto": "2026-10-14",
+      "url": "https://clubelo.com/porto"
+    },
+    "PSV Eindhoven": {
+      "slug": "PSV",
+      "elo": 1772.13,
+      "data_punto": "2026-10-17",
+      "url": "https://clubelo.com/PSV"
+    },
+    "Liverpool": {
+      "slug": "Liverpool",
+      "elo": 1937.02,
+      "data_punto": "2026-10-17",
+      "url": "https://clubelo.com/Liverpool"
+    },
+    "Villarreal": {
+      "slug": "Villarreal",
+      "elo": 1801.21,
+      "data_punto": "2026-10-17",
+      "url": "https://clubelo.com/Villarreal"
+    },
+    "Manchester City": {
+      "slug": "ManCity",
+      "elo": 2025.17,
+      "data_punto": "2026-10-17",
+      "url": "https://clubelo.com/ManCity"
+    },
+    "AEK Atene": {
+      "slug": "AEK",
+      "elo": 1701.46,
+      "data_punto": "2026-10-14",
+      "url": "https://clubelo.com/AEK"
+    },
+    "Napoli": {
+      "slug": "Napoli",
+      "elo": 1822.05,
+      "data_punto": "2026-10-17",
+      "url": "https://clubelo.com/Napoli"
+    },
+    "Bodo/Glimt": {
+      "slug": "BodoeGlimt",
+      "elo": 1789.03,
+      "data_punto": "2026-10-17",
+      "url": "https://clubelo.com/BodoeGlimt"
+    },
+    "PSG": {
+      "slug": "ParisSG",
+      "elo": 1972.76,
+      "data_punto": "2026-10-17",
+      "url": "https://clubelo.com/ParisSG"
+    },
+    "Barcellona": {
+      "slug": "Barcelona",
+      "elo": 2037.06,
+      "data_punto": "2026-10-17",
+      "url": "https://clubelo.com/Barcelona"
+    },
+    "Roma": {
+      "slug": "Roma",
+      "elo": 1854.19,
+      "data_punto": "2026-10-17",
+      "url": "https://clubelo.com/Roma"
+    },
+    "Slovan Bratislava": {
+      "slug": "SlovanBratislava",
+      "elo": 1553.17,
+      "data_punto": "2026-10-17",
+      "url": "https://clubelo.com/SlovanBratislava"
+    },
+    "Stoccarda": {
+      "slug": "Stuttgart",
+      "elo": 1820.75,
+      "data_punto": "2026-10-17",
+      "url": "https://clubelo.com/Stuttgart"
+    },
+    "Atletico Madrid": {
+      "slug": "atletico",
+      "elo": 1915.91,
+      "data_punto": "2026-10-17",
+      "url": "https://clubelo.com/atletico"
+    }
+  }
+}

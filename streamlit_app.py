@@ -17,7 +17,9 @@ from historical import (
     run_walk_forward,
 )
 from market_catalog import MARKET_GROUPS, definition_for_event, definitions_for_group
-from parser import MatchInputError, MatchInput, ParsedTeam, parse_match_input
+from datasources.builder import plausibility_warnings
+from parser import MatchInputError, MatchInput, parse_match_input
+from ui_data import render_automatic, render_create, show_provenance
 
 
 EXAMPLE = """CASA: Inter
@@ -280,23 +282,15 @@ if "input_text" not in st.session_state:
     st.session_state["input_text"] = EXAMPLE
 st.session_state.setdefault("input_touched", False)
 
-def _team_block(team: ParsedTeam, label: str) -> str:
-    return (
-        f"{label.upper()}: {team.name}\n"
-        f"Attacco: {team.attack:.2f} | Difesa: {team.defense:.2f} | Elo: {int(team.elo)} | "
-        f"Forma: {team.form} | xG Fatti: {team.xg_for:.2f} | xG Subiti: {team.xg_against:.2f} | "
-        f"Corner pro/sub: {team.corners_for:.2f}/{team.corners_against:.2f} | "
-        f"Cartellini pro: {team.cards_for:.2f}"
-    )
-
-
 with st.container(border=True):
     st.markdown('<div class="input-card-title">Configurazione partita</div>', unsafe_allow_html=True)
     st.markdown(
         '<div class="input-card-subtitle">Scegli il flusso più rapido: incolla i dati oppure costruisci la partita campo per campo.</div>',
         unsafe_allow_html=True,
     )
-    input_mode = st.radio("Modalità input", ["Copia-incolla", "Crea partita"], horizontal=True, key="input_mode")
+    if "pending_input_mode" in st.session_state:
+        st.session_state["input_mode"] = st.session_state.pop("pending_input_mode")
+    input_mode = st.radio("Modalità input", ["Copia-incolla", "Dati automatici", "Crea partita"], horizontal=True, key="input_mode")
 with st.expander("Quali dati inserire per un’analisi affidabile"):
     st.markdown(
         """
@@ -313,7 +307,7 @@ with st.expander("Quali dati inserire per un’analisi affidabile"):
 if input_mode == "Copia-incolla":
     with st.container(border=True):
         st.markdown('<div class="input-card-title">Input dichiarato</div>', unsafe_allow_html=True)
-        st.markdown('<div class="input-card-subtitle">Il testo viene passato al parser senza dati esterni o valori nascosti.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="input-card-subtitle">Il testo viene passato al parser così com\'è; le righe che iniziano con # (fonti) sono ignorate.</div>', unsafe_allow_html=True)
         text = st.text_area(
             "Blocco CASA / OSPITE / ARBITRO",
             key="input_text",
@@ -321,47 +315,25 @@ if input_mode == "Copia-incolla":
             on_change=_mark_input_touched,
             help="Inserisci nome, attacco, difesa, Elo, forma, xG, corner pro/sub, cartellini pro e medie arbitro. Le quote non riconosciute o duplicate interrompono l’importazione: nessun campo viene scartato in silenzio.",
         )
+    if st.session_state.get("auto_sheet_rows"):
+        with st.expander("Fonti e date dei valori compilati automaticamente", expanded=True):
+            st.caption("Relative all'ultima compilazione automatica; se modifichi il blocco a mano, i valori modificati non corrispondono più alle fonti indicate.")
+            show_provenance(st.session_state["auto_sheet_rows"], st.session_state.get("auto_sheet_warnings", []))
+    plausibility = plausibility_warnings(text)
+    if plausibility:
+        st.warning("Controllo di plausibilità:\n" + "\n".join(f"- {warning}" for warning in plausibility))
+elif input_mode == "Dati automatici":
+    with st.container(border=True):
+        st.markdown('<div class="input-card-title">Dati automatici</div>', unsafe_allow_html=True)
+        st.markdown('<div class="input-card-subtitle">Scegli competizione e partita, o scrivi le due squadre: il blocco si compila da solo con fonte e data accanto a ogni valore e resta modificabile.</div>', unsafe_allow_html=True)
+        render_automatic()
+    text = st.session_state["input_text"]
 else:
-    st.markdown('<div class="section-kicker">Builder guidato</div>', unsafe_allow_html=True)
-    home_col, away_col = st.columns(2, gap="medium")
-
-    def guided_team(label: str, key: str, defaults: tuple) -> ParsedTeam:
-        with (home_col if key == "home" else away_col), st.container(border=True):
-            st.markdown(f'<div class="input-card-title">⚽ {label}</div>', unsafe_allow_html=True)
-            st.markdown('<div class="input-card-subtitle">Parametri di forza e produzione</div>', unsafe_allow_html=True)
-            name = st.text_input("Nome", defaults[0], key=f"{key}_name", on_change=_mark_input_touched)
-            attack = st.slider("Attacco", 0.2, 3.0, defaults[1], 0.01, key=f"{key}_attack", on_change=_mark_input_touched, help="Gol fatti medi della squadra diviso la media della competizione; 1.00 è neutro.")
-            defense = st.slider("Difesa", 0.2, 3.0, defaults[2], 0.01, key=f"{key}_defense", on_change=_mark_input_touched, help="Media campionato dei gol subiti divisa per i gol subiti medi della squadra; valori sopra 1 indicano difesa più solida.")
-            elo = st.number_input("Elo", 800, 2400, defaults[3], 5, key=f"{key}_elo", on_change=_mark_input_touched, help="Rating assoluto: usa la stessa scala e fonte per entrambe le squadre.")
-            form = st.text_input("Forma W-D-L", defaults[4], key=f"{key}_form", on_change=_mark_input_touched, help="Da una a cinque gare, dalla più vecchia alla più recente.")
-            xg_for = st.number_input("xG fatti / partita", 0.0, 10.0, defaults[5], 0.01, key=f"{key}_xgf", on_change=_mark_input_touched)
-            xg_against = st.number_input("xG subiti / partita", 0.0, 10.0, defaults[6], 0.01, key=f"{key}_xga", on_change=_mark_input_touched)
-            corners_for = st.number_input("Corner pro / partita", 0.0, 15.0, defaults[7], 0.01, key=f"{key}_cf", on_change=_mark_input_touched, help="Corner conquistati medi per gara; conta, non coefficiente.")
-            corners_against = st.number_input("Corner sub / partita", 0.0, 15.0, defaults[8], 0.01, key=f"{key}_ca", on_change=_mark_input_touched, help="Corner concessi medi per gara; il motore li incrocia con i corner pro dell’avversaria.")
-            cards_for = st.number_input("Gialli pro / partita", 0.0, 10.0, defaults[9], 0.01, key=f"{key}_cards", on_change=_mark_input_touched, help="Media di cartellini gialli ricevuti dalla squadra per gara; escludi i rossi.")
-        return ParsedTeam(name, attack, defense, elo, form, xg_for, xg_against, corners_for, corners_against, cards_for)
-
-    home = guided_team("Casa", "home", ("Inter", 1.34, 0.78, 1835, "W-W-D-W-W", 2.15, 0.85, 5.8, 4.2, 1.60))
-    away = guided_team("Ospite", "away", ("Milan", 1.22, 0.92, 1765, "W-W-L-D-W", 1.85, 1.10, 5.1, 4.8, 1.85))
     with st.container(border=True):
-        st.markdown('<div class="input-card-title">🟨 Profilo arbitrale</div>', unsafe_allow_html=True)
-        st.markdown('<div class="input-card-subtitle">Impatto disciplinare medio usato nel modello.</div>', unsafe_allow_html=True)
-        ref_col1, ref_col2 = st.columns(2)
-        yellow = ref_col1.number_input("Gialli medi", 0.0, 15.0, 4.5, 0.1, key="guided_yellow", on_change=_mark_input_touched)
-        fouls = ref_col2.number_input("Falli medi", 0.0, 60.0, 24.0, 0.5, key="guided_fouls", on_change=_mark_input_touched)
-    generated_text = (
-        f"{_team_block(home, 'Casa')}\n\n{_team_block(away, 'Ospite')}\n\n"
-        f"ARBITRO: Gialli medi {yellow:.1f} | Falli medi {fouls:.1f}"
-    )
-    with st.container(border=True):
-        st.markdown('<div class="input-card-title">Anteprima input motore</div>', unsafe_allow_html=True)
-        st.markdown('<div class="input-card-subtitle">Aggiornata automaticamente a ogni modifica dei campi.</div>', unsafe_allow_html=True)
-        st.code(generated_text, language="text")
-        if st.button("Usa questo blocco nel copia-incolla", width="stretch", key="use_generated_input"):
-            st.session_state["input_text"] = generated_text
-            st.session_state["input_mode"] = "Copia-incolla"
-            st.rerun()
-    text = generated_text
+        st.markdown('<div class="input-card-title">Crea partita</div>', unsafe_allow_html=True)
+        st.markdown('<div class="input-card-subtitle">Per le partite non presenti nei dati: i campi disponibili si compilano da soli, quelli mancanti restano vuoti ed evidenziati.</div>', unsafe_allow_html=True)
+        render_create()
+    text = st.session_state["input_text"]
 
 parsed_preview: MatchInput | None = None
 parse_error: str | None = None
