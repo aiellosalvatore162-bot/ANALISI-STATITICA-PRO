@@ -20,7 +20,9 @@ BASE_URL = "https://clubelo.com"
 CATALOG_PAGES = ("", "ENG", "ITA", "ESP", "GER", "FRA")
 # Paesi delle squadre più frequenti nelle coppe europee: caricati solo se serve.
 EXTRA_CATALOG_PAGES = ("POR", "NED", "BEL", "TUR", "GRE", "SCO", "AUT", "SUI", "CZE", "DEN", "NOR", "SWE",
-                       "CRO", "SRB", "UKR", "POL", "SVK", "CYP", "ISR", "HUN", "ROM", "BUL", "SLO", "RUS")
+                       "CRO", "SRB", "UKR", "POL", "SVK", "CYP", "ISR", "HUN", "ROM", "BUL", "SLO", "RUS",
+                       "AZE", "KAZ", "MDA", "ARM", "GEO", "BLR", "FIN", "IRL", "NIR", "WAL", "ISL", "EST", "LVA",
+                       "LTU", "ALB", "MKD", "MNE", "BIH", "KOS", "LUX", "MLT", "FRO", "AND", "SMR", "GIB")
 _NAVIGATION = {"Ranking", "Fixtures", "Results", "Clubs", "System", "Blog", "Contact", "Links", "Twitter", "API"}
 _LINK = re.compile(r'href="/([A-Za-z][A-Za-z0-9-]+)"[^>]*>(.*?)</a>', re.S)
 _POINT = re.compile(r'"Date":\s*"(\d{4}-\d{2}-\d{2})T00:00:00",\s*"Elo":\s*([0-9.]+)')
