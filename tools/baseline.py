@@ -454,16 +454,177 @@ def draw_analysis(features: pd.DataFrame) -> str:
     return "\n".join(lines)
 
 
+# --- Mercati secondari ----------------------------------------------------------
+
+MATCH_MULTIGOL = ((1, 2), (1, 3), (1, 4), (2, 3), (2, 4), (2, 5), (2, 6), (3, 5))
+TEAM_MULTIGOL = ((1, 2), (1, 3), (2, 3), (2, 4))
+GOAL_SUM_CLASSES = ("0", "1", "2", "3", "4", "5+")
+FIRST_HALF_MARKETS = ("1X2 1T", "Over 0.5 1T", "Over 1.5 1T", "GG 1T")
+SECONDARY_GAP = 0.005
+
+
+def secondary_markets(lambda_, mu, rho: float, half: "engine.HalfTimeParams") -> dict[str, np.ndarray]:
+    """Probabilità analitiche dei mercati gol da un'unica matrice dei punteggi per partita.
+
+    La matrice del primo tempo deriva da quella finale assegnando ogni gol al
+    primo tempo con la quota di ``half``, come nella simulazione.
+    """
+    from scipy.stats import binom
+
+    from tools.calibrate import score_matrices
+
+    lambda_, mu = np.asarray(lambda_, dtype=float), np.asarray(mu, dtype=float)
+    matrix = score_matrices(lambda_, mu, rho)
+    goals = np.arange(matrix.shape[1])
+    home_share, away_share = engine.first_half_shares(lambda_, mu, half)
+    home_share = np.broadcast_to(home_share, lambda_.shape)
+    away_share = np.broadcast_to(away_share, lambda_.shape)
+    thin_home = binom.pmf(goals[None, None, :], goals[None, :, None], home_share[:, None, None])
+    thin_away = binom.pmf(goals[None, None, :], goals[None, :, None], away_share[:, None, None])
+    first_half = np.einsum("ngk,ngh,nhl->nkl", thin_home, matrix, thin_away)
+
+    home, away = np.indices(matrix.shape[1:])
+    total = home + away
+    markets: dict[str, np.ndarray] = {}
+    for low, high in MATCH_MULTIGOL:
+        markets[f"Multigol {low}-{high}"] = matrix[:, (total >= low) & (total <= high)].sum(axis=1)
+    home_goals, away_goals = matrix.sum(axis=2), matrix.sum(axis=1)
+    for low, high in TEAM_MULTIGOL:
+        markets[f"Multigol Casa {low}-{high}"] = home_goals[:, low:high + 1].sum(axis=1)
+        markets[f"Multigol Ospite {low}-{high}"] = away_goals[:, low:high + 1].sum(axis=1)
+    markets["Somma gol"] = np.stack(
+        [matrix[:, total == value].sum(axis=1) for value in range(5)] + [matrix[:, total >= 5].sum(axis=1)], axis=1
+    )
+    markets["1X2 1T"] = np.stack([
+        first_half[:, home > away].sum(axis=1), first_half[:, home == away].sum(axis=1),
+        first_half[:, home < away].sum(axis=1),
+    ], axis=1)
+    markets["Over 0.5 1T"] = first_half[:, total >= 1].sum(axis=1)
+    markets["Over 1.5 1T"] = first_half[:, total >= 2].sum(axis=1)
+    markets["GG 1T"] = first_half[:, 1:, 1:].sum(axis=(1, 2))
+    return markets
+
+
+def secondary_outcomes(features: pd.DataFrame) -> dict[str, np.ndarray]:
+    home = features["home_goals"].to_numpy(int)
+    away = features["away_goals"].to_numpy(int)
+    home_ht = features["home_ht_goals"].to_numpy(int)
+    away_ht = features["away_ht_goals"].to_numpy(int)
+    total = home + away
+    observed: dict[str, np.ndarray] = {}
+    for low, high in MATCH_MULTIGOL:
+        observed[f"Multigol {low}-{high}"] = ((total >= low) & (total <= high)).astype(int)
+    for low, high in TEAM_MULTIGOL:
+        observed[f"Multigol Casa {low}-{high}"] = ((home >= low) & (home <= high)).astype(int)
+        observed[f"Multigol Ospite {low}-{high}"] = ((away >= low) & (away <= high)).astype(int)
+    observed["Somma gol"] = np.minimum(total, 5)
+    observed["1X2 1T"] = np.select([home_ht > away_ht, home_ht == away_ht], [0, 1], 2)
+    observed["Over 0.5 1T"] = (home_ht + away_ht >= 1).astype(int)
+    observed["Over 1.5 1T"] = (home_ht + away_ht >= 2).astype(int)
+    observed["GG 1T"] = ((home_ht > 0) & (away_ht > 0)).astype(int)
+    return observed
+
+
+def secondary_scores(markets: Mapping[str, np.ndarray], observed: Mapping[str, np.ndarray], mask: np.ndarray) -> dict[str, dict]:
+    scores = {}
+    for name, probability in markets.items():
+        probabilities = probability[mask] if probability.ndim == 2 else binary(probability[mask])
+        scores[name] = summarize(probabilities, observed[name][mask])
+    return scores
+
+
+def secondary_rates(features: pd.DataFrame) -> dict[str, np.ndarray]:
+    """Gol attesi finali (ancorati alle quote di chiusura) e solo-mercato per ogni partita."""
+    final, market, model = [], [], []
+    for row in features.to_dict("records"):
+        config = config_for_row(row, odds=closing_odds(row))
+        lambda_, mu, details = engine.final_goal_rates(config)
+        anchoring = details["anchoring"]
+        final.append((lambda_, mu))
+        market.append((anchoring["market_lambda"], anchoring["market_mu"]))
+        model.append((anchoring["model_lambda"], anchoring["model_mu"]))
+    final, market, model = np.array(final), np.array(market), np.array(model)
+    return {
+        "final_lambda": final[:, 0], "final_mu": final[:, 1],
+        "market_lambda": market[:, 0], "market_mu": market[:, 1],
+        "model_lambda": model[:, 0], "model_mu": model[:, 1],
+    }
+
+
+def secondary_features(features: pd.DataFrame) -> pd.DataFrame:
+    has_odds = features[["close_home", "close_draw", "close_away", "close_over25", "close_under25"]].gt(1.0).all(axis=1)
+    evaluated = features["season"].isin([season for seasons in EVALUATION_SETS.values() for season in seasons])
+    has_half = features[["home_ht_goals", "away_ht_goals"]].notna().all(axis=1)
+    return features[has_odds & evaluated & has_half]
+
+
+def secondary_analysis(features: pd.DataFrame, before: "engine.HalfTimeParams", after: "engine.HalfTimeParams") -> str:
+    """Tabella prima/dopo per ogni mercato secondario, con il mercato derivato come riferimento."""
+    features = secondary_features(features)
+    rates = secondary_rates(features)
+    rho = engine.MatchConfig(
+        home=config_for_row(features.iloc[0]).home, away=config_for_row(features.iloc[0]).away,
+        referee_yellow_avg=4.5, referee_fouls_avg=24.0,
+    ).dixon_coles_rho
+    variants = {
+        "prima": secondary_markets(rates["final_lambda"], rates["final_mu"], rho, before),
+        "dopo": secondary_markets(rates["final_lambda"], rates["final_mu"], rho, after),
+        "mercato": secondary_markets(rates["market_lambda"], rates["market_mu"], rho, after),
+        "modello": secondary_markets(rates["model_lambda"], rates["model_mu"], rho, after),
+    }
+    observed = secondary_outcomes(features)
+    lines = [
+        "## Mercati secondari (prima/dopo la taratura del primo tempo)", "",
+        f"Generato il {date.today():%d/%m/%Y} con `python -m tools.baseline --mercati-secondari`. "
+        "Tutti i mercati escono dalla matrice dei punteggi dei gol attesi finali (ancorati alle quote di "
+        "chiusura 1X2 e O/U 2.5). Prima: primo tempo al 50% dei gol; dopo: quote del primo tempo tarate "
+        f"({after.home_share:.3f} casa, {after.away_share:.3f} ospite, pendenza {after.total_slope:+.3f}). "
+        "football-data non pubblica quote per questi mercati: il riferimento «mercato» è derivato dalla "
+        "matrice di λ e μ che riproducono le quote di chiusura 1X2 e O/U 2.5. "
+        "«Solo modello» usa i gol attesi dei soli dati squadra, senza quote. "
+        f"⚠️ = log-loss peggiore del mercato derivato di oltre {SECONDARY_GAP} (finale / solo modello).", "",
+    ]
+    for set_name, seasons in EVALUATION_SETS.items():
+        mask = features["season"].isin(seasons).to_numpy()
+        scores = {name: secondary_scores(markets, observed, mask) for name, markets in variants.items()}
+        lines += [
+            f"### {set_name} ({int(mask.sum())} partite)", "",
+            "| Mercato | Log-loss prima | Log-loss dopo | Log-loss mercato | Log-loss solo modello "
+            "| Brier prima | Brier dopo | ECE prima | ECE dopo | Finale | Solo modello |",
+            "|---|---|---|---|---|---|---|---|---|---|---|",
+        ]
+        for name in variants["dopo"]:
+            before_score, after_score, market_score, model_score = (
+                scores[key][name] for key in ("prima", "dopo", "mercato", "modello")
+            )
+
+            def flag(score: Mapping[str, float]) -> str:
+                gap = score["log_loss"] - market_score["log_loss"]
+                return f"⚠️ +{gap:.3f}" if gap > SECONDARY_GAP else ""
+
+            lines.append(
+                f"| {name} | {before_score['log_loss']:.4f} | {after_score['log_loss']:.4f} | "
+                f"{market_score['log_loss']:.4f} | {model_score['log_loss']:.4f} | "
+                f"{before_score['brier']:.4f} | {after_score['brier']:.4f} | "
+                f"{before_score['ece']:.4f} | {after_score['ece']:.4f} | {flag(after_score)} | {flag(model_score)} |"
+            )
+        lines.append("")
+    return "\n".join(lines)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--label", help="Titolo della sezione, es. PRIMA o DOPO")
     parser.add_argument("--goal-model", help="Valore di MatchConfig.goal_model (se supportato)")
     parser.add_argument("--ancorato", action="store_true", help="Passa le quote di chiusura al motore")
     parser.add_argument("--tara-ancoraggio", action="store_true", help="Tara peso del mercato e metodo di margine")
+    parser.add_argument("--mercati-secondari", action="store_true", help="Multigol, somma gol e primo tempo prima/dopo")
     parser.add_argument("--analisi-pareggio", action="store_true", help="Confronta Shin e proporzionale per 1, X e 2")
     parser.add_argument("--output", type=Path, help="File markdown a cui aggiungere la sezione")
     args = parser.parse_args()
-    if args.analisi_pareggio:
+    if args.mercati_secondari:
+        markdown = secondary_analysis(load_usable_features(), engine.HalfTimeParams(), engine.DEFAULT_HALF_TIME)
+    elif args.analisi_pareggio:
         markdown = draw_analysis(load_usable_features())
     elif args.tara_ancoraggio:
         tuning = tune_market_anchor(load_usable_features())
