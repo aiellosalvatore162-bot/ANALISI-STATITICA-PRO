@@ -164,6 +164,16 @@ def render_create() -> None:
             st.warning("Campi ancora mancanti: " + ", ".join(still_missing))
     else:
         block = ""
+    if st.button("Prepara estrazione dati per Claude", key="create_claude_extract",
+                 help="Istruzioni per far trasformare a Claude il testo di un sito nel blocco del parser."):
+        from claude_bridge import extraction_prompt
+
+        st.session_state["create_extract_prompt"] = extraction_prompt(home or None, away or None)
+    if st.session_state.get("create_extract_prompt"):
+        st.caption(COPY_HINT)
+        st.code(st.session_state["create_extract_prompt"], language="text")
+        st.caption("Incolla in Claude queste istruzioni e, al posto della riga finale, il testo copiato dal sito; "
+                   "poi incolla qui sotto il blocco che ti restituisce: passa dal controllo di plausibilità.")
     pasted = st.text_area("Oppure incolla un blocco nel formato del parser", key="create_paste", height=160)
     if pasted.strip():
         block = pasted
@@ -358,3 +368,80 @@ def render_tactical(home: str | None, away: str | None):
         return TacticalFactors(lambda_=factors["lambda"], mu=factors["mu"], first_half=factors["first_half"],
                                corners_home=factors["corners_home"], corners_away=factors["corners_away"],
                                cards=factors["cards"]), TacticalSwitches(**switches)
+
+
+# --- Claude (copia e incolla) --------------------------------------------------------------------
+
+COPY_HINT = "Per copiare usa il pulsante «Copia» in alto a destra del riquadro (compare passando sopra al testo)."
+
+
+def render_claude(result: dict, config, block: str) -> None:
+    """Prepara il testo per Claude, legge la risposta incollata e confronta prima/dopo le correzioni."""
+    import uuid
+    from dataclasses import replace
+
+    from claude_bridge import ResponseError, analysis_prompt, changes_table, parse_response
+    from engine import simulate_match
+    from prediction_log import LOGGED_MARKETS, PredictionLog, registry_rows
+
+    st.subheader("Analisi con Claude (copia e incolla)")
+    st.caption("Nessuna API: copi il testo in Claude (con la ricerca web attiva), poi incolli qui la risposta.")
+    if st.button("Prepara analisi per Claude", key="claude_prepare"):
+        st.session_state["claude_prompt"] = analysis_prompt(
+            block, result, sources=st.session_state.get("auto_sheet_rows"), match_date=date.today().strftime("%d/%m/%Y"))
+    prompt = st.session_state.get("claude_prompt")
+    if prompt:
+        st.caption(COPY_HINT)
+        st.code(prompt, language="text")
+    answer = st.text_area("Incolla risposta di Claude", key="claude_answer", height=180)
+    if not answer.strip():
+        return
+    try:
+        response = parse_response(answer)
+    except ResponseError as exc:
+        st.error(str(exc))
+        return
+    if response.preamble:
+        st.markdown(f"**Commento di Claude:** {response.preamble}")
+    if response.comment or response.confidence:
+        st.caption(f"Confidenza: {response.confidence or '—'} · {response.comment}")
+    st.dataframe(pd.DataFrame(changes_table(response)), hide_index=True, width="stretch")
+    for warning in response.warnings:
+        st.warning(warning)
+    adjustment = response.adjustment()
+    referee = response.referee_yellow(config.referee_yellow_avg)
+    if adjustment is None and referee is None:
+        st.info("Nessuna correzione applicabile (mancano fonti o valori validi).")
+        return
+    if referee is not None:
+        st.caption(f"Gialli medi dell'arbitro: {config.referee_yellow_avg:.2f} → {referee:.2f} "
+                   "(media di Claude avvicinata alla media corrente con peso 10 partite).")
+    apply = st.toggle("Applica le correzioni di Claude", key="claude_apply")
+    after = None
+    if apply:
+        signature = (answer, id(result))
+        if st.session_state.get("claude_signature") != signature:
+            adjusted = replace(config, claude=adjustment,
+                               referee_yellow_avg=referee if referee is not None else config.referee_yellow_avg)
+            st.session_state["claude_result"] = simulate_match(adjusted)
+            st.session_state["claude_signature"] = signature
+        after = st.session_state["claude_result"]
+        before_final, after_final = result["components"]["finale"], after["components"]["finale"]
+        st.dataframe(pd.DataFrame([
+            {"Mercato": market, "Simulatore %": before_final.get(market), "Con Claude %": after_final.get(market),
+             "Differenza (punti)": round(after_final.get(market, 0) - before_final.get(market, 0), 2)}
+            for market in LOGGED_MARKETS if market in before_final
+        ]), hide_index=True, width="stretch")
+        st.caption(f"Gol attesi finali: λ {result['model']['lambda']:.3f} → {after['model']['lambda']:.3f}, "
+                   f"μ {result['model']['mu']:.3f} → {after['model']['mu']:.3f} (correzioni dopo l'ancoraggio al mercato).")
+    session = st.session_state.setdefault("session_id", uuid.uuid4().hex[:12])
+    log = PredictionLog(source_cache())
+    if st.button("Salva nel registro", key="claude_log"):
+        rows = registry_rows(result, after, odds=config.odds, confidence=response.confidence,
+                             note="correzioni di Claude applicate" if after is not None else "correzioni non applicate")
+        log.add(rows, session)
+        st.success(f"Salvate {len(rows)} righe nel registro (colonna Prob_Claude).")
+    saved = log.rows(session)
+    if saved:
+        with st.expander(f"Registro di questa sessione ({len(saved)} righe)"):
+            st.dataframe(pd.DataFrame(saved).drop(columns=["id", "sessione"]), hide_index=True, width="stretch")
