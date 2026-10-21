@@ -19,7 +19,7 @@ from historical import (
 from market_catalog import MARKET_GROUPS, definition_for_event, definitions_for_group
 from datasources.builder import plausibility_warnings
 from parser import MatchInputError, MatchInput, parse_match_input
-from ui_data import render_automatic, render_create, render_style, render_tactical, show_provenance
+from ui_data import render_automatic, render_claude, render_create, render_style, render_tactical, show_provenance
 
 
 EXAMPLE = """CASA: Inter
@@ -608,6 +608,7 @@ if st.button("Esegui simulazione", type="primary", width="stretch"):
                                      "tactical": tactical_factors, "tactical_switches": tactical_switches})
         result = simulate_match(config)
         st.session_state["result"] = result
+        st.session_state["result_config"] = config
         st.session_state["result_signature"] = current_signature
         st.session_state["warnings"] = parsed.warnings
     except MatchInputError as exc:
@@ -1174,6 +1175,9 @@ if result:
         else:
             st.info("Nessuna quota valida inserita.")
     st.caption(result["financial"]["risk_note"])
+
+    if st.session_state.get("result_config") is not None:
+        render_claude(result, st.session_state["result_config"], text)
 
     st.subheader("Sintesi statistica del modello")
     st.write(result["statistical_report"])

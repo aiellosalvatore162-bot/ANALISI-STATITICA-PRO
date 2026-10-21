@@ -1,0 +1,7 @@
+CORREZIONI_CLAUDE:
+gol_casa: 1.40 | motivo: attacco in forma | fonte: https://www.esempio.it/a
+gol_ospite: 0.50 | motivo: crisi | fonte: https://www.esempio.it/b
+corner: 1.30 | motivo: squadra che crossa molto | fonte: https://www.esempio.it/c
+cartellini: 0.60 | motivo: partita senza tensione | fonte: https://www.esempio.it/d
+arbitro_gialli_medi: 25 | partite: 12 | fonte: https://www.esempio.it/e
+confidenza: alta

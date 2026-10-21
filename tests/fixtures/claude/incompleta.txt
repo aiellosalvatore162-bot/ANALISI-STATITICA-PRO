@@ -1,0 +1,5 @@
+Ho trovato solo informazioni sull'arbitro.
+CORREZIONI_CLAUDE:
+arbitro_gialli_medi: 4.1 | fonte: https://www.esempio.it/arbitro
+cartellini: 1.05 | motivo: arbitro severo
+confidenza: forse
