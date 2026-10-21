@@ -130,7 +130,8 @@ class DataProvider:
             cup = self.footballdata_org.matches(code, self.today, self.today + timedelta(days=14), min(self.max_age, timedelta(hours=6)))
             self.warnings.extend(cup.warnings)
             if not cup.data.empty:
-                cups.append(cup.data.assign(competition=name))
+                upcoming = cup.data[~cup.data["status"].isin(["FINISHED", "AWARDED", "CANCELLED", "POSTPONED"])]
+                cups.append(upcoming.assign(competition=name))
         return pd.concat([fixtures, *cups], ignore_index=True) if cups else fixtures
 
     # --- Costruzione della scheda --------------------------------------------------------

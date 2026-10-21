@@ -106,6 +106,13 @@ def test_custom_matches_are_saved_as_manual(tmp_path):
     ("Bodo/Glimt", ["BodoeGlimt", "Brann"], "BodoeGlimt"),
     ("Nott'm Forest", ["Nottingham Forest"], "Nottingham Forest"),
     ("Real", ["Real Madrid", "Real Sociedad"], None),
+    # Nomi di football-data.org (Champions League)
+    ("Sporting Clube de Portugal", ["Depor", "SportingCP", "Porto"], "SportingCP"),
+    ("FC Internazionale Milano", ["Inter", "Milan"], "Inter"),
+    ("PAE AEK", ["AEK", "PAOK"], "AEK"),
+    ("Racing Club de Lens", ["Lens", "Lille"], "Lens"),
+    ("ŠK Slovan Bratislava", ["SlovanBratislava", "Spartak"], "SlovanBratislava"),
+    ("Club Atlético de Madrid", ["atletico", "realmadrid"], "atletico"),
 ])
 def test_team_names_match_across_sources(query, candidates, expected):
     assert match_team(query, candidates) == expected

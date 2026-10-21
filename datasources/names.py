@@ -25,7 +25,7 @@ TEAM_ALIASES: tuple[tuple[str, ...], ...] = (
     ("Sheffield United", "Sheffield Utd", "SheffieldUnited"),
     # Italia
     ("AC Milan", "Milan"),
-    ("Inter", "Internazionale", "Inter Milan", "FC Internazionale"),
+    ("Inter", "Internazionale", "Inter Milan", "FC Internazionale", "FC Internazionale Milano", "Internazionale Milano"),
     ("Parma", "Parma Calcio 1913"),
     # Spagna
     ("Athletic Bilbao", "Ath Bilbao", "Athletic Club", "Bilbao"),
@@ -58,25 +58,32 @@ TEAM_ALIASES: tuple[tuple[str, ...], ...] = (
     ("Lille", "Lilla"),
     ("Nice", "Nizza"),
     # Coppe europee
-    ("AEK Athens", "AEK", "AEK Atene"),
+    ("AEK Athens", "AEK", "AEK Atene", "PAE AEK", "AEK Athens FC"),
     ("Bodo/Glimt", "Bodoe/Glimt", "BodoeGlimt", "Bodø/Glimt", "Bodo Glimt"),
     ("Slovan Bratislava", "SlovanBratislava"),
     ("PSV Eindhoven", "PSV"),
     ("Porto", "FC Porto"),
-    ("Sporting CP", "Sporting", "Sporting Lisbona"),
+    ("Sporting CP", "Sporting", "Sporting Lisbona", "Sporting Clube de Portugal"),
 )
 
 _STOP_TOKENS = {"fc", "ac", "as", "ssc", "cf", "afc", "sc", "sv", "vfb", "vfl", "fsv", "tsg", "rc", "ud", "cd",
-                "rcd", "club", "calcio", "bc", "1913", "1907", "05", "04"}
+                "rcd", "club", "calcio", "bc", "1913", "1907", "05", "04", "sk", "fk", "kv", "osc", "pae", "sad"}
 _SPECIAL = str.maketrans({"ø": "o", "Ø": "o", "æ": "ae", "ß": "ss", "'": "", "’": "", ".": " ", "/": " ", "-": " "})
+
+
+def _tokens(name: str) -> list[str]:
+    text = unicodedata.normalize("NFKD", str(name).translate(_SPECIAL))
+    text = "".join(char for char in text if not unicodedata.combining(char)).lower()
+    return [token for token in re.split(r"[^a-z0-9]+", text) if token and token not in _STOP_TOKENS]
 
 
 def normalize(name: str) -> str:
     """Forma compatta senza accenti, punteggiatura e sigle societarie."""
-    text = unicodedata.normalize("NFKD", str(name).translate(_SPECIAL))
-    text = "".join(char for char in text if not unicodedata.combining(char)).lower()
-    tokens = [token for token in re.split(r"[^a-z0-9]+", text) if token and token not in _STOP_TOKENS]
-    return "".join(tokens) or re.sub(r"[^a-z0-9]", "", text)
+    tokens = _tokens(name)
+    if tokens:
+        return "".join(tokens)
+    text = unicodedata.normalize("NFKD", str(name).translate(_SPECIAL)).lower()
+    return re.sub(r"[^a-z0-9]", "", text)
 
 
 _CANONICAL = {normalize(variant): normalize(row[0]) for row in TEAM_ALIASES for variant in row}
@@ -107,7 +114,15 @@ def match_team(query: str, candidates: Iterable[str], *, cutoff: float = 0.84) -
     exact = [candidate for candidate, key in keyed if key == target]
     if exact:
         return exact[0]
-    contained = [candidate for candidate, key in keyed if len(key) >= 4 and len(target) >= 4 and (key in target or target in key)]
+    # Contenimento per parole intere: «Lens» in «Racing Club de Lens» sì, «Depor» in «Portugal» no.
+    query_tokens = set(_tokens(query))
+
+    def contains(candidate: str) -> bool:
+        candidate_tokens = set(_tokens(candidate))
+        shorter, longer = sorted((query_tokens, candidate_tokens), key=len)
+        return bool(shorter) and shorter <= longer and max(map(len, shorter)) >= 4
+
+    contained = [candidate for candidate, _ in keyed if contains(candidate)]
     if len(contained) == 1:
         return contained[0]
     scored = sorted(((SequenceMatcher(None, target, key).ratio(), candidate) for candidate, key in keyed), reverse=True)
