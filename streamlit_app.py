@@ -19,7 +19,7 @@ from historical import (
 from market_catalog import MARKET_GROUPS, definition_for_event, definitions_for_group
 from datasources.builder import plausibility_warnings
 from parser import MatchInputError, MatchInput, parse_match_input
-from ui_data import render_automatic, render_create, render_style, show_provenance
+from ui_data import render_automatic, render_create, render_style, render_tactical, show_provenance
 
 
 EXAMPLE = """CASA: Inter
@@ -580,11 +580,16 @@ with st.container(border=True):
                             )
                             odds_input[definition.event_key] = float(value)
 
+tactical_factors, tactical_switches = render_tactical(
+    parsed_preview.home.name if parsed_preview else None, parsed_preview.away.name if parsed_preview else None
+)
 current_signature = (
     text,
     int(simulations),
     int(seed),
     tuple(sorted(odds_input.items())),
+    tactical_factors,
+    tactical_switches,
 )
 
 if st.button("Esegui simulazione", type="primary", width="stretch"):
@@ -599,7 +604,8 @@ if st.button("Esegui simulazione", type="primary", width="stretch"):
                 merged_odds[market] = odd
             else:
                 merged_odds.pop(market, None)
-        config = config.__class__(**{**config.__dict__, "odds": merged_odds})
+        config = config.__class__(**{**config.__dict__, "odds": merged_odds,
+                                     "tactical": tactical_factors, "tactical_switches": tactical_switches})
         result = simulate_match(config)
         st.session_state["result"] = result
         st.session_state["result_signature"] = current_signature

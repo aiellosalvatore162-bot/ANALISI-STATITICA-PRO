@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 import re
 
+import numpy as np
 import pandas as pd
 
 from datasources.cache import SourceCache
@@ -21,15 +22,32 @@ from datasources.sources import (
     COMPETITIONS, CUP_COMPETITIONS, FootballDataCoUk, FootballDataOrg, Understat, football_data_org_key,
     season_start,
 )
+from datasources.similar import (
+    FEATURES as SIMILAR_FEATURES, SimilarResult, correction_factors, match_factors, match_history, profile_at,
+    similar_matches,
+)
 from datasources.style import (
     ProfileStore, StyleProfile, assign_archetype, footballdata_metrics, league_profiles, load_archetypes,
     understat_league_metrics, understat_team_metrics,
 )
 from datasources.stats import FieldValue, RefereeProfile, TeamProfile, missing, referee_profile, team_match_rows, team_profile
-from tools.dataset import elo_table
+from tools.dataset import elo_table, match_elos as elo_table_per_match
 
 
 DEFAULT_MAX_AGE = timedelta(hours=24)
+
+
+def _tactical_settings() -> dict:
+    """Parametri validati da ``tools/tactical.py`` (sezione ``scenario_tattico``), con valori prudenti se assenti."""
+    import json
+
+    from engine import GOAL_MODEL_PATH
+
+    defaults = {"tau": {"goals": 20.0, "first_half": 20.0, "corners": 20.0, "cards": 20.0},
+                "k": 10, "window_days": 730, "half_life_days": 365.0}
+    if GOAL_MODEL_PATH.exists():
+        defaults.update(json.loads(GOAL_MODEL_PATH.read_text(encoding="utf-8")).get("scenario_tattico", {}).get("parametri", {}))
+    return defaults
 TEAM_FIELDS = (
     ("attack", "Attacco"), ("defense", "Difesa"), ("elo", "Elo"), ("form", "Forma"),
     ("xg_for", "xG Fatti"), ("xg_against", "xG Subiti"), ("corners", "Corner pro/sub"), ("cards_for", "Cartellini pro"),
@@ -147,6 +165,83 @@ class DataProvider:
                     for team, profile in league_profiles(raw, competition, partial=not COMPETITIONS[competition]["understat"]).items()}
         store.save(profiles)
         return profiles
+
+    def tactical_scenario(self, home: str, away: str, *, match_date: date | None = None) -> dict:
+        """Partite simili e fattori di correzione per casa e ospite (``datasources/similar.py``)."""
+        match_date = match_date or self.today
+        as_of = pd.Timestamp(match_date)
+        settings = _tactical_settings()
+        leagues = {"home": self.competition_of(home), "away": self.competition_of(away)}
+        cross_league = leagues["home"] != leagues["away"]
+        histories = {league: self._league_history(league) for league in set(leagues.values()) if league}
+        names = {}
+        for side, team in (("home", home), ("away", away)):
+            history = histories.get(leagues[side])
+            names[side] = match_team(team, history["team"].unique()) if history is not None and not history.empty else None
+        results, notes = {}, []
+        for side, other in (("home", "away"), ("away", "home")):
+            history, other_history = histories.get(leagues[side]), histories.get(leagues[other])
+            if names[side] is None or names[other] is None:
+                notes.append(f"{home if side == 'home' else away}: storico non disponibile, nessuna correzione.")
+                results[side] = None
+                continue
+            known = profile_at(other_history[other_history["date"] < as_of], names[other])
+            if known is None:
+                results[side] = None
+                continue
+            opponent_profile, opponent_elo, _ = known
+            if cross_league:
+                history = self._with_clubelo(history, as_of)
+                rating = self.clubelo.rating(names[other], match_date, self.max_age)
+                if rating is None:
+                    notes.append(f"{names[other]}: Elo ClubElo non disponibile, confronto solo sullo stile.")
+                    history = history.assign(opponent_elo=np.nan)
+                    opponent_elo = np.nan
+                else:
+                    opponent_elo = rating.value
+            selected, used = similar_matches(history, names[side], opponent_profile, opponent_elo, as_of,
+                                             k=settings["k"], window_days=settings["window_days"],
+                                             half_life_days=settings["half_life_days"])
+            ratio = len(SIMILAR_FEATURES) / max(len(used), 1)
+            factors, raw, effective = correction_factors(selected, tau=settings["tau"], feature_ratio=ratio)
+            results[side] = SimilarResult(names[side], names[other], selected, factors, raw, effective, used)
+        combined = (match_factors(results["home"].factors, results["away"].factors)
+                    if results["home"] is not None and results["away"] is not None else None)
+        return {"results": results, "factors": combined, "leagues": leagues, "cross_league": cross_league,
+                "notes": notes, "warnings": list(dict.fromkeys(self.warnings))}
+
+    def _league_history(self, competition: str) -> pd.DataFrame:
+        code = COMPETITIONS[competition]["footballdata"]
+        start = season_start(self.today)
+        frames = [self.footballdata.season(code, start - offset, self.max_age if offset == 0 else timedelta(days=30)).data
+                  for offset in range(5, -1, -1)]
+        raw = pd.concat([frame for frame in frames if not frame.empty], ignore_index=True)
+        if raw.empty:
+            return pd.DataFrame()
+        elos = elo_table_per_match(raw)
+        recent = raw[raw["season"].isin(sorted(raw["season"].unique())[-3:])]
+        understat_code = COMPETITIONS[competition]["understat"]
+        understat = None
+        if understat_code:
+            seasons = [self.understat.league(understat_code, start - offset, self.max_age if offset == 0 else timedelta(days=30))
+                       for offset in range(2, -1, -1)]
+            understat = pd.concat([frame.data for frame in seasons if not frame.data.empty], ignore_index=True) \
+                if any(not frame.data.empty for frame in seasons) else None
+        return match_history(recent, understat, elos.loc[recent.index])
+
+    def _with_clubelo(self, history: pd.DataFrame, as_of: pd.Timestamp) -> pd.DataFrame:
+        """Elo ClubElo degli avversari alla data di ogni partita (confronto tra campionati diversi)."""
+        recent = history[history["date"] >= as_of - pd.Timedelta(days=730)].copy()
+        values = {}
+        for opponent in recent["opponent"].unique():
+            rating_history = self.clubelo.history(opponent, self.max_age)
+            values[opponent] = rating_history
+        def lookup(row):
+            points = values.get(row["opponent"]) or []
+            previous = [value for day, value in points if day < row["date"].date()]
+            return previous[-1] if previous else np.nan
+        recent["opponent_elo"] = recent.apply(lookup, axis=1)
+        return recent
 
     def competition_of(self, team: str) -> str | None:
         """Campionato nazionale (tra quelli coperti) in cui gioca la squadra nella stagione in corso."""
