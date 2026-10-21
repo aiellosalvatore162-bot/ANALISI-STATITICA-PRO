@@ -75,21 +75,19 @@ def _download(league: str, season: str, *, refresh: bool = False, timeout: float
     return content
 
 
-def load_raw(leagues=LEAGUES, seasons=ALL_SEASONS, *, refresh_current: bool = False) -> pd.DataFrame:
-    frames = []
-    for league in leagues:
-        for season in seasons:
-            content = _download(league, season, refresh=refresh_current and season == seasons[-1])
-            if content is None:
-                continue
-            raw = pd.read_csv(BytesIO(content), encoding="latin-1", low_memory=False)
-            frame = raw[[column for column in _COLUMNS if column in raw]].rename(columns=_COLUMNS)
-            for column in _COLUMNS.values():
-                if column not in frame:
-                    frame[column] = np.nan
-            frame["league"] = league
-            frame["season"] = season
-            frames.append(frame)
+def frame_from_csv(content: bytes, league: str, season: str) -> pd.DataFrame:
+    """Un CSV football-data.co.uk normalizzato nello schema del progetto."""
+    raw = pd.read_csv(BytesIO(content), encoding="latin-1", low_memory=False)
+    frame = raw[[column for column in _COLUMNS if column in raw]].rename(columns=_COLUMNS)
+    for column in _COLUMNS.values():
+        if column not in frame:
+            frame[column] = np.nan
+    frame["league"] = league
+    frame["season"] = season
+    return frame
+
+
+def clean_frames(frames: list[pd.DataFrame]) -> pd.DataFrame:
     data = pd.concat(frames, ignore_index=True)
     data["date"] = pd.to_datetime(data["date"], dayfirst=True, errors="coerce")
     data = data.dropna(subset=["date", "home_team", "away_team", "home_goals", "away_goals"])
@@ -98,6 +96,16 @@ def load_raw(leagues=LEAGUES, seasons=ALL_SEASONS, *, refresh_current: bool = Fa
     data["home_goals"] = data["home_goals"].astype(int)
     data["away_goals"] = data["away_goals"].astype(int)
     return data.sort_values(["league", "date", "home_team"]).reset_index(drop=True)
+
+
+def load_raw(leagues=LEAGUES, seasons=ALL_SEASONS, *, refresh_current: bool = False) -> pd.DataFrame:
+    frames = []
+    for league in leagues:
+        for season in seasons:
+            content = _download(league, season, refresh=refresh_current and season == seasons[-1])
+            if content is not None:
+                frames.append(frame_from_csv(content, league, season))
+    return clean_frames(frames)
 
 
 @dataclass(frozen=True)
@@ -283,3 +291,30 @@ if __name__ == "__main__":
     print(f"Partite scaricate: {len(raw)}; utilizzabili: {int(mask.sum())}")
     print(f"Proxy xG: {xg_model}")
     print(features[mask].groupby("season").size().to_string())
+
+
+def elo_table(raw: pd.DataFrame, before: pd.Timestamp | None = None) -> dict[str, tuple[float, pd.Timestamp]]:
+    """Elo stile ClubElo calcolato dai risultati di un campionato (ripiego se ClubElo non risponde).
+
+    Stessa procedura della taratura: partenza 1500, neopromosse alla media delle
+    retrocesse. La scala è vicina a quella di ClubElo solo con più stagioni.
+    """
+    data = raw if before is None else raw[raw["date"] < before]
+    elo: dict[str, float] = {}
+    last: dict[str, pd.Timestamp] = {}
+    previous: set[str] = set()
+    for season, matches in data.sort_values("date").groupby("season", sort=False):
+        teams = set(matches["home_team"]) | set(matches["away_team"])
+        leaving = previous - teams
+        entry = float(np.mean([elo[team] for team in leaving])) if leaving else ELO_START
+        for team in teams:
+            elo.setdefault(team, entry)
+        previous = teams
+        for match in matches.itertuples(index=False):
+            expected = 1.0 / (1.0 + 10.0 ** (-(elo[match.home_team] - elo[match.away_team] + ELO_HFA) / 400.0))
+            actual = 1.0 if match.home_goals > match.away_goals else 0.5 if match.home_goals == match.away_goals else 0.0
+            change = ELO_K * _goal_multiplier(match.home_goals - match.away_goals) * (actual - expected)
+            elo[match.home_team] += change
+            elo[match.away_team] -= change
+            last[match.home_team] = last[match.away_team] = match.date
+    return {team: (rating, last[team]) for team, rating in elo.items() if team in last}
