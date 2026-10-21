@@ -270,3 +270,91 @@ def render_style(home: str, away: str) -> None:
         if archetypes:
             st.write(f"Archetipi: {archetypes['metodo']}; {archetypes['k']} gruppi su {archetypes['squadre']} squadre "
                      f"(silhouette {archetypes['silhouette'][str(archetypes['k'])]:.3f}).")
+
+
+# --- Scenario tattico ------------------------------------------------------------------------
+
+TACTICAL_OPTIONS = (
+    ("goals", "Gol attesi (λ, μ)"),
+    ("goals_supremacy", "Gol: solo rapporto di forza"),
+    ("first_half", "Quota di gol nel primo tempo"),
+    ("corners", "Corner"),
+    ("cards", "Cartellini"),
+)
+
+
+def _matches_table(result) -> pd.DataFrame:
+    rows = []
+    for row in result.matches.sort_values("date", ascending=False).itertuples():
+        rows.append({
+            "Data": f"{row.date:%d/%m/%Y}", "Avversario": row.opponent, "Campo": "casa" if row.venue == "home" else "trasferta",
+            "Risultato": f"{int(row.goals_for)}-{int(row.goals_against)}",
+            "xG": f"{row.xg_for:.2f}-{row.xg_against:.2f}" if pd.notna(row.xg_for) else "—",
+            "Corner": f"{row.corners_for:.0f}-{row.corners_against:.0f}" if pd.notna(row.corners_for) else "—",
+            "Cartellini": f"{row.cards:.0f}" if pd.notna(row.cards) else "—",
+            "Distanza": round(float(row.distance), 2), "Peso": round(float(row.weight), 3),
+        })
+    return pd.DataFrame(rows)
+
+
+def render_tactical(home: str | None, away: str | None):
+    """Riquadro «Scenario tattico»: partite simili, fattori e scelta delle correzioni da applicare."""
+    from engine import DEFAULT_TACTICAL_SWITCHES, TacticalFactors, TacticalSwitches
+    from datasources.similar import FEATURES, STAT_LABELS, summary_sentence
+
+    with st.expander("Scenario tattico · avversari simili", expanded=False):
+        if not (home and away):
+            st.caption("Inserisci un blocco valido per analizzare le partite contro avversari simili.")
+            return None, DEFAULT_TACTICAL_SWITCHES
+        key = (home, away)
+        scenario = st.session_state.get("tactical_scenario")
+        if scenario is not None and scenario.get("key") != key:
+            scenario = None
+        if st.button("Analizza avversari simili", key="tactical_run",
+                     help="Scarica lo storico dei campionati delle due squadre (la prima volta qualche decina di secondi)."):
+            with st.spinner("Cerco le partite contro avversari simili…"):
+                scenario = {"key": key, **_provider({"max_age": timedelta(hours=int(st.session_state.get("auto_hours", 24))),
+                                                     "matches": 10, "half_life": 5.0}, False).tactical_scenario(home, away)}
+            st.session_state["tactical_scenario"] = scenario
+        if scenario is None:
+            st.caption("Per ogni squadra: le 10 partite degli ultimi 2 anni contro gli avversari più simili a quello di oggi "
+                       "(profilo di stile continuo + Elo, non l'archetipo), con rendimento rispetto alla sua media.")
+            return None, DEFAULT_TACTICAL_SWITCHES
+        for note in scenario["notes"]:
+            st.info(note)
+        if scenario["cross_league"]:
+            st.caption("Campionati diversi: Elo degli avversari da ClubElo, stile come z-score nel proprio campionato.")
+        for side in ("home", "away"):
+            result = scenario["results"].get(side)
+            if result is None:
+                continue
+            st.markdown(f"**{result.team}** contro avversari simili a **{result.opponent}**")
+            st.write(summary_sentence(result, result.opponent))
+            st.caption(f"Confronto su {len(result.features_used)} metriche di stile su {len(FEATURES)} + Elo · "
+                       f"{len(result.matches)} partite ({result.effective_matches:.1f} effettive dopo i pesi)"
+                       + (" · profilo parziale: shrinkage più forte" if len(result.features_used) < len(FEATURES) else ""))
+            if not result.matches.empty:
+                st.dataframe(_matches_table(result), hide_index=True, width="stretch")
+                st.dataframe(pd.DataFrame([
+                    {"Statistica": STAT_LABELS[stat], "Rapporto grezzo": round(result.raw[stat], 3),
+                     "Fattore dopo lo shrinkage": round(result.factors[stat], 3)} for stat in result.factors
+                ]), hide_index=True, width="stretch")
+        factors = scenario.get("factors")
+        if factors is None:
+            return None, DEFAULT_TACTICAL_SWITCHES
+        st.markdown("**Fattori della partita** (limiti 0.85-1.15 per i gol, 0.80-1.20 per corner e cartellini)")
+        st.dataframe(pd.DataFrame([{"Fattore": name, "Valore": round(value, 3)} for name, value in (
+            ("λ casa", factors["lambda"]), ("μ ospite", factors["mu"]), ("quota primo tempo", factors["first_half"]),
+            ("corner casa", factors["corners_home"]), ("corner ospite", factors["corners_away"]), ("cartellini", factors["cards"]),
+        )]), hide_index=True, width="stretch")
+        st.caption("Le correzioni attive di default sono solo quelle validate su stagioni intere (docs/STILI.md). "
+                   "I gol sono corretti prima della combinazione con il mercato: con peso mercato 0.9 l'effetto finale è piccolo.")
+        switches = {}
+        columns = st.columns(len(TACTICAL_OPTIONS))
+        for column, (family, label) in zip(columns, TACTICAL_OPTIONS):
+            validated = getattr(DEFAULT_TACTICAL_SWITCHES, family)
+            switches[family] = column.checkbox(label + (" ✓ validata" if validated else ""), value=validated,
+                                               key=f"tactical_{family}")
+        return TacticalFactors(lambda_=factors["lambda"], mu=factors["mu"], first_half=factors["first_half"],
+                               corners_home=factors["corners_home"], corners_away=factors["corners_away"],
+                               cards=factors["cards"]), TacticalSwitches(**switches)

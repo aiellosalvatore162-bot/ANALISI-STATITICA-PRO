@@ -132,6 +132,26 @@ sfumano l'uno nell'altro).
 I profili sono salvati nella cache SQLite e scadono con la stessa soglia dei
 dati; «Aggiorna dati» li invalida.
 
+## Scenario tattico (avversari simili)
+
+Il riquadro **Scenario tattico** cerca, per ciascuna squadra, le 10 partite
+degli ultimi 2 anni contro gli avversari più simili a quello di oggi: distanza
+sul profilo di stile continuo al momento di ogni partita (pressing, blocco,
+manovra, xG fatti/subiti, corner pro/contro, falli, cartellini, tiri; z-score
+nel proprio campionato) più l'Elo, con più peso alle partite recenti. Non usa
+l'etichetta dell'archetipo. Per ogni partita trovata calcola il rendimento
+rispetto alla media della squadra (xG, gol, gol nel primo tempo, corner,
+cartellini, falli) e ne ricava fattori con shrinkage bayesiano verso 1
+(limiti 0.85-1.15 per i gol, 0.80-1.20 per corner e cartellini); con un
+profilo parziale lo shrinkage è più forte. Mostra partite, fattori, numero di
+partite e di metriche usate e una frase riassuntiva.
+
+Le correzioni (gol prima della combinazione con il mercato, solo rapporto di
+forza, quota del primo tempo, corner, cartellini) si attivano una per una;
+di default sono accese solo quelle validate da `python -m tools.tactical`
+su stagioni intere (risultati in [`docs/STILI.md`](./docs/STILI.md), interruttori
+nella sezione `scenario_tattico` di `config/goal_model.json`).
+
 ## Input
 
 ```text

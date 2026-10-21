@@ -463,7 +463,7 @@ FIRST_HALF_MARKETS = ("1X2 1T", "Over 0.5 1T", "Over 1.5 1T", "GG 1T")
 SECONDARY_GAP = 0.005
 
 
-def secondary_markets(lambda_, mu, rho: float, half: "engine.HalfTimeParams") -> dict[str, np.ndarray]:
+def secondary_markets(lambda_, mu, rho: float, half: "engine.HalfTimeParams", share_factor=None) -> dict[str, np.ndarray]:
     """Probabilità analitiche dei mercati gol da un'unica matrice dei punteggi per partita.
 
     La matrice del primo tempo deriva da quella finale assegnando ogni gol al
@@ -477,8 +477,9 @@ def secondary_markets(lambda_, mu, rho: float, half: "engine.HalfTimeParams") ->
     matrix = score_matrices(lambda_, mu, rho)
     goals = np.arange(matrix.shape[1])
     home_share, away_share = engine.first_half_shares(lambda_, mu, half)
-    home_share = np.broadcast_to(home_share, lambda_.shape)
-    away_share = np.broadcast_to(away_share, lambda_.shape)
+    factor = 1.0 if share_factor is None else np.asarray(share_factor, dtype=float)
+    home_share = np.clip(np.broadcast_to(home_share * factor, lambda_.shape), 0.05, 0.95)
+    away_share = np.clip(np.broadcast_to(away_share * factor, lambda_.shape), 0.05, 0.95)
     thin_home = binom.pmf(goals[None, None, :], goals[None, :, None], home_share[:, None, None])
     thin_away = binom.pmf(goals[None, None, :], goals[None, :, None], away_share[:, None, None])
     first_half = np.einsum("ngk,ngh,nhl->nkl", thin_home, matrix, thin_away)

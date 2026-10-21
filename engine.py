@@ -175,6 +175,44 @@ def load_count_model(path: Path = GOAL_MODEL_PATH) -> CountModelParams:
 DEFAULT_COUNT_MODEL = load_count_model()
 
 
+@dataclass(frozen=True)
+class TacticalSwitches:
+    """Which tactical corrections are applied (validated by ``python -m tools.tactical``)."""
+
+    goals: bool = False
+    goals_supremacy: bool = False
+    first_half: bool = False
+    corners: bool = False
+    cards: bool = False
+
+
+@dataclass(frozen=True)
+class TacticalFactors:
+    """Corrections from matches against similar opponents (``datasources/similar.py``).
+
+    ``lambda_``/``mu`` multiply the model goal rates before the market blend,
+    ``first_half`` the first-half goal shares, the others the corner and card means.
+    """
+
+    lambda_: float = 1.0
+    mu: float = 1.0
+    first_half: float = 1.0
+    corners_home: float = 1.0
+    corners_away: float = 1.0
+    cards: float = 1.0
+
+
+def load_tactical_switches(path: Path = GOAL_MODEL_PATH) -> TacticalSwitches:
+    if not path.exists():
+        return TacticalSwitches()
+    data = json.loads(path.read_text(encoding="utf-8"))
+    switches = data.get("scenario_tattico", {}).get("attivo", {})
+    return TacticalSwitches(**{key: bool(value) for key, value in switches.items() if key in TacticalSwitches.__dataclass_fields__})
+
+
+DEFAULT_TACTICAL_SWITCHES = load_tactical_switches()
+
+
 def first_half_shares(lambda_, mu, params: HalfTimeParams):
     """First-half goal shares for home and away; scalars or numpy arrays."""
     shift = params.total_slope * (np.asarray(lambda_, dtype=float) + np.asarray(mu, dtype=float) - params.reference_total)
@@ -203,6 +241,8 @@ class MatchConfig:
     market_anchor: MarketAnchorParams = DEFAULT_MARKET_ANCHOR
     half_time: HalfTimeParams = DEFAULT_HALF_TIME
     count_model: CountModelParams = DEFAULT_COUNT_MODEL
+    tactical: TacticalFactors | None = None
+    tactical_switches: TacticalSwitches = DEFAULT_TACTICAL_SWITCHES
 
     def __post_init__(self) -> None:
         if self.goal_model not in GOAL_MODELS:
@@ -502,6 +542,17 @@ def final_goal_rates(config: MatchConfig) -> tuple[float, float, dict[str, Any]]
     returned unchanged.
     """
     model_lambda, model_mu, ledger = expected_goals(config)
+    tactical = _tactical(config, "goals")
+    supremacy = _tactical(config, "goals_supremacy")
+    if tactical is not None:
+        # Correzione degli avversari simili sul modello, prima della combinazione con il mercato.
+        model_lambda, model_mu = model_lambda * tactical.lambda_, model_mu * tactical.mu
+        ledger = {**ledger, "tactical": {"lambda_factor": tactical.lambda_, "mu_factor": tactical.mu}}
+    elif supremacy is not None:
+        # Solo il rapporto di forza: λ·μ (e quindi circa il totale) resta invariato.
+        shift = math.sqrt(supremacy.lambda_ / supremacy.mu)
+        model_lambda, model_mu = model_lambda * shift, model_mu / shift
+        ledger = {**ledger, "tactical": {"lambda_factor": shift, "mu_factor": 1.0 / shift, "mode": "solo rapporto di forza"}}
     params = config.market_anchor
     anchoring: dict[str, Any] = {
         "active": False,
@@ -941,6 +992,13 @@ def statistical_report(config: MatchConfig, result: Mapping[str, Any]) -> str:
     )
 
 
+def _tactical(config: MatchConfig, family: str) -> TacticalFactors | None:
+    """Tactical factors if present and enabled for ``family``."""
+    if config.tactical is None or not getattr(config.tactical_switches, family):
+        return None
+    return config.tactical
+
+
 def _log(value: float) -> float:
     return math.log(max(float(value), 0.1))
 
@@ -951,11 +1009,14 @@ def corner_signals(config: MatchConfig) -> tuple[float, float]:
     if not params.active:
         home = (config.home.corners_for + config.away.corners_against) / 2.0
         away = (config.away.corners_for + config.home.corners_against) / 2.0
-        return home, away
-    home = math.exp(params.corner_home_intercept + params.corner_for_weight * _log(config.home.corners_for)
-                    + params.corner_against_weight * _log(config.away.corners_against))
-    away = math.exp(params.corner_away_intercept + params.corner_for_weight * _log(config.away.corners_for)
-                    + params.corner_against_weight * _log(config.home.corners_against))
+    else:
+        home = math.exp(params.corner_home_intercept + params.corner_for_weight * _log(config.home.corners_for)
+                        + params.corner_against_weight * _log(config.away.corners_against))
+        away = math.exp(params.corner_away_intercept + params.corner_for_weight * _log(config.away.corners_for)
+                        + params.corner_against_weight * _log(config.home.corners_against))
+    tactical = _tactical(config, "corners")
+    if tactical is not None:
+        home, away = home * tactical.corners_home, away * tactical.corners_away
     return home, away
 
 
@@ -967,17 +1028,19 @@ def card_total_mean(config: MatchConfig) -> float:
     """
     team_cards = config.home.cards_for + config.away.cards_for
     params = config.count_model
+    tactical = _tactical(config, "cards")
+    factor = tactical.cards if tactical is not None else 1.0
     if params.active:
         if team_cards <= 0.0 or config.referee_yellow_avg <= 0.0 or config.referee_fouls_avg <= 0.0:
             return 0.0
-        return math.exp(
+        return factor * math.exp(
             params.card_intercept + params.card_team_weight * math.log(team_cards)
             + params.card_referee_yellow_weight * math.log(config.referee_yellow_avg)
             + params.card_referee_fouls_weight * math.log(config.referee_fouls_avg)
         )
     foul_factor = max(0.0, config.referee_fouls_avg / 24.0)
     referee_severity = max(0.0, config.referee_yellow_avg / 4.5)
-    return max(0.0, team_cards * referee_severity * foul_factor)
+    return factor * max(0.0, team_cards * referee_severity * foul_factor)
 
 
 def _count_samples(rng: np.random.Generator, mean: float, dispersion: float, size: int) -> np.ndarray:
@@ -1008,6 +1071,10 @@ def _sample_scores(config: MatchConfig, lambda_: float, mu: float) -> tuple[np.n
     )
     goals_home, goals_away = np.unravel_index(score_samples, score_probabilities.shape)
     home_share, away_share = first_half_shares(lambda_, mu, config.half_time)
+    tactical = _tactical(config, "first_half")
+    if tactical is not None:
+        home_share = float(np.clip(home_share * tactical.first_half, 0.05, 0.95))
+        away_share = float(np.clip(away_share * tactical.first_half, 0.05, 0.95))
     return (
         goals_home, goals_away,
         rng.binomial(goals_home, float(home_share)), rng.binomial(goals_away, float(away_share)),

@@ -288,5 +288,98 @@
       },
       "regola": "attivo solo se migliora la log-verosimiglianza fuori campione rispetto alle formule originali"
     }
+  },
+  "scenario_tattico": {
+    "attivo": {
+      "goals": false,
+      "goals_supremacy": false,
+      "first_half": false,
+      "corners": false,
+      "cards": true
+    },
+    "parametri": {
+      "tau": {
+        "goals": 500.0,
+        "goals_supremacy": 500.0,
+        "first_half": 200.0,
+        "corners": 500.0,
+        "cards": 50.0
+      },
+      "k": 10,
+      "window_days": 730,
+      "half_life_days": 365.0
+    },
+    "validazione": {
+      "data": "2026-10-21",
+      "copertura": {
+        "partite_valutate": 3105,
+        "partite_con_simili": 3056,
+        "simili_medie_per_squadra": 9.74
+      },
+      "decisioni": {
+        "goals": {
+          "attivo": false,
+          "miglioramenti": {
+            "taratura 2024-25/2025-26 · solo modello · 1X2": 0.00011,
+            "taratura 2024-25/2025-26 · solo modello · Over/Under 2.5": -6e-05,
+            "taratura 2024-25/2025-26 · solo modello · Multigol": -3e-05,
+            "taratura 2024-25/2025-26 · ancorato al mercato · 1X2": 1e-05,
+            "taratura 2024-25/2025-26 · ancorato al mercato · Over/Under 2.5": -1e-05,
+            "taratura 2024-25/2025-26 · ancorato al mercato · Multigol": -0.0,
+            "fuori campione 2026-27 · solo modello · 1X2": 0.00027,
+            "fuori campione 2026-27 · solo modello · Over/Under 2.5": 1e-05,
+            "fuori campione 2026-27 · solo modello · Multigol": 2e-05,
+            "fuori campione 2026-27 · ancorato al mercato · 1X2": 3e-05,
+            "fuori campione 2026-27 · ancorato al mercato · Over/Under 2.5": -1e-05,
+            "fuori campione 2026-27 · ancorato al mercato · Multigol": 0.0
+          }
+        },
+        "goals_supremacy": {
+          "attivo": false,
+          "miglioramenti": {
+            "taratura 2024-25/2025-26 · solo modello · 1X2": 0.0001,
+            "taratura 2024-25/2025-26 · solo modello · Over/Under 2.5": -6e-05,
+            "taratura 2024-25/2025-26 · solo modello · Multigol": -3e-05,
+            "taratura 2024-25/2025-26 · ancorato al mercato · 1X2": 1e-05,
+            "taratura 2024-25/2025-26 · ancorato al mercato · Over/Under 2.5": -1e-05,
+            "taratura 2024-25/2025-26 · ancorato al mercato · Multigol": -0.0,
+            "fuori campione 2026-27 · solo modello · 1X2": 0.00017,
+            "fuori campione 2026-27 · solo modello · Over/Under 2.5": 4e-05,
+            "fuori campione 2026-27 · solo modello · Multigol": 3e-05,
+            "fuori campione 2026-27 · ancorato al mercato · 1X2": 2e-05,
+            "fuori campione 2026-27 · ancorato al mercato · Over/Under 2.5": 0.0,
+            "fuori campione 2026-27 · ancorato al mercato · Multigol": 0.0
+          }
+        },
+        "first_half": {
+          "attivo": false,
+          "miglioramenti": {
+            "taratura 2024-25/2025-26 · solo modello · Primo tempo": 3e-05,
+            "taratura 2024-25/2025-26 · ancorato al mercato · Primo tempo": -2e-05,
+            "fuori campione 2026-27 · solo modello · Primo tempo": 0.0003,
+            "fuori campione 2026-27 · ancorato al mercato · Primo tempo": 0.00024
+          }
+        },
+        "corners": {
+          "attivo": false,
+          "miglioramenti": {
+            "taratura 2024-25/2025-26 · solo modello · Corner": -6e-05,
+            "taratura 2024-25/2025-26 · ancorato al mercato · Corner": -6e-05,
+            "fuori campione 2026-27 · solo modello · Corner": 0.00082,
+            "fuori campione 2026-27 · ancorato al mercato · Corner": 0.00082
+          }
+        },
+        "cards": {
+          "attivo": true,
+          "miglioramenti": {
+            "taratura 2024-25/2025-26 · solo modello · Cartellini": 0.00448,
+            "taratura 2024-25/2025-26 · ancorato al mercato · Cartellini": 0.00448,
+            "fuori campione 2026-27 · solo modello · Cartellini": 0.00535,
+            "fuori campione 2026-27 · ancorato al mercato · Cartellini": 0.00535
+          }
+        }
+      },
+      "documento": "docs/STILI.md"
+    }
   }
 }

@@ -293,6 +293,30 @@ if __name__ == "__main__":
     print(features[mask].groupby("season").size().to_string())
 
 
+def match_elos(raw: pd.DataFrame) -> pd.DataFrame:
+    """Elo pre-partita di casa e ospite per ogni gara (stessa procedura di ``elo_table``), indice di ``raw``."""
+    elo: dict[str, float] = {}
+    previous: set[str] = set()
+    result = pd.DataFrame(index=raw.index, columns=["home_elo", "away_elo"], dtype=float)
+    for league, league_data in raw.groupby("league", sort=False):
+        elo, previous = {}, set()
+        for season, matches in league_data.sort_values("date").groupby("season", sort=False):
+            teams = set(matches["home_team"]) | set(matches["away_team"])
+            leaving = previous - teams
+            entry = float(np.mean([elo[team] for team in leaving])) if leaving else ELO_START
+            for team in teams:
+                elo.setdefault(team, entry)
+            previous = teams
+            for index, match in zip(matches.index, matches.itertuples(index=False)):
+                result.loc[index] = (elo[match.home_team], elo[match.away_team])
+                expected = 1.0 / (1.0 + 10.0 ** (-(elo[match.home_team] - elo[match.away_team] + ELO_HFA) / 400.0))
+                actual = 1.0 if match.home_goals > match.away_goals else 0.5 if match.home_goals == match.away_goals else 0.0
+                change = ELO_K * _goal_multiplier(match.home_goals - match.away_goals) * (actual - expected)
+                elo[match.home_team] += change
+                elo[match.away_team] -= change
+    return result
+
+
 def elo_table(raw: pd.DataFrame, before: pd.Timestamp | None = None) -> dict[str, tuple[float, pd.Timestamp]]:
     """Elo stile ClubElo calcolato dai risultati di un campionato (ripiego se ClubElo non risponde).
 
