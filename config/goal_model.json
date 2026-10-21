@@ -56,5 +56,120 @@
       "calibrato": 1.60101,
       "legacy": 1.68061
     }
+  },
+  "ancoraggio_mercato": {
+    "parametri": {
+      "active": true,
+      "market_weight": 0.9,
+      "devig_method": "shin",
+      "correction_min": 0.8,
+      "correction_max": 1.2,
+      "suspicious_gap_pct": 10.0
+    },
+    "taratura": {
+      "data": "2026-10-21",
+      "quote": "medie di chiusura football-data.co.uk (1X2 e Over/Under 2.5)",
+      "obiettivo": "log-loss 1X2 + log-loss Over/Under 2.5 sulle stagioni di taratura",
+      "pesi_provati": [
+        0.5,
+        0.6,
+        0.7,
+        0.8,
+        0.9
+      ],
+      "griglia": [
+        {
+          "metodo": "—",
+          "peso_mercato": 0.0,
+          "descrizione": "solo modello",
+          "taratura 2024-25/2025-26": 1.66637,
+          "fuori campione 2026-27": 1.60101
+        },
+        {
+          "metodo": "proporzionale",
+          "peso_mercato": 0.5,
+          "descrizione": "ancorato",
+          "taratura 2024-25/2025-26": 1.6475,
+          "fuori campione 2026-27": 1.58322
+        },
+        {
+          "metodo": "proporzionale",
+          "peso_mercato": 0.6,
+          "descrizione": "ancorato",
+          "taratura 2024-25/2025-26": 1.64527,
+          "fuori campione 2026-27": 1.58107
+        },
+        {
+          "metodo": "proporzionale",
+          "peso_mercato": 0.7,
+          "descrizione": "ancorato",
+          "taratura 2024-25/2025-26": 1.6433,
+          "fuori campione 2026-27": 1.5793
+        },
+        {
+          "metodo": "proporzionale",
+          "peso_mercato": 0.8,
+          "descrizione": "ancorato",
+          "taratura 2024-25/2025-26": 1.64171,
+          "fuori campione 2026-27": 1.57796
+        },
+        {
+          "metodo": "proporzionale",
+          "peso_mercato": 0.9,
+          "descrizione": "ancorato",
+          "taratura 2024-25/2025-26": 1.64053,
+          "fuori campione 2026-27": 1.57705
+        },
+        {
+          "metodo": "proporzionale",
+          "peso_mercato": 1.0,
+          "descrizione": "solo mercato",
+          "taratura 2024-25/2025-26": 1.63978,
+          "fuori campione 2026-27": 1.5766
+        },
+        {
+          "metodo": "shin",
+          "peso_mercato": 0.5,
+          "descrizione": "ancorato",
+          "taratura 2024-25/2025-26": 1.6466,
+          "fuori campione 2026-27": 1.58043
+        },
+        {
+          "metodo": "shin",
+          "peso_mercato": 0.6,
+          "descrizione": "ancorato",
+          "taratura 2024-25/2025-26": 1.64437,
+          "fuori campione 2026-27": 1.57781
+        },
+        {
+          "metodo": "shin",
+          "peso_mercato": 0.7,
+          "descrizione": "ancorato",
+          "taratura 2024-25/2025-26": 1.6424,
+          "fuori campione 2026-27": 1.57575
+        },
+        {
+          "metodo": "shin",
+          "peso_mercato": 0.8,
+          "descrizione": "ancorato",
+          "taratura 2024-25/2025-26": 1.64082,
+          "fuori campione 2026-27": 1.57416
+        },
+        {
+          "metodo": "shin",
+          "peso_mercato": 0.9,
+          "descrizione": "ancorato",
+          "taratura 2024-25/2025-26": 1.6397,
+          "fuori campione 2026-27": 1.57307
+        },
+        {
+          "metodo": "shin",
+          "peso_mercato": 1.0,
+          "descrizione": "solo mercato",
+          "taratura 2024-25/2025-26": 1.63904,
+          "fuori campione 2026-27": 1.57249
+        }
+      ]
+    }
   }
 }
