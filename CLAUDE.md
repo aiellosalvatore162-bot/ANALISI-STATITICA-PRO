@@ -14,9 +14,11 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
    medie gol (`expected_goals`), verificando con `test_engine.py`.
 2. **Recupero automatico dei dati da fonti gratuite** al posto dell'inserimento
    manuale: ClubElo per l'Elo; FBref/Understat tramite la libreria `soccerdata`
-   per xG, corner, cartellini e arbitri. Fatto nella fase D (ClubElo dalle
-   pagine squadra; FBref bloccata). Il test del 20/10/2026 usa ora l'Elo
-   ClubElo reale.
+   per xG, corner, cartellini e arbitri. Fatto nella fase D con richieste
+   dirette (ClubElo dalle pagine squadra; FBref bloccata; soccerdata tolta
+   perché i suoi lettori ClubElo e FBref non funzionano). Il test del
+   20/10/2026 usa l'Elo ClubElo reale; PSG-Barcellona e Napoli-Bodø sono
+   `xfail` per input stimati.
 3. **Registro delle previsioni** (probabilità stimata, quota, risultato) per
    misurare la calibrazione e il confronto con la quota di chiusura (CLV).
 

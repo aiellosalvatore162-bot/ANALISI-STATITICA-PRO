@@ -429,6 +429,7 @@ def _match_sheets(filename: str) -> dict[str, str]:
 # va tolto).
 KNOWN_INPUT_LIMITS = {
     "PSG vs BARCELLONA": "xG della scheda stimati: anche con l'Elo ClubElo reale resta fuori tolleranza",
+    "NAPOLI vs BODO/GLIMT": "ClubElo e mercato divergono, dati squadra del Bodø stimati",
 }
 
 

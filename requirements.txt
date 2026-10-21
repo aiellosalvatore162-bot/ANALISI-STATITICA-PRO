@@ -3,6 +3,3 @@ scipy>=1.14.0
 pandas>=2.2.0
 streamlit>=1.49.0
 requests>=2.31.0
-# soccerdata: richiesto dal piano; oggi i suoi lettori ClubElo (API 502) e FBref
-# (serve Chrome) non funzionano, il livello dati usa richieste dirette (datasources/).
-soccerdata>=1.8.0

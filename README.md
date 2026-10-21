@@ -72,7 +72,7 @@ modificabile a mano.
 | Understat | funzionante (`getLeagueData`) | xG, xGA, PPDA, deep completions dei 5 campionati top |
 | football-data.co.uk | funzionante | risultati, quote, corner, cartellini, falli, primo tempo, calendario con quote; arbitri solo Premier League |
 | football-data.org | richiede `FOOTBALL_DATA_KEY` in `st.secrets` (saltata se manca) | calendario e Champions League |
-| FBref | 403, accesso bloccato (soccerdata richiede Chrome) | non usata |
+| FBref | 403, accesso bloccato (soccerdata richiede Chrome; libreria non installata) | non usata |
 
 - Statistiche per squadra separate casa/trasferta sulle ultime N gare (default
   10) pesate per recenza (emivita configurabile); i valori nel blocco sono
