@@ -132,7 +132,9 @@ trattare il pareggio come una perdita.
 
 Il motore:
 
-1. costruisce `lambda` e `mu` con attacco, difesa avversaria, xG, forma ed Elo;
+1. costruisce `lambda` e `mu` con un modello log-lineare tarato (vedi
+   *Taratura del modello gol*): forza d'attacco e debolezza difensiva
+   dell'avversario, scarto Elo, vantaggio casa applicato una sola volta;
 2. applica la correzione Dixon-Coles ai punteggi `0-0`, `0-1`, `1-0`, `1-1` e
    campiona il punteggio finale da questa distribuzione corretta;
 3. ripartisce i gol finali tra primo e secondo tempo, così i risultati parziali
@@ -174,6 +176,33 @@ profitto.
 
 Il testo prodotto è una sintesi numerica nell'interfaccia, non viene chiamato
 “IA” e non contiene frasi narrative generate da template.
+
+### Taratura del modello gol
+
+```
+log λ = log(base) + h/2 + β_att·[(1-α)·log Attacco + α·log(xG fatti/base)]
+        + β_def·[(1-α_d)·log(1/Difesa avv.) + α_d·log(xG subiti avv./base)]
+        + (k/2)·ΔElo/400 + φ·(forma - forma avv.)/2
+```
+
+`μ` è simmetrica con i segni di vantaggio casa, Elo e forma invertiti. I
+parametri non sono scelti a mano: sono in
+[`config/goal_model.json`](./config/goal_model.json), prodotti da
+`python -m tools.calibrate` minimizzando log-loss 1X2 + Over/Under 2.5 su
+Serie A, Premier League, Liga e Bundesliga (football-data.co.uk, stagioni
+2024-25 e 2025-26; input costruiti solo con partite precedenti a ciascuna gara).
+Il file indica anche quale formula è attiva: il modello tarato viene attivato
+solo se batte la formula originale sulla stagione fuori campione, e una
+componente opzionale (oggi la forma) resta accesa solo se migliora il
+fuori campione di almeno 0.001 di log-loss. La formula originale resta
+disponibile con `MatchConfig(goal_model="legacy")`; senza file di taratura il
+motore usa quella.
+
+`python -m tools.baseline --label ... --output docs/BASELINE.md` misura Brier,
+log-loss e calibrazione di 1X2, Over 2.5 e GG e l'errore sulle medie di corner
+e cartellini, confrontandoli con le quote di chiusura senza margine. I
+risultati prima/dopo sono in [`docs/BASELINE.md`](./docs/BASELINE.md). Per i
+test: `pip install -r requirements-dev.txt` e `python -m pytest -q`.
 
 ## Gestione del rischio
 
