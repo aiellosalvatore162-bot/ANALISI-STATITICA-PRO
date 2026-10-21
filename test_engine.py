@@ -398,8 +398,11 @@ def test_legacy_model_keeps_original_rho_and_formula():
 
 
 # Partite reali del 20/10/2026: dati squadra e arbitro dalle schede usate quella
-# sera (tests/fixtures). Le quote nelle schede sono stime e vengono ignorate;
-# il confronto usa solo le quote 1X2 reali qui sotto e il modello "solo dati".
+# sera (tests/fixtures), con l'Elo stimato della scheda sostituito dall'Elo
+# ClubElo pre-partita (tests/fixtures/clubelo_2026-10-20.json, scaricato dallo
+# storico datato delle pagine squadra). Le quote nelle schede sono stime e
+# vengono ignorate; il confronto usa solo le quote 1X2 reali qui sotto e il
+# modello "solo dati".
 FIXTURES = Path(__file__).resolve().parent / "tests" / "fixtures"
 REAL_MATCHES_2026_10_20 = {
     "MANCHESTER CITY vs AEK ATENE": {"1": 1.11},
@@ -409,18 +412,23 @@ REAL_MATCHES_2026_10_20 = {
 }
 
 
+def _clubelo_ratings() -> dict[str, float]:
+    data = json.loads((FIXTURES / "clubelo_2026-10-20.json").read_text(encoding="utf-8"))
+    return {team: values["elo"] for team, values in data["squadre"].items()}
+
+
 def _match_sheets(filename: str) -> dict[str, str]:
     text = (FIXTURES / filename).read_text(encoding="utf-8")
     parts = re.split(r"=+\nPARTITA – (.+?)\n=+\n", text)
     return dict(zip(parts[1::2], parts[2::2]))
 
 
-# Limite noto: per PSG-Barcellona Elo e xG della scheda sono stime, non dati
-# ClubElo, e indicano un PSG più forte di quanto prezzato dal mercato. Il
-# problema è nell'input, non nella formula: da rifare con l'Elo ClubElo reale
-# nella fase dati (strict: se passa, il marcatore va tolto).
+# Limite noto: per PSG-Barcellona gli xG della scheda sono stime. Con l'Elo
+# ClubElo reale il modello passa da 52/24/25 a 44/25/31 (mercato 40/22/39) ma
+# resta fuori tolleranza sul 2 e non equilibrato (strict: se passa, il marcatore
+# va tolto).
 KNOWN_INPUT_LIMITS = {
-    "PSG vs BARCELLONA": "Elo e xG della scheda sono stime, non dati ClubElo: rifare con l'Elo reale",
+    "PSG vs BARCELLONA": "xG della scheda stimati: anche con l'Elo ClubElo reale resta fuori tolleranza",
 }
 
 
@@ -430,8 +438,11 @@ KNOWN_INPUT_LIMITS = {
     for name in REAL_MATCHES_2026_10_20
 ])
 def test_real_matches_of_2026_10_20_stay_close_to_the_market(name):
-    sheet = _match_sheets("schede_complete_21-00.txt")[name]
-    config = replace(config_from_input(parse_match_input(sheet)), odds={})
+    match = parse_match_input(_match_sheets("schede_complete_21-00.txt")[name])
+    elo = _clubelo_ratings()
+    config = replace(config_from_input(match), odds={})
+    config = replace(config, home=replace(config.home, elo=elo[match.home.name]),
+                     away=replace(config.away, elo=elo[match.away.name]))
     model = _probabilities_1x2(config)
     odds = REAL_MATCHES_2026_10_20[name]
     if set(odds) != {"1", "X", "2"}:
