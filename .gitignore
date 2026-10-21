@@ -5,3 +5,6 @@ __pycache__/
 # Segreti e configurazione locale
 .env
 .streamlit/secrets.toml
+
+# Cache dei CSV scaricati dagli strumenti di taratura
+data/cache/

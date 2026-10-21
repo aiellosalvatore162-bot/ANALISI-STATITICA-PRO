@@ -7,8 +7,10 @@ used here.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
+import json
 import math
+from pathlib import Path
 import re
 from typing import Any, Mapping
 
@@ -37,6 +39,44 @@ class TeamParams:
     cards_for: float
 
 
+GOAL_MODEL_PATH = Path(__file__).resolve().parent / "config" / "goal_model.json"
+GOAL_MODELS = ("calibrato", "legacy")
+_LEGACY_RHO = -0.11
+
+
+@dataclass(frozen=True)
+class GoalModelParams:
+    """Parameters of the log-linear goal model, fitted by ``tools/calibrate.py``."""
+
+    base_goals: float = 1.40
+    home_advantage: float = 0.25
+    attack_weight: float = 1.0
+    defense_weight: float = 1.0
+    attack_xg_share: float = 0.5
+    defense_xg_share: float = 0.5
+    elo_k: float = 1.0
+    form_weight: float = 0.05
+    dixon_coles_rho: float = _LEGACY_RHO
+
+
+def load_goal_model(path: Path = GOAL_MODEL_PATH) -> tuple[str, GoalModelParams]:
+    """Return the active model name and its fitted parameters.
+
+    Without a calibration file the engine keeps the original formula, so an
+    uncalibrated model is never enabled silently.
+    """
+    if not path.exists():
+        return "legacy", GoalModelParams()
+    data = json.loads(path.read_text(encoding="utf-8"))
+    active = data.get("modello_attivo", "legacy")
+    if active not in GOAL_MODELS:
+        raise ValueError(f"{path.name}: modello_attivo deve essere uno di {GOAL_MODELS}.")
+    return active, GoalModelParams(**data["parametri"])
+
+
+DEFAULT_GOAL_MODEL, DEFAULT_GOAL_PARAMS = load_goal_model()
+
+
 @dataclass(frozen=True)
 class MatchConfig:
     home: TeamParams
@@ -48,8 +88,17 @@ class MatchConfig:
     home_advantage: float = 1.15
     base_goals_home: float = 1.38
     base_goals_away: float = 1.12
-    dixon_coles_rho: float = -0.11
+    dixon_coles_rho: float | None = None
     odds: dict[str, float] | None = None
+    goal_model: str = DEFAULT_GOAL_MODEL
+    goal_params: GoalModelParams = DEFAULT_GOAL_PARAMS
+
+    def __post_init__(self) -> None:
+        if self.goal_model not in GOAL_MODELS:
+            raise ValueError(f"goal_model deve essere uno di {GOAL_MODELS}.")
+        if self.dixon_coles_rho is None:
+            rho = _LEGACY_RHO if self.goal_model == "legacy" else self.goal_params.dixon_coles_rho
+            object.__setattr__(self, "dixon_coles_rho", rho)
 
 
 def config_from_input(match: MatchInput, simulations: int = 100_000, seed: int = 42) -> MatchConfig:
@@ -78,16 +127,112 @@ def config_from_input(match: MatchInput, simulations: int = 100_000, seed: int =
     )
 
 
+def _form_weights(length: int) -> np.ndarray:
+    """Recency weights: the most recent result (last token) weighs 1."""
+    return np.array([0.7 ** index for index in range(length - 1, -1, -1)])
+
+
 def _form_multiplier(form: str) -> float:
     values = {"W": 1.06, "D": 1.0, "L": 0.94}
     tokens = form.split("-")
-    weights = np.array([0.7 ** index for index in range(len(tokens) - 1, -1, -1)])
     factors = np.array([values[token] for token in tokens])
-    return float(np.average(factors, weights=weights))
+    return float(np.average(factors, weights=_form_weights(len(tokens))))
+
+
+def form_score(form: str) -> float:
+    """Recency-weighted points in [-1, 1]: W=+1, D=0, L=-1."""
+    values = {"W": 1.0, "D": 0.0, "L": -1.0}
+    tokens = form.split("-")
+    points = np.array([values[token] for token in tokens])
+    return float(np.average(points, weights=_form_weights(len(tokens))))
+
+
+def goal_rates(
+    params: GoalModelParams,
+    *,
+    home_attack, home_defense, home_xg_for, home_xg_against, home_form,
+    away_attack, away_defense, away_xg_for, away_xg_against, away_form,
+    elo_diff,
+) -> tuple[np.ndarray, np.ndarray, dict[str, np.ndarray]]:
+    """Log-linear goal rates; works on scalars and on numpy arrays.
+
+    Each team's rate multiplies, with full weight, its own attacking strength
+    and the opponent's defensive weakness.  Each of those two factors blends
+    the season coefficient with the xG ratio to ``base_goals``.  Elo adds a
+    goal-supremacy term split evenly between the two rates, form is a small
+    correction and home advantage is applied once, split between the rates.
+    """
+    base = params.base_goals
+
+    def attack(coefficient, xg_for):
+        return ((1.0 - params.attack_xg_share) * np.log(np.clip(coefficient, 0.2, 3.0))
+                + params.attack_xg_share * np.log(np.clip(np.asarray(xg_for) / base, 0.1, 5.0)))
+
+    def weak_defense(coefficient, xg_against):
+        return ((1.0 - params.defense_xg_share) * -np.log(np.clip(coefficient, 0.2, 3.0))
+                + params.defense_xg_share * np.log(np.clip(np.asarray(xg_against) / base, 0.1, 5.0)))
+
+    elo_term = 0.5 * params.elo_k * np.asarray(elo_diff, dtype=float) / 400.0
+    form_term = 0.5 * params.form_weight * (np.asarray(home_form) - np.asarray(away_form))
+    parts = {
+        "home_advantage": np.full_like(elo_term, 0.5 * params.home_advantage),
+        "home_attack": params.attack_weight * attack(home_attack, home_xg_for),
+        "away_attack": params.attack_weight * attack(away_attack, away_xg_for),
+        "home_weak_defense": params.defense_weight * weak_defense(home_defense, home_xg_against),
+        "away_weak_defense": params.defense_weight * weak_defense(away_defense, away_xg_against),
+        "elo": elo_term,
+        "form": form_term,
+    }
+    log_lambda = (math.log(base) + parts["home_advantage"] + parts["home_attack"]
+                  + parts["away_weak_defense"] + elo_term + form_term)
+    log_mu = (math.log(base) - parts["home_advantage"] + parts["away_attack"]
+              + parts["home_weak_defense"] - elo_term - form_term)
+    return np.clip(np.exp(log_lambda), 0.05, 5.0), np.clip(np.exp(log_mu), 0.05, 5.0), parts
 
 
 def expected_goals(config: MatchConfig) -> tuple[float, float, dict[str, Any]]:
     """Return lambda/mu and a complete, human-readable contribution ledger."""
+    if config.goal_model == "legacy":
+        return _legacy_expected_goals(config)
+    params = config.goal_params
+    home_form, away_form = form_score(config.home.form), form_score(config.away.form)
+    lambda_, mu, parts = goal_rates(
+        params,
+        home_attack=config.home.attack, home_defense=config.home.defense,
+        home_xg_for=config.home.xg_for, home_xg_against=config.home.xg_against, home_form=home_form,
+        away_attack=config.away.attack, away_defense=config.away.defense,
+        away_xg_for=config.away.xg_for, away_xg_against=config.away.xg_against, away_form=away_form,
+        elo_diff=config.home.elo - config.away.elo,
+    )
+    value = {key: float(part) for key, part in parts.items()}
+
+    def side(sign: float, attack_key: str, defense_key: str, score: float) -> dict[str, float]:
+        return {
+            "base_goals": params.base_goals,
+            "home_advantage_multiplier": math.exp(sign * value["home_advantage"]),
+            "attack_multiplier": math.exp(value[attack_key]),
+            "opponent_defense_multiplier": math.exp(value[defense_key]),
+            "elo_multiplier": math.exp(sign * value["elo"]),
+            "form_multiplier": math.exp(sign * value["form"]),
+            "form_score": score,
+        }
+
+    ledger = {
+        "model": "calibrato",
+        "formula": (
+            "log λ = log(base) + h/2 + β_att·[(1-α)·log Attacco + α·log(xG fatti/base)]"
+            " + β_def·[(1-α_d)·log(1/Difesa avv.) + α_d·log(xG subiti avv./base)]"
+            " + (k/2)·ΔElo/400 + φ·(forma - forma avv.)/2; μ simmetrica con segni opposti"
+        ),
+        "home": side(1.0, "home_attack", "away_weak_defense", home_form),
+        "away": side(-1.0, "away_attack", "home_weak_defense", away_form),
+        "weights": asdict(params),
+    }
+    return float(lambda_), float(mu), ledger
+
+
+def _legacy_expected_goals(config: MatchConfig) -> tuple[float, float, dict[str, Any]]:
+    """Original formula, kept for comparison (``goal_model="legacy"``)."""
     elo_delta = config.home.elo - config.away.elo
     elo_home = 10.0 ** (elo_delta / 2400.0)
     elo_away = 10.0 ** (-elo_delta / 2400.0)
@@ -103,6 +248,7 @@ def expected_goals(config: MatchConfig) -> tuple[float, float, dict[str, Any]]:
     lambda_ = float(np.clip(config.base_goals_home * config.home_advantage * home_strength, 0.05, 5.0))
     mu = float(np.clip(config.base_goals_away * away_strength, 0.05, 5.0))
     ledger = {
+        "model": "legacy",
         "formula": "lambda = base_home * home_advantage * attack^0.35 * opponent_defense^-0.25 * xG^0.20 * form^0.10 * Elo^0.10",
         "home": {"attack_signal": home_attack, "xg_signal": home_xg_signal, "form_multiplier": home_form, "elo_multiplier": elo_home},
         "away": {"attack_signal": away_attack, "xg_signal": away_xg_signal, "form_multiplier": away_form, "elo_multiplier": elo_away},
@@ -496,6 +642,27 @@ def statistical_report(config: MatchConfig, result: Mapping[str, Any]) -> str:
     )
 
 
+def corner_signals(config: MatchConfig) -> tuple[float, float]:
+    """Expected corners per team: own average won and opponent's conceded."""
+    home = (config.home.corners_for + config.away.corners_against) / 2.0
+    away = (config.away.corners_for + config.home.corners_against) / 2.0
+    return home, away
+
+
+def card_total_mean(config: MatchConfig) -> float:
+    """Team card propensity adjusted by the referee's observed severity.
+
+    The yellow average is the level factor and the fouls average is the tempo
+    factor.
+    """
+    foul_factor = max(0.0, config.referee_fouls_avg / 24.0)
+    referee_severity = max(0.0, config.referee_yellow_avg / 4.5)
+    return max(
+        0.0,
+        (config.home.cards_for + config.away.cards_for) * referee_severity * foul_factor,
+    )
+
+
 def simulate_match(config: MatchConfig) -> dict[str, Any]:
     """Run one reproducible sample and derive every score market from it.
 
@@ -528,8 +695,7 @@ def simulate_match(config: MatchConfig) -> dict[str, Any]:
 
     # Estimate each team's corners from its average won and its opponent's
     # average conceded, then sample and allocate one match total.
-    home_corner_signal = (config.home.corners_for + config.away.corners_against) / 2.0
-    away_corner_signal = (config.away.corners_for + config.home.corners_against) / 2.0
+    home_corner_signal, away_corner_signal = corner_signals(config)
     lambda_corners = home_corner_signal + away_corner_signal
     corners = rng.poisson(lambda_corners, config.simulations)
     home_corner_share = (
@@ -538,17 +704,7 @@ def simulate_match(config: MatchConfig) -> dict[str, Any]:
     home_corners = rng.binomial(corners, home_corner_share)
     away_corners = corners - home_corners
 
-    # Team card propensity is adjusted by the referee's observed severity:
-    # yellow average is the level factor and fouls average is the tempo factor.
-    foul_factor = max(0.0, config.referee_fouls_avg / 24.0)
-    referee_severity = max(0.0, config.referee_yellow_avg / 4.5)
-    card_total_mean = max(
-        0.0,
-        (config.home.cards_for + config.away.cards_for)
-        * referee_severity
-        * foul_factor,
-    )
-    cards = rng.poisson(card_total_mean, config.simulations)
+    cards = rng.poisson(card_total_mean(config), config.simulations)
     card_signal_total = max(0.0, config.home.cards_for + config.away.cards_for)
     home_card_share = (
         config.home.cards_for / card_signal_total if card_signal_total > 0.0 else 0.5
@@ -637,7 +793,7 @@ def simulate_match(config: MatchConfig) -> dict[str, Any]:
     fixed_score_scenario = _conditional_scenarios(events, {"score": fixed_score_mask})["score"]
     result = {
         "input": {"home": config.home.__dict__, "away": config.away.__dict__, "referee_yellow_avg": config.referee_yellow_avg, "referee_fouls_avg": config.referee_fouls_avg},
-        "model": {"lambda": round(lambda_, 6), "mu": round(mu, 6), "dixon_coles_rho": config.dixon_coles_rho, "simulation_count": config.simulations, "seed": config.seed, "formula_ledger": ledger},
+        "model": {"lambda": round(lambda_, 6), "mu": round(mu, 6), "goal_model": config.goal_model, "dixon_coles_rho": config.dixon_coles_rho, "simulation_count": config.simulations, "seed": config.seed, "formula_ledger": ledger},
         "markets": markets,
         "conditional_scenarios": conditional_scenarios,
         "fixed_score_scenario": fixed_score_scenario,

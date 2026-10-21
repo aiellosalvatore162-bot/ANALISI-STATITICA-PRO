@@ -14,7 +14,9 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
    medie gol (`expected_goals`), verificando con `test_engine.py`.
 2. **Recupero automatico dei dati da fonti gratuite** al posto dell'inserimento
    manuale: ClubElo per l'Elo; FBref/Understat tramite la libreria `soccerdata`
-   per xG, corner, cartellini e arbitri.
+   per xG, corner, cartellini e arbitri. Quando ClubElo è integrato, rifare il
+   test delle partite del 20/10/2026 (PSG-Barcellona è `xfail` perché Elo e xG
+   della scheda erano stime) con l'Elo reale.
 3. **Registro delle previsioni** (probabilità stimata, quota, risultato) per
    misurare la calibrazione e il confronto con la quota di chiusura (CLV).
 
@@ -52,5 +54,9 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   (`simulate_match`); non ricampionare i gol per singolo mercato.
 - `expected_goals` restituisce un `formula_ledger` leggibile: va aggiornato
   insieme alla formula.
+- I parametri del modello gol stanno in `config/goal_model.json` e si rigenerano
+  con `python -m tools.calibrate`; ogni modifica al modello va misurata con
+  `python -m tools.baseline --label ... --output docs/BASELINE.md`. La formula
+  originale resta disponibile come `goal_model="legacy"`.
 - Le fonti remote devono degradare con un avviso (come `historical.py` ricade
   al 100% manuale), mai bloccare la simulazione manuale.
