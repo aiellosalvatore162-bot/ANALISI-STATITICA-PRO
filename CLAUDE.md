@@ -56,5 +56,9 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   con `python -m tools.calibrate`; ogni modifica al modello va misurata con
   `python -m tools.baseline --label ... --output docs/BASELINE.md`. La formula
   originale resta disponibile come `goal_model="legacy"`.
+- I gol attesi della simulazione sono quelli finali (`final_goal_rates`: modello
+  ancorato alle quote 1X2/O-U 2.5); `expected_goals` resta il solo modello.
+  Peso del mercato e metodo di margine si ritarano con
+  `python -m tools.baseline --tara-ancoraggio`.
 - Le fonti remote devono degradare con un avviso (come `historical.py` ricade
   al 100% manuale), mai bloccare la simulazione manuale.
