@@ -16,7 +16,7 @@ from typing import Any, Mapping, Sequence
 
 import numpy as np
 from scipy.optimize import brentq, minimize
-from scipy.stats import poisson
+from scipy.stats import binom, poisson
 
 from market_catalog import MARKET_CATALOG, MULTIGOL_RANGES, definition_for_event
 from parser import MatchInput
@@ -115,6 +115,42 @@ DEFAULT_MARKET_ANCHOR = load_market_anchor()
 
 
 @dataclass(frozen=True)
+class HalfTimeParams:
+    """Share of each team's full-time goals scored in the first half.
+
+    Each goal is assigned to the first half with probability
+    ``logistic(logit(share) + total_slope * (lambda + mu - reference_total))``,
+    fitted by ``python -m tools.calibrate --primo-tempo``.  The defaults
+    reproduce an even split.
+    """
+
+    home_share: float = 0.5
+    away_share: float = 0.5
+    total_slope: float = 0.0
+    reference_total: float = 2.7
+
+
+def load_half_time(path: Path = GOAL_MODEL_PATH) -> HalfTimeParams:
+    if not path.exists():
+        return HalfTimeParams()
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return HalfTimeParams(**data.get("primo_tempo", {}).get("parametri", {}))
+
+
+DEFAULT_HALF_TIME = load_half_time()
+
+
+def first_half_shares(lambda_, mu, params: HalfTimeParams):
+    """First-half goal shares for home and away; scalars or numpy arrays."""
+    shift = params.total_slope * (np.asarray(lambda_, dtype=float) + np.asarray(mu, dtype=float) - params.reference_total)
+
+    def share(base: float):
+        return 1.0 / (1.0 + np.exp(-(math.log(base / (1.0 - base)) + shift)))
+
+    return share(params.home_share), share(params.away_share)
+
+
+@dataclass(frozen=True)
 class MatchConfig:
     home: TeamParams
     away: TeamParams
@@ -130,6 +166,7 @@ class MatchConfig:
     goal_model: str = DEFAULT_GOAL_MODEL
     goal_params: GoalModelParams = DEFAULT_GOAL_PARAMS
     market_anchor: MarketAnchorParams = DEFAULT_MARKET_ANCHOR
+    half_time: HalfTimeParams = DEFAULT_HALF_TIME
 
     def __post_init__(self) -> None:
         if self.goal_model not in GOAL_MODELS:
@@ -306,6 +343,20 @@ def dixon_coles_matrix(lambda_: float, mu: float, rho: float, max_goals: int = 1
             raise ValueError("rho produce una probabilità Dixon-Coles negativa.")
         matrix[home, away] *= factor
     return matrix / matrix.sum()
+
+
+def half_time_matrix(matrix: np.ndarray, home_share: float, away_share: float) -> np.ndarray:
+    """First-half score matrix implied by a full-time matrix and goal shares.
+
+    Every full-time goal falls in the first half independently with the
+    team's share, as in the simulation.
+    """
+    goals = np.arange(matrix.shape[0])
+
+    def thinning(share: float) -> np.ndarray:
+        return binom.pmf(goals[None, :], goals[:, None], share)
+
+    return thinning(home_share).T @ matrix @ thinning(away_share)
 
 
 def remove_margin(odds: Sequence[float], method: str = "proporzionale") -> np.ndarray:
@@ -895,7 +946,11 @@ def _sample_scores(config: MatchConfig, lambda_: float, mu: float) -> tuple[np.n
         p=score_probabilities.ravel(),
     )
     goals_home, goals_away = np.unravel_index(score_samples, score_probabilities.shape)
-    return goals_home, goals_away, rng.binomial(goals_home, 0.5), rng.binomial(goals_away, 0.5)
+    home_share, away_share = first_half_shares(lambda_, mu, config.half_time)
+    return (
+        goals_home, goals_away,
+        rng.binomial(goals_home, float(home_share)), rng.binomial(goals_away, float(away_share)),
+    )
 
 
 def _events_for_scores(
@@ -1038,7 +1093,7 @@ def simulate_match(config: MatchConfig) -> dict[str, Any]:
     fixed_score_scenario = _conditional_scenarios(events, {"score": fixed_score_mask})["score"]
     result = {
         "input": {"home": config.home.__dict__, "away": config.away.__dict__, "referee_yellow_avg": config.referee_yellow_avg, "referee_fouls_avg": config.referee_fouls_avg},
-        "model": {"lambda": round(lambda_, 6), "mu": round(mu, 6), "lambda_modello": round(anchoring["model_lambda"], 6), "mu_modello": round(anchoring["model_mu"], 6), "goal_model": config.goal_model, "dixon_coles_rho": config.dixon_coles_rho, "simulation_count": config.simulations, "seed": config.seed, "formula_ledger": ledger},
+        "model": {"lambda": round(lambda_, 6), "mu": round(mu, 6), "lambda_modello": round(anchoring["model_lambda"], 6), "mu_modello": round(anchoring["model_mu"], 6), "goal_model": config.goal_model, "first_half_shares": dict(zip(("home", "away"), (round(float(share), 4) for share in first_half_shares(lambda_, mu, config.half_time)))), "dixon_coles_rho": config.dixon_coles_rho, "simulation_count": config.simulations, "seed": config.seed, "formula_ledger": ledger},
         "markets": markets,
         "conditional_scenarios": conditional_scenarios,
         "fixed_score_scenario": fixed_score_scenario,
