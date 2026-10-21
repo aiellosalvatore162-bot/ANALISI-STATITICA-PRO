@@ -83,3 +83,8 @@ def test_shot_xg_proxy_is_non_negative_least_squares():
     raw["home_goals"] = (raw["home_sot"] * 0.3).round().astype(int)
     model = dataset.fit_shot_xg(raw)
     assert model.on_target >= 0.0 and model.off_target >= 0.0
+
+
+def test_closing_odds_use_engine_event_keys_and_skip_missing_values():
+    row = {"close_home": 2.1, "close_draw": 3.3, "close_away": 3.6, "close_over25": 1.9, "close_under25": np.nan}
+    assert baseline.closing_odds(row) == {"1": 2.1, "X": 3.3, "2": 3.6, "Over 2.5 gol": 1.9}

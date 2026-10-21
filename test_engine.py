@@ -419,3 +419,101 @@ def test_real_matches_stay_close_to_the_no_margin_market(name):
     assert np.all(np.abs(model - market) <= 0.07), f"modello {model.round(3)} mercato {market.round(3)}"
     if name == "PSG-Barcellona":
         assert abs(model[0] - model[2]) <= 0.10
+
+
+def _fair_odds(lambda_: float, mu: float, rho: float) -> dict[str, float]:
+    probabilities = engine._score_market_probabilities(lambda_, mu, rho)
+    return {key: 1.0 / value for key, value in probabilities.items()}
+
+
+def test_remove_margin_methods():
+    odds = [1.30, 5.50, 11.0]
+    proportional = engine.remove_margin(odds, "proporzionale")
+    shin = engine.remove_margin(odds, "shin")
+    assert proportional.sum() == pytest.approx(1.0)
+    assert shin.sum() == pytest.approx(1.0)
+    # Shin toglie più margine dagli esiti improbabili: la favorita sale.
+    assert shin[0] > proportional[0] and shin[2] < proportional[2]
+    fair = [2.0, 4.0, 4.0]
+    np.testing.assert_allclose(engine.remove_margin(fair, "shin"), [0.5, 0.25, 0.25])
+    with pytest.raises(ValueError):
+        engine.remove_margin(odds, "altro")
+
+
+@pytest.mark.parametrize("method", engine.DEVIG_METHODS)
+def test_market_goal_rates_recover_the_generating_rates(method):
+    rho = -0.12
+    fitted = engine.market_goal_rates(_fair_odds(1.9, 0.8, rho), method, rho)
+    assert fitted["lambda"] == pytest.approx(1.9, abs=2e-3)
+    assert fitted["mu"] == pytest.approx(0.8, abs=2e-3)
+    assert fitted["markets_used"] == list(engine.ANCHOR_MARKETS)
+    assert fitted["max_fit_error_pct"] < 0.05
+
+
+def test_market_goal_rates_need_1x2_and_both_over_under_sides():
+    odds = _fair_odds(1.5, 1.1, -0.11)
+    assert engine.market_goal_rates({"1": odds["1"], "X": odds["X"]}) is None
+    without_under = {key: odds[key] for key in ("1", "X", "2", "Over 2.5 gol")}
+    assert engine.market_goal_rates(without_under)["markets_used"] == ["1", "X", "2"]
+
+
+def test_anchor_blend_is_log_scale_and_bounded():
+    params = engine.MarketAnchorParams(market_weight=0.7)
+    lambda_, mu, correction_home, correction_away = engine.anchor_goal_rates(1.1, 1.3, 1.0, 1.0, params)
+    assert lambda_ == pytest.approx(1.1 ** 0.3)
+    assert mu == pytest.approx(1.3 ** 0.3)
+    only_market = replace(params, market_weight=1.0)
+    assert engine.anchor_goal_rates(2.5, 0.4, 1.8, 0.9, only_market)[:2] == pytest.approx((1.8, 0.9))
+    bounded = engine.anchor_goal_rates(4.0, 0.2, 1.0, 1.0, replace(params, market_weight=0.0))
+    assert bounded[2] == pytest.approx(1.2) and bounded[3] == pytest.approx(0.8)
+
+
+def _with_odds(odds: dict[str, float]) -> MatchConfig:
+    config = config_from_input(parse_match_input(VALID), simulations=20_000, seed=8)
+    return replace(config, odds=odds, market_anchor=engine.MarketAnchorParams(market_weight=0.7))
+
+
+def test_simulation_without_odds_uses_only_the_model():
+    config = _with_odds({})
+    result = simulate_match(config)
+    model_lambda, model_mu, _ = expected_goals(config)
+    assert not result["market_anchoring"]["active"]
+    assert result["model"]["lambda"] == pytest.approx(model_lambda, abs=1e-6)
+    assert result["components"]["mercato"] is None
+    assert result["components"]["modello"] == result["components"]["finale"]
+
+
+def test_simulation_with_odds_reports_market_model_and_final_probabilities():
+    odds = {"1": 1.85, "X": 3.40, "2": 4.20, "Over 2.5 gol": 1.80, "Under 2.5 gol": 2.00}
+    result = simulate_match(_with_odds(odds))
+    anchoring = result["market_anchoring"]
+    assert anchoring["active"]
+    assert 0.8 <= anchoring["correction_home"] <= 1.2
+    components = result["components"]
+    assert set(components) == {"finale", "modello", "mercato"}
+    assert components["finale"]["1"] == result["markets"]["1x2"]["1"]["percentage"]
+    for source in components.values():
+        assert source["1"] + source["X"] + source["2"] == pytest.approx(100.0, abs=0.02)
+    # Corner e cartellini non dipendono dai gol attesi: identici nelle tre fonti.
+    assert components["mercato"]["Over 9.5 corner"] == components["modello"]["Over 9.5 corner"]
+    row = {item["market"]: item for item in result["financial"]["markets"]}["1"]
+    assert row["market_only_probability_pct"] == components["mercato"]["1"]
+    assert row["model_only_probability_pct"] == components["modello"]["1"]
+
+
+def test_value_is_suspicious_when_model_and_market_diverge():
+    # Quote che danno l'ospite nettamente favorito contro input favorevoli alla casa.
+    result = simulate_match(_with_odds({"1": 6.0, "X": 4.2, "2": 1.55}))
+    rows = {item["market"]: item for item in result["financial"]["markets"]}
+    assert rows["1"]["model_market_gap_pct"] > 10.0
+    assert rows["1"]["is_value"] and rows["1"]["suspicious_value"]
+    assert not rows["2"]["suspicious_value"]
+
+
+def test_market_anchor_defaults_when_the_file_has_no_section(tmp_path):
+    path = tmp_path / "goal_model.json"
+    path.write_text(json.dumps({"modello_attivo": "legacy", "parametri": {}}), encoding="utf-8")
+    assert engine.load_market_anchor(path) == engine.MarketAnchorParams()
+    assert engine.load_market_anchor(tmp_path / "assente.json") == engine.MarketAnchorParams()
+    with pytest.raises(ValueError):
+        replace(_with_odds({}), market_anchor=engine.MarketAnchorParams(devig_method="altro"))
