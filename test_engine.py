@@ -1,5 +1,7 @@
 from dataclasses import replace
 import json
+from pathlib import Path
+import re
 
 import numpy as np
 import pytest
@@ -395,30 +397,39 @@ def test_legacy_model_keeps_original_rho_and_formula():
         replace(config, goal_model="sconosciuto")
 
 
-# Partite reali del 20/10/2026. Il blocco di input deve essere quello usato
-# quella sera nell'app (stesso formato del parser); finché manca, il test
-# della partita viene saltato invece di usare valori inventati.
+# Partite reali del 20/10/2026: dati squadra e arbitro dalle schede usate quella
+# sera (tests/fixtures). Le quote nelle schede sono stime e vengono ignorate;
+# il confronto usa solo le quote 1X2 reali qui sotto e il modello "solo dati".
+FIXTURES = Path(__file__).resolve().parent / "tests" / "fixtures"
 REAL_MATCHES_2026_10_20 = {
-    "City-AEK": {"odds": {"1": 1.11}, "input": None},
-    "Roma-Slovan": {"odds": {"1": 1.15, "X": 8.50, "2": 18.00}, "input": None},
-    "Napoli-Bodo": {"odds": {"1": 1.55, "X": 4.50, "2": 5.00}, "input": None},
-    "PSG-Barcellona": {"odds": {"1": 2.40, "X": 4.33, "2": 2.45}, "input": None},
+    "MANCHESTER CITY vs AEK ATENE": {"1": 1.11},
+    "ROMA vs SLOVAN BRATISLAVA": {"1": 1.15, "X": 8.50, "2": 18.00},
+    "NAPOLI vs BODO/GLIMT": {"1": 1.55, "X": 4.50, "2": 5.00},
+    "PSG vs BARCELLONA": {"1": 2.40, "X": 4.33, "2": 2.45},
 }
 
 
+def _match_sheets(filename: str) -> dict[str, str]:
+    text = (FIXTURES / filename).read_text(encoding="utf-8")
+    parts = re.split(r"=+\nPARTITA – (.+?)\n=+\n", text)
+    return dict(zip(parts[1::2], parts[2::2]))
+
+
 @pytest.mark.parametrize("name", REAL_MATCHES_2026_10_20)
-def test_real_matches_stay_close_to_the_no_margin_market(name):
-    match = REAL_MATCHES_2026_10_20[name]
-    if match["input"] is None:
-        pytest.skip(f"{name}: input del 20/10/2026 non ancora forniti")
-    if set(match["odds"]) != {"1", "X", "2"}:
-        pytest.skip(f"{name}: servono le quote 1, X e 2 per togliere il margine")
-    implied = np.array([1.0 / match["odds"][key] for key in ("1", "X", "2")])
+def test_real_matches_of_2026_10_20_stay_close_to_the_market(name):
+    sheet = _match_sheets("schede_complete_21-00.txt")[name]
+    config = replace(config_from_input(parse_match_input(sheet)), odds={})
+    model = _probabilities_1x2(config)
+    odds = REAL_MATCHES_2026_10_20[name]
+    if set(odds) != {"1", "X", "2"}:
+        # Solo la quota 1 è reale: nessuna rimozione del margine, solo una soglia.
+        assert model[0] >= 0.80, f"vittoria casa {model[0]:.3f}"
+        return
+    implied = np.array([1.0 / odds[key] for key in ("1", "X", "2")])
     market = implied / implied.sum()
-    model = _probabilities_1x2(config_from_input(parse_match_input(match["input"])))
     assert np.all(np.abs(model - market) <= 0.07), f"modello {model.round(3)} mercato {market.round(3)}"
-    if name == "PSG-Barcellona":
-        assert abs(model[0] - model[2]) <= 0.10
+    if name == "PSG vs BARCELLONA":
+        assert abs(model[0] - model[2]) <= 0.10, f"modello {model.round(3)} non equilibrato"
 
 
 def _fair_odds(lambda_: float, mu: float, rho: float) -> dict[str, float]:

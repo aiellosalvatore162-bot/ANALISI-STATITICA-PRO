@@ -1,0 +1,326 @@
+ATTENZIONE: le quote di questo file sono STIME (modello Poisson + margine 6%), NON quote Eurobet.
+Solo l'1X2 di City-AEK (segno 1), Napoli-Bodo, PSG-Barcellona e Roma-Slovan viene da bookmaker italiani reali.
+Usale per far girare il parser: le PROBABILITA' del simulatore sono valide, l'EV no.
+Prima di giocare, controlla su Eurobet la quota vera delle sole selezioni scelte.
+
+==================================================
+PARTITA – FC PORTO vs PSV EINDHOVEN
+==================================================
+CASA: FC Porto | Quota 1: 1.93 | Quota 1T 1: 2.61 | Quota DNB Casa: 1.44
+Attacco: 1.42 | Difesa: 1.38 | Elo: 1790 | Forma: W-W-W-L-W | xG Fatti: 1.85 | xG Subiti: 0.85 | Corner pro/sub: 6.1/3.9 | Cartellini pro: 2.1
+(8 vittorie su 8 in campionato con soli 4 gol subiti, ma 0 punti in Champions; rientra Bednarek in difesa)
+
+OSPITE: PSV Eindhoven | Quota 2: 3.67 | Quota 1T 2: 4.34 | Quota DNB Ospite: 2.74
+Attacco: 1.08 | Difesa: 0.96 | Elo: 1730 | Forma: L-L-W-L-W | xG Fatti: 1.40 | xG Subiti: 1.35 | Corner pro/sub: 5.2/5.0 | Cartellini pro: 1.9
+(Due sconfitte di fila, tre ko consecutivi in trasferta, attacco ridotto dagli infortuni)
+
+ARBITRO: Gialli medi 3.80 | Falli medi 22.40
+
+QUOTE_MERCATI_PRINCIPALI:
+Quota X: 3.71 | Quota 1X: 1.29 | Quota X2: 1.88 | Quota 12: 1.29 | Quota 1T X: 2.24
+Quota Goal: 1.84 | Quota No Goal: 1.93 | Quota Goal 1T: 4.99
+Quota Under 1.5: 3.53 | Quota Over 1.5: 1.31 | Quota Over 1.5 1T: 2.89
+Quota Under 2.5: 1.82 | Quota Over 2.5: 1.96
+Quota Under 3.5: 1.28 | Quota Over 3.5: 3.57
+Quota Under 4.5: 1.10 | Quota Over 4.5: 7.70
+
+QUOTE_MULTIGOL_TOTALI:
+Quota Multigol Totale 1-2: 2.12 | Quota Multigol Totale 1-3: 1.43 | Quota Multigol Totale 1-4: 1.17 | Quota Multigol Totale 1-5: 1.08
+Quota Multigol Totale 2-3: 2.01 | Quota Multigol Totale 2-4: 1.55 | Quota Multigol Totale 2-5: 1.38 | Quota Multigol Totale 2-6: 1.32
+Quota Multigol Totale 3-4: 2.63 | Quota Multigol Totale 3-5: 2.18 | Quota Multigol Totale 3-6: 2.03
+
+QUOTE_MULTIGOL_CASA:
+Quota Multigol Casa 1-2: 1.62 | Quota Multigol Casa 1-3: 1.32 | Quota Multigol Casa 1-4: 1.23 | Quota Multigol Casa 1-5: 1.21
+Quota Multigol Casa 2-3: 2.44 | Quota Multigol Casa 2-4: 2.16 | Quota Multigol Casa 2-5: 2.08 | Quota Multigol Casa 2-6: 2.06
+Quota Multigol Casa 3-4: 5.16 | Quota Multigol Casa 3-5: 4.75 | Quota Multigol Casa 3-6: 4.65
+
+QUOTE_MULTIGOL_OSPITE:
+Quota Multigol Ospite 1-2: 1.68 | Quota Multigol Ospite 1-3: 1.50 | Quota Multigol Ospite 1-4: 1.46 | Quota Multigol Ospite 1-5: 1.45
+Quota Multigol Ospite 2-3: 3.62 | Quota Multigol Ospite 2-4: 3.39 | Quota Multigol Ospite 2-5: 3.35 | Quota Multigol Ospite 2-6: 3.34
+Quota Multigol Ospite 3-4: 11.07 | Quota Multigol Ospite 3-5: 10.60 | Quota Multigol Ospite 3-6: 10.53
+
+QUOTE_SOMMA_GOL:
+Quota Somma Gol 0: 12.70 | Quota Somma Gol 1: 4.89 | Quota Somma Gol 2: 3.76 | Quota Somma Gol 3: 4.34 | Quota Somma Gol 4: 6.67 | Quota Somma Gol 5+: 7.70
+
+QUOTE_CORNER_E_CARTELLINI:
+Quota Over 8.5 Corner: 1.39 | Quota Over 9.5 Corner: 1.70 | Quota Over 10.5 Corner: 2.20 | Quota Over 11.5 Corner: 3.00
+Quota Over 3.5 Cartellini: 1.79 | Quota Over 4.5 Cartellini: 2.84 | Quota Over 5.5 Cartellini: 5.11
+
+QUOTE_COMBO:
+Quota 1X + Over 1.5: 1.67 | Quota X2 + Over 1.5: 2.58 | Quota X2 + Multigol 1-3: 2.92 | Quota 1X + Goal: 2.36
+
+==================================================
+PARTITA – LIVERPOOL vs VILLARREAL
+==================================================
+CASA: Liverpool | Quota 1: 1.53 | Quota 1T 1: 2.08 | Quota DNB Casa: 1.21
+Attacco: 1.55 | Difesa: 1.30 | Elo: 1890 | Forma: W-W-D-W-W | xG Fatti: 2.05 | xG Subiti: 1.00 | Corner pro/sub: 7.1/3.6 | Cartellini pro: 1.8
+(Due vittorie su due in Champions, controllo del centrocampo e Anfield come fattore)
+
+OSPITE: Villarreal | Quota 2: 5.48 | Quota 1T 2: 5.60 | Quota DNB Ospite: 4.33
+Attacco: 1.10 | Difesa: 0.90 | Elo: 1720 | Forma: W-L-D-W-L | xG Fatti: 1.45 | xG Subiti: 1.45 | Corner pro/sub: 4.8/5.7 | Cartellini pro: 2.4
+(Pericolosa in ripartenza ma fragile in trasferta: 3-2 subito a Dortmund)
+
+ARBITRO: Gialli medi 4.00 | Falli medi 23.00
+
+QUOTE_MERCATI_PRINCIPALI:
+Quota X: 4.49 | Quota 1X: 1.16 | Quota X2: 2.52 | Quota 12: 1.22 | Quota 1T X: 2.50
+Quota Goal: 1.78 | Quota No Goal: 2.01 | Quota Goal 1T: 4.57
+Quota Under 1.5: 4.56 | Quota Over 1.5: 1.21 | Quota Over 1.5 1T: 2.46
+Quota Under 2.5: 2.17 | Quota Over 2.5: 1.67
+Quota Under 3.5: 1.43 | Quota Over 3.5: 2.76
+Quota Under 4.5: 1.17 | Quota Over 4.5: 5.35
+
+QUOTE_MULTIGOL_TOTALI:
+Quota Multigol Totale 1-2: 2.47 | Quota Multigol Totale 1-3: 1.56 | Quota Multigol Totale 1-4: 1.22 | Quota Multigol Totale 1-5: 1.09
+Quota Multigol Totale 2-3: 2.09 | Quota Multigol Totale 2-4: 1.53 | Quota Multigol Totale 2-5: 1.32 | Quota Multigol Totale 2-6: 1.24
+Quota Multigol Totale 3-4: 2.42 | Quota Multigol Totale 3-5: 1.94 | Quota Multigol Totale 3-6: 1.77
+
+QUOTE_MULTIGOL_CASA:
+Quota Multigol Casa 1-2: 1.74 | Quota Multigol Casa 1-3: 1.31 | Quota Multigol Casa 1-4: 1.16 | Quota Multigol Casa 1-5: 1.11
+Quota Multigol Casa 2-3: 2.09 | Quota Multigol Casa 2-4: 1.74 | Quota Multigol Casa 2-5: 1.63 | Quota Multigol Casa 2-6: 1.60
+Quota Multigol Casa 3-4: 3.49 | Quota Multigol Casa 3-5: 3.08 | Quota Multigol Casa 3-6: 2.96
+
+QUOTE_MULTIGOL_OSPITE:
+Quota Multigol Ospite 1-2: 1.74 | Quota Multigol Ospite 1-3: 1.58 | Quota Multigol Ospite 1-4: 1.55 | Quota Multigol Ospite 1-5: 1.54
+Quota Multigol Ospite 2-3: 4.11 | Quota Multigol Ospite 2-4: 3.88 | Quota Multigol Ospite 2-5: 3.84 | Quota Multigol Ospite 2-6: 3.84
+Quota Multigol Ospite 3-4: 13.79 | Quota Multigol Ospite 3-5: 13.31 | Quota Multigol Ospite 3-6: 13.24
+
+QUOTE_SOMMA_GOL:
+Quota Somma Gol 0: 18.02 | Quota Somma Gol 1: 6.11 | Quota Somma Gol 2: 4.14 | Quota Somma Gol 3: 4.21 | Quota Somma Gol 4: 5.71 | Quota Somma Gol 5+: 5.35
+
+QUOTE_CORNER_E_CARTELLINI:
+Quota Over 8.5 Corner: 1.29 | Quota Over 9.5 Corner: 1.54 | Quota Over 10.5 Corner: 1.92 | Quota Over 11.5 Corner: 2.53
+Quota Over 3.5 Cartellini: 1.67 | Quota Over 4.5 Cartellini: 2.54 | Quota Over 5.5 Cartellini: 4.39
+
+QUOTE_COMBO:
+Quota 1X + Over 1.5: 1.38 | Quota X2 + Over 1.5: 3.30 | Quota X2 + Multigol 1-3: 4.07 | Quota 1X + Goal: 2.10
+
+==================================================
+PARTITA – MANCHESTER CITY vs AEK ATENE
+==================================================
+CASA: Manchester City | Quota 1: 1.11 | Quota 1T 1: 1.48 | Quota DNB Casa: 1.01
+Attacco: 1.62 | Difesa: 1.48 | Elo: 1930 | Forma: W-W-W-W-W | xG Fatti: 2.30 | xG Subiti: 0.80 | Corner pro/sub: 7.6/2.9 | Cartellini pro: 1.6
+(Possesso dominante, Haaland già a segno due volte in Champions, porta inviolata a Porto)
+
+OSPITE: AEK Atene | Quota 2: 21.87 | Quota 1T 2: 14.44 | Quota DNB Ospite: 19.47
+Attacco: 0.84 | Difesa: 0.93 | Elo: 1560 | Forma: D-W-W-W-L | xG Fatti: 1.05 | xG Subiti: 1.40 | Corner pro/sub: 3.6/6.8 | Cartellini pro: 2.5
+(Blocco basso e solido nei preliminari, ma salto di livello enorme; colpisce solo in contropiede)
+
+ARBITRO: Gialli medi 4.00 | Falli medi 22.00
+
+QUOTE_MERCATI_PRINCIPALI:
+Quota X: 8.60 | Quota 1X: 1.01 | Quota X2: 6.29 | Quota 12: 1.08 | Quota 1T X: 3.19
+Quota Goal: 2.55 | Quota No Goal: 1.50 | Quota Goal 1T: 6.54
+Quota Under 1.5: 5.95 | Quota Over 1.5: 1.14 | Quota Over 1.5 1T: 2.16
+Quota Under 2.5: 2.62 | Quota Over 2.5: 1.47
+Quota Under 3.5: 1.63 | Quota Over 3.5: 2.25
+Quota Under 4.5: 1.26 | Quota Over 4.5: 3.97
+
+QUOTE_MULTIGOL_TOTALI:
+Quota Multigol Totale 1-2: 2.92 | Quota Multigol Totale 1-3: 1.74 | Quota Multigol Totale 1-4: 1.30 | Quota Multigol Totale 1-5: 1.12
+Quota Multigol Totale 2-3: 2.24 | Quota Multigol Totale 2-4: 1.56 | Quota Multigol Totale 2-5: 1.30 | Quota Multigol Totale 2-6: 1.19
+Quota Multigol Totale 3-4: 2.34 | Quota Multigol Totale 3-5: 1.80 | Quota Multigol Totale 3-6: 1.60
+
+QUOTE_MULTIGOL_CASA:
+Quota Multigol Casa 1-2: 2.31 | Quota Multigol Casa 1-3: 1.49 | Quota Multigol Casa 1-4: 1.20 | Quota Multigol Casa 1-5: 1.08
+Quota Multigol Casa 2-3: 2.05 | Quota Multigol Casa 2-4: 1.53 | Quota Multigol Casa 2-5: 1.34 | Quota Multigol Casa 2-6: 1.27
+Quota Multigol Casa 3-4: 2.49 | Quota Multigol Casa 3-5: 2.03 | Quota Multigol Casa 3-6: 1.86
+
+QUOTE_MULTIGOL_OSPITE:
+Quota Multigol Ospite 1-2: 2.49 | Quota Multigol Ospite 1-3: 2.41 | Quota Multigol Ospite 1-4: 2.40 | Quota Multigol Ospite 1-5: 2.40
+Quota Multigol Ospite 2-3: 10.67 | Quota Multigol Ospite 2-4: 10.48 | Quota Multigol Ospite 2-5: 10.46 | Quota Multigol Ospite 2-6: 10.46
+Quota Multigol Ospite 3-4: 66.36 | Quota Multigol Ospite 3-5: 65.63 | Quota Multigol Ospite 3-6: 65.57
+
+QUOTE_SOMMA_GOL:
+Quota Somma Gol 0: 25.58 | Quota Somma Gol 1: 7.75 | Quota Somma Gol 2: 4.70 | Quota Somma Gol 3: 4.27 | Quota Somma Gol 4: 5.18 | Quota Somma Gol 5+: 3.97
+
+QUOTE_CORNER_E_CARTELLINI:
+Quota Over 8.5 Corner: 1.26 | Quota Over 9.5 Corner: 1.48 | Quota Over 10.5 Corner: 1.83 | Quota Over 11.5 Corner: 2.38
+Quota Over 3.5 Cartellini: 1.95 | Quota Over 4.5 Cartellini: 3.21 | Quota Over 5.5 Cartellini: 6.05
+
+QUOTE_COMBO:
+Quota 1X + Over 1.5: 1.13 | Quota X2 + Over 1.5: 9.50 | Quota X2 + Multigol 1-3: 10.48 | Quota 1X + Goal: 2.64
+
+==================================================
+PARTITA – NAPOLI vs BODO/GLIMT
+==================================================
+CASA: Napoli | Quota 1: 1.55 | Quota 1T 1: 2.12 | Quota DNB Casa: 1.22
+Attacco: 1.24 | Difesa: 1.20 | Elo: 1800 | Forma: L-W-W-W-L | xG Fatti: 1.60 | xG Subiti: 1.05 | Corner pro/sub: 5.8/4.0 | Cartellini pro: 2.2
+(0 punti in Champions dopo Arsenal e Liverpool: obbligata a vincere)
+
+OSPITE: Bodo/Glimt | Quota 2: 5.00 | Quota 1T 2: 5.50 | Quota DNB Ospite: 4.16
+Attacco: 1.15 | Difesa: 0.80 | Elo: 1640 | Forma: W-W-W-D-L | xG Fatti: 1.45 | xG Subiti: 1.75 | Corner pro/sub: 4.6/5.4 | Cartellini pro: 1.5
+(Ha battuto il Dortmund in casa sul sintetico, ma lontano da Bodo crolla: 0-5 a Monaco)
+
+ARBITRO: Gialli medi 4.00 | Falli medi 23.00
+
+QUOTE_MERCATI_PRINCIPALI:
+Quota X: 4.50 | Quota 1X: 1.17 | Quota X2: 2.45 | Quota 12: 1.23 | Quota 1T X: 2.46
+Quota Goal: 1.79 | Quota No Goal: 1.99 | Quota Goal 1T: 4.64
+Quota Under 1.5: 4.40 | Quota Over 1.5: 1.22 | Quota Over 1.5 1T: 2.52
+Quota Under 2.5: 2.12 | Quota Over 2.5: 1.70
+Quota Under 3.5: 1.41 | Quota Over 3.5: 2.86
+Quota Under 4.5: 1.16 | Quota Over 4.5: 5.61
+
+QUOTE_MULTIGOL_TOTALI:
+Quota Multigol Totale 1-2: 2.41 | Quota Multigol Totale 1-3: 1.53 | Quota Multigol Totale 1-4: 1.21 | Quota Multigol Totale 1-5: 1.08
+Quota Multigol Totale 2-3: 2.07 | Quota Multigol Totale 2-4: 1.53 | Quota Multigol Totale 2-5: 1.33 | Quota Multigol Totale 2-6: 1.25
+Quota Multigol Totale 3-4: 2.45 | Quota Multigol Totale 3-5: 1.97 | Quota Multigol Totale 3-6: 1.80
+
+QUOTE_MULTIGOL_CASA:
+Quota Multigol Casa 1-2: 1.72 | Quota Multigol Casa 1-3: 1.30 | Quota Multigol Casa 1-4: 1.17 | Quota Multigol Casa 1-5: 1.12
+Quota Multigol Casa 2-3: 2.11 | Quota Multigol Casa 2-4: 1.77 | Quota Multigol Casa 2-5: 1.67 | Quota Multigol Casa 2-6: 1.64
+Quota Multigol Casa 3-4: 3.61 | Quota Multigol Casa 3-5: 3.20 | Quota Multigol Casa 3-6: 3.08
+
+QUOTE_MULTIGOL_OSPITE:
+Quota Multigol Ospite 1-2: 1.74 | Quota Multigol Ospite 1-3: 1.58 | Quota Multigol Ospite 1-4: 1.55 | Quota Multigol Ospite 1-5: 1.54
+Quota Multigol Ospite 2-3: 4.11 | Quota Multigol Ospite 2-4: 3.88 | Quota Multigol Ospite 2-5: 3.84 | Quota Multigol Ospite 2-6: 3.84
+Quota Multigol Ospite 3-4: 13.79 | Quota Multigol Ospite 3-5: 13.31 | Quota Multigol Ospite 3-6: 13.24
+
+QUOTE_SOMMA_GOL:
+Quota Somma Gol 0: 17.15 | Quota Somma Gol 1: 5.91 | Quota Somma Gol 2: 4.08 | Quota Somma Gol 3: 4.22 | Quota Somma Gol 4: 5.82 | Quota Somma Gol 5+: 5.61
+
+QUOTE_CORNER_E_CARTELLINI:
+Quota Over 8.5 Corner: 1.46 | Quota Over 9.5 Corner: 1.83 | Quota Over 10.5 Corner: 2.41 | Quota Over 11.5 Corner: 3.36
+Quota Over 3.5 Cartellini: 1.95 | Quota Over 4.5 Cartellini: 3.21 | Quota Over 5.5 Cartellini: 6.05
+
+QUOTE_COMBO:
+Quota 1X + Over 1.5: 1.40 | Quota X2 + Over 1.5: 3.24 | Quota X2 + Multigol 1-3: 3.93 | Quota 1X + Goal: 2.13
+
+==================================================
+PARTITA – PSG vs BARCELLONA
+==================================================
+CASA: PSG | Quota 1: 2.40 | Quota 1T 1: 2.95 | Quota DNB Casa: 1.84
+Attacco: 1.72 | Difesa: 1.40 | Elo: 1950 | Forma: W-W-W-W-W | xG Fatti: 2.45 | xG Subiti: 0.95 | Corner pro/sub: 6.4/4.2 | Cartellini pro: 1.9
+(11 vittorie su 11; assente Nuno Mendes, Zaire-Emery adattato terzino sinistro)
+
+OSPITE: Barcellona | Quota 2: 2.45 | Quota 1T 2: 3.07 | Quota DNB Ospite: 1.94
+Attacco: 1.66 | Difesa: 1.02 | Elo: 1920 | Forma: W-W-W-D-W | xG Fatti: 2.30 | xG Subiti: 1.35 | Corner pro/sub: 6.0/4.6 | Cartellini pro: 2.3
+(Attacco tra i migliori d'Europa, difesa decimata: fuori Koundé, Eric García e Christensen; linea alta esposta)
+
+ARBITRO: Gialli medi 3.90 | Falli medi 22.00
+
+QUOTE_MERCATI_PRINCIPALI:
+Quota X: 4.33 | Quota 1X: 1.53 | Quota X2: 1.59 | Quota 12: 1.25 | Quota 1T X: 2.53
+Quota Goal: 1.46 | Quota No Goal: 2.66 | Quota Goal 1T: 3.51
+Quota Under 1.5: 5.72 | Quota Over 1.5: 1.15 | Quota Over 1.5 1T: 2.20
+Quota Under 2.5: 2.55 | Quota Over 2.5: 1.50
+Quota Under 3.5: 1.60 | Quota Over 3.5: 2.31
+Quota Under 4.5: 1.25 | Quota Over 4.5: 4.13
+
+QUOTE_MULTIGOL_TOTALI:
+Quota Multigol Totale 1-2: 2.85 | Quota Multigol Totale 1-3: 1.71 | Quota Multigol Totale 1-4: 1.29 | Quota Multigol Totale 1-5: 1.11
+Quota Multigol Totale 2-3: 2.21 | Quota Multigol Totale 2-4: 1.55 | Quota Multigol Totale 2-5: 1.30 | Quota Multigol Totale 2-6: 1.20
+Quota Multigol Totale 3-4: 2.35 | Quota Multigol Totale 3-5: 1.82 | Quota Multigol Totale 3-6: 1.62
+
+QUOTE_MULTIGOL_CASA:
+Quota Multigol Casa 1-2: 1.63 | Quota Multigol Casa 1-3: 1.31 | Quota Multigol Casa 1-4: 1.21 | Quota Multigol Casa 1-5: 1.18
+Quota Multigol Casa 2-3: 2.33 | Quota Multigol Casa 2-4: 2.03 | Quota Multigol Casa 2-5: 1.95 | Quota Multigol Casa 2-6: 1.93
+Quota Multigol Casa 3-4: 4.65 | Quota Multigol Casa 3-5: 4.24 | Quota Multigol Casa 3-6: 4.14
+
+QUOTE_MULTIGOL_OSPITE:
+Quota Multigol Ospite 1-2: 1.62 | Quota Multigol Ospite 1-3: 1.31 | Quota Multigol Ospite 1-4: 1.22 | Quota Multigol Ospite 1-5: 1.19
+Quota Multigol Ospite 2-3: 2.38 | Quota Multigol Ospite 2-4: 2.09 | Quota Multigol Ospite 2-5: 2.01 | Quota Multigol Ospite 2-6: 1.99
+Quota Multigol Ospite 3-4: 4.89 | Quota Multigol Ospite 3-5: 4.48 | Quota Multigol Ospite 3-6: 4.38
+
+QUOTE_SOMMA_GOL:
+Quota Somma Gol 0: 24.33 | Quota Somma Gol 1: 7.49 | Quota Somma Gol 2: 4.61 | Quota Somma Gol 3: 4.25 | Quota Somma Gol 4: 5.23 | Quota Somma Gol 5+: 4.13
+
+QUOTE_CORNER_E_CARTELLINI:
+Quota Over 8.5 Corner: 1.31 | Quota Over 9.5 Corner: 1.56 | Quota Over 10.5 Corner: 1.97 | Quota Over 11.5 Corner: 2.61
+Quota Over 3.5 Cartellini: 1.56 | Quota Over 4.5 Cartellini: 2.30 | Quota Over 5.5 Cartellini: 3.82
+
+QUOTE_COMBO:
+Quota 1X + Over 1.5: 1.77 | Quota X2 + Over 1.5: 1.83 | Quota X2 + Multigol 1-3: 2.87 | Quota 1X + Goal: 2.18
+
+==================================================
+PARTITA – ROMA vs SLOVAN BRATISLAVA
+==================================================
+CASA: Roma | Quota 1: 1.15 | Quota 1T 1: 1.56 | Quota DNB Casa: 1.01
+Attacco: 1.20 | Difesa: 1.30 | Elo: 1760 | Forma: D-W-D-W-W | xG Fatti: 1.55 | xG Subiti: 0.95 | Corner pro/sub: 6.3/3.8 | Cartellini pro: 2.6
+(Imbattuta nelle ultime 5 con 11 gol fatti e 4 subiti; pressing uomo su uomo, molti falli)
+
+OSPITE: Slovan Bratislava | Quota 2: 18.00 | Quota 1T 2: 14.23 | Quota DNB Ospite: 17.00
+Attacco: 0.72 | Difesa: 0.64 | Elo: 1470 | Forma: L-W-D-W-W | xG Fatti: 0.90 | xG Subiti: 1.90 | Corner pro/sub: 3.4/7.2 | Cartellini pro: 2.2
+(Squadra da preliminari: 1-6 a Parigi, difesa che concede molto contro club di livello)
+
+ARBITRO: Gialli medi 4.00 | Falli medi 23.00
+
+QUOTE_MERCATI_PRINCIPALI:
+Quota X: 8.50 | Quota 1X: 1.01 | Quota X2: 5.39 | Quota 12: 1.11 | Quota 1T X: 2.87
+Quota Goal: 2.84 | Quota No Goal: 1.41 | Quota Goal 1T: 7.62
+Quota Under 1.5: 4.56 | Quota Over 1.5: 1.21 | Quota Over 1.5 1T: 2.46
+Quota Under 2.5: 2.17 | Quota Over 2.5: 1.67
+Quota Under 3.5: 1.43 | Quota Over 3.5: 2.76
+Quota Under 4.5: 1.17 | Quota Over 4.5: 5.35
+
+QUOTE_MULTIGOL_TOTALI:
+Quota Multigol Totale 1-2: 2.47 | Quota Multigol Totale 1-3: 1.56 | Quota Multigol Totale 1-4: 1.22 | Quota Multigol Totale 1-5: 1.09
+Quota Multigol Totale 2-3: 2.09 | Quota Multigol Totale 2-4: 1.53 | Quota Multigol Totale 2-5: 1.32 | Quota Multigol Totale 2-6: 1.24
+Quota Multigol Totale 3-4: 2.42 | Quota Multigol Totale 3-5: 1.94 | Quota Multigol Totale 3-6: 1.77
+
+QUOTE_MULTIGOL_CASA:
+Quota Multigol Casa 1-2: 2.04 | Quota Multigol Casa 1-3: 1.40 | Quota Multigol Casa 1-4: 1.17 | Quota Multigol Casa 1-5: 1.08
+Quota Multigol Casa 2-3: 2.01 | Quota Multigol Casa 2-4: 1.56 | Quota Multigol Casa 2-5: 1.41 | Quota Multigol Casa 2-6: 1.35
+Quota Multigol Casa 3-4: 2.72 | Quota Multigol Casa 3-5: 2.28 | Quota Multigol Casa 3-6: 2.13
+
+QUOTE_MULTIGOL_OSPITE:
+Quota Multigol Ospite 1-2: 2.68 | Quota Multigol Ospite 1-3: 2.61 | Quota Multigol Ospite 1-4: 2.60 | Quota Multigol Ospite 1-5: 2.60
+Quota Multigol Ospite 2-3: 12.71 | Quota Multigol Ospite 2-4: 12.52 | Quota Multigol Ospite 2-5: 12.51 | Quota Multigol Ospite 2-6: 12.51
+Quota Multigol Ospite 3-4: 87.57 | Quota Multigol Ospite 3-5: 86.78 | Quota Multigol Ospite 3-6: 86.72
+
+QUOTE_SOMMA_GOL:
+Quota Somma Gol 0: 18.02 | Quota Somma Gol 1: 6.11 | Quota Somma Gol 2: 4.14 | Quota Somma Gol 3: 4.21 | Quota Somma Gol 4: 5.71 | Quota Somma Gol 5+: 5.35
+
+QUOTE_CORNER_E_CARTELLINI:
+Quota Over 8.5 Corner: 1.31 | Quota Over 9.5 Corner: 1.56 | Quota Over 10.5 Corner: 1.97 | Quota Over 11.5 Corner: 2.61
+Quota Over 3.5 Cartellini: 1.40 | Quota Over 4.5 Cartellini: 1.94 | Quota Over 5.5 Cartellini: 3.00
+
+QUOTE_COMBO:
+Quota 1X + Over 1.5: 1.20 | Quota X2 + Over 1.5: 9.04 | Quota X2 + Multigol 1-3: 9.10 | Quota 1X + Goal: 2.95
+
+==================================================
+PARTITA – STOCCARDA vs ATLETICO MADRID
+==================================================
+CASA: Stoccarda | Quota 1: 2.82 | Quota 1T 1: 3.52 | Quota DNB Casa: 2.08
+Attacco: 1.30 | Difesa: 1.01 | Elo: 1760 | Forma: W-W-L-W-D | xG Fatti: 1.75 | xG Subiti: 1.30 | Corner pro/sub: 6.0/4.5 | Cartellini pro: 2.0
+(Gioco verticale e intenso in casa, 3-1 al Viking all'esordio; difesa concede occasioni)
+
+OSPITE: Atletico Madrid | Quota 2: 2.33 | Quota 1T 2: 3.03 | Quota DNB Ospite: 1.72
+Attacco: 1.27 | Difesa: 1.25 | Elo: 1830 | Forma: W-L-W-W-D | xG Fatti: 1.65 | xG Subiti: 1.05 | Corner pro/sub: 4.7/5.3 | Cartellini pro: 2.8
+(Blocco compatto e ripartenze, senza Sorloth; squadra fallosa)
+
+ARBITRO: Gialli medi 4.00 | Falli medi 24.00
+
+QUOTE_MERCATI_PRINCIPALI:
+Quota X: 3.63 | Quota 1X: 1.62 | Quota X2: 1.45 | Quota 12: 1.30 | Quota 1T X: 2.24
+Quota Goal: 1.75 | Quota No Goal: 2.04 | Quota Goal 1T: 4.69
+Quota Under 1.5: 3.66 | Quota Over 1.5: 1.30 | Quota Over 1.5 1T: 2.82
+Quota Under 2.5: 1.86 | Quota Over 2.5: 1.91
+Quota Under 3.5: 1.30 | Quota Over 3.5: 3.43
+Quota Under 4.5: 1.10 | Quota Over 4.5: 7.27
+
+QUOTE_MULTIGOL_TOTALI:
+Quota Multigol Totale 1-2: 2.17 | Quota Multigol Totale 1-3: 1.44 | Quota Multigol Totale 1-4: 1.18 | Quota Multigol Totale 1-5: 1.08
+Quota Multigol Totale 2-3: 2.02 | Quota Multigol Totale 2-4: 1.54 | Quota Multigol Totale 2-5: 1.37 | Quota Multigol Totale 2-6: 1.30
+Quota Multigol Totale 3-4: 2.59 | Quota Multigol Totale 3-5: 2.14 | Quota Multigol Totale 3-6: 1.99
+
+QUOTE_MULTIGOL_CASA:
+Quota Multigol Casa 1-2: 1.62 | Quota Multigol Casa 1-3: 1.40 | Quota Multigol Casa 1-4: 1.34 | Quota Multigol Casa 1-5: 1.33
+Quota Multigol Casa 2-3: 2.98 | Quota Multigol Casa 2-4: 2.72 | Quota Multigol Casa 2-5: 2.67 | Quota Multigol Casa 2-6: 2.66
+Quota Multigol Casa 3-4: 7.71 | Quota Multigol Casa 3-5: 7.27 | Quota Multigol Casa 3-6: 7.19
+
+QUOTE_MULTIGOL_OSPITE:
+Quota Multigol Ospite 1-2: 1.61 | Quota Multigol Ospite 1-3: 1.35 | Quota Multigol Ospite 1-4: 1.28 | Quota Multigol Ospite 1-5: 1.26
+Quota Multigol Ospite 2-3: 2.66 | Quota Multigol Ospite 2-4: 2.39 | Quota Multigol Ospite 2-5: 2.33 | Quota Multigol Ospite 2-6: 2.31
+Quota Multigol Ospite 3-4: 6.20 | Quota Multigol Ospite 3-5: 5.78 | Quota Multigol Ospite 3-6: 5.69
+
+QUOTE_SOMMA_GOL:
+Quota Somma Gol 0: 13.35 | Quota Somma Gol 1: 5.04 | Quota Somma Gol 2: 3.80 | Quota Somma Gol 3: 4.31 | Quota Somma Gol 4: 6.50 | Quota Somma Gol 5+: 7.27
+
+QUOTE_CORNER_E_CARTELLINI:
+Quota Over 8.5 Corner: 1.46 | Quota Over 9.5 Corner: 1.83 | Quota Over 10.5 Corner: 2.41 | Quota Over 11.5 Corner: 3.36
+Quota Over 3.5 Cartellini: 1.34 | Quota Over 4.5 Cartellini: 1.80 | Quota Over 5.5 Cartellini: 2.70
+
+QUOTE_COMBO:
+Quota 1X + Over 1.5: 2.12 | Quota X2 + Over 1.5: 1.87 | Quota X2 + Multigol 1-3: 2.25 | Quota 1X + Goal: 2.66
