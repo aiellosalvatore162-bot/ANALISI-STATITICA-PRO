@@ -106,6 +106,14 @@ class ClubElo:
             found = self._find(team, catalog)
         return found
 
+    def history(self, team: str, max_age: timedelta = timedelta(hours=12)) -> list[tuple[date, float]]:
+        """Storico datato del rating (vuoto se la squadra non è su ClubElo)."""
+        slug = self.slug_for(team)
+        if slug is None:
+            return []
+        result = self.cache.get(f"{BASE_URL}/{slug}", source="clubelo", max_age=max_age)
+        return parse_history(result.body.decode("utf-8", "ignore")) if result.ok else []
+
     def rating(self, team: str, match_date: date | None = None, max_age: timedelta = timedelta(hours=12)) -> EloRating | None:
         match_date = match_date or date.today()
         slug = self.slug_for(team)
