@@ -1,7 +1,14 @@
+from dataclasses import replace
+import json
+
 import numpy as np
+import pytest
 
 import engine
-from engine import _event_catalog, config_from_input, simulate_match, smart_combo
+from engine import (
+    GoalModelParams, MatchConfig, TeamParams, _event_catalog, config_from_input,
+    dixon_coles_matrix, expected_goals, simulate_match, smart_combo,
+)
 from parser import parse_match_input
 
 from test_parser import COMPLETE_COPY_BLOCK, VALID
@@ -14,7 +21,18 @@ def test_simulation_is_reproducible_and_auditable():
     second = simulate_match(config)
     assert first == second
     assert first["model"]["simulation_count"] == 3000
-    assert first["model"]["formula_ledger"]["weights"]["xg"] == 0.20
+    ledger = first["model"]["formula_ledger"]
+    assert ledger["model"] == first["model"]["goal_model"] == "calibrato"
+    assert set(ledger["weights"]) == set(GoalModelParams.__dataclass_fields__)
+    for side, rate in (("home", first["model"]["lambda"]), ("away", first["model"]["mu"])):
+        contributions = ledger[side]
+        product = contributions["base_goals"] * np.prod([
+            contributions[key] for key in (
+                "home_advantage_multiplier", "attack_multiplier", "opponent_defense_multiplier",
+                "elo_multiplier", "form_multiplier",
+            )
+        ])
+        assert abs(product - rate) < 1e-5
     assert set(first["markets"]["1x2"]) == {"1", "X", "2"}
     assert set(first["markets"]["first_half_1x2"]) == {"1", "X", "2"}
     assert set(first["markets"]["first_half_goal_no_goal"]) == {"Goal", "No_Goal"}
@@ -280,3 +298,124 @@ def test_zero_card_inputs_do_not_create_artificial_cards():
     assert result["markets"]["cards"]["mean"] == 0.0
     assert result["markets"]["cards"]["Over_2.5"]["percentage"] == 0.0
     assert result["markets"]["card_1x2"]["X"]["percentage"] == 100.0
+
+
+def _team(name: str, **overrides) -> TeamParams:
+    values = dict(
+        name=name, attack=1.0, defense=1.0, elo=1700.0, form="W-D-L-W-D",
+        xg_for=engine.DEFAULT_GOAL_PARAMS.base_goals, xg_against=engine.DEFAULT_GOAL_PARAMS.base_goals,
+        corners_for=5.0, corners_against=5.0, cards_for=2.0,
+    )
+    return TeamParams(**{**values, **overrides})
+
+
+def _probabilities_1x2(config: MatchConfig) -> np.ndarray:
+    lambda_, mu, _ = expected_goals(config)
+    matrix = dixon_coles_matrix(lambda_, mu, config.dixon_coles_rho)
+    home, away = np.indices(matrix.shape)
+    return np.array([matrix[home > away].sum(), np.trace(matrix), matrix[home < away].sum()])
+
+
+def test_neutral_inputs_are_symmetric_except_home_advantage():
+    neutral = MatchConfig(home=_team("A"), away=_team("B"), referee_yellow_avg=4.5, referee_fouls_avg=24.0)
+    no_home_advantage = replace(neutral, goal_params=replace(neutral.goal_params, home_advantage=0.0))
+
+    lambda_, mu, _ = expected_goals(no_home_advantage)
+    p1, _, p2 = _probabilities_1x2(no_home_advantage)
+    assert lambda_ == pytest.approx(mu)
+    assert p1 == pytest.approx(p2)
+
+    lambda_, mu, _ = expected_goals(neutral)
+    p1, _, p2 = _probabilities_1x2(neutral)
+    assert lambda_ / mu == pytest.approx(np.exp(neutral.goal_params.home_advantage))
+    assert p1 > p2
+
+
+def test_swapping_home_and_away_is_coherent():
+    strong = _team("Forte", attack=1.6, defense=1.4, elo=1900.0, form="W-W-W-W-W", xg_for=2.1, xg_against=0.9)
+    weak = _team("Debole", attack=0.8, defense=0.8, elo=1600.0, form="L-L-D-L-W", xg_for=1.0, xg_against=1.8)
+    forward = MatchConfig(home=strong, away=weak, referee_yellow_avg=4.5, referee_fouls_avg=24.0)
+    reverse = replace(forward, home=weak, away=strong)
+
+    neutral_params = replace(forward.goal_params, home_advantage=0.0)
+    p_forward = _probabilities_1x2(replace(forward, goal_params=neutral_params))
+    p_reverse = _probabilities_1x2(replace(reverse, goal_params=neutral_params))
+    np.testing.assert_allclose(p_forward, p_reverse[::-1], atol=1e-12)
+
+    # Con il vantaggio casa la squadra forte vince più spesso in casa che in trasferta.
+    assert _probabilities_1x2(forward)[0] > _probabilities_1x2(reverse)[2]
+
+
+def test_calibrated_model_does_not_compress_a_clear_favourite():
+    strong = _team("Forte", attack=1.9, defense=1.6, elo=1950.0, form="W-W-W-W-W", xg_for=2.4, xg_against=0.8)
+    weak = _team("Debole", attack=0.75, defense=0.7, elo=1600.0, form="L-L-D-L-L", xg_for=0.9, xg_against=1.9)
+    config = MatchConfig(home=strong, away=weak, referee_yellow_avg=4.5, referee_fouls_avg=24.0)
+
+    calibrated = _probabilities_1x2(replace(config, goal_model="calibrato"))
+    legacy = _probabilities_1x2(replace(config, goal_model="legacy", dixon_coles_rho=-0.11))
+    assert calibrated[0] > legacy[0] + 0.05
+    assert calibrated[0] > 0.75
+
+
+def test_goal_rates_vectorized_matches_scalar_expected_goals():
+    config = config_from_input(parse_match_input(VALID))
+    lambda_, mu, _ = expected_goals(config)
+    rates = engine.goal_rates(
+        config.goal_params,
+        home_attack=np.array([config.home.attack] * 2), home_defense=np.array([config.home.defense] * 2),
+        home_xg_for=np.array([config.home.xg_for] * 2), home_xg_against=np.array([config.home.xg_against] * 2),
+        home_form=np.array([engine.form_score(config.home.form)] * 2),
+        away_attack=np.array([config.away.attack] * 2), away_defense=np.array([config.away.defense] * 2),
+        away_xg_for=np.array([config.away.xg_for] * 2), away_xg_against=np.array([config.away.xg_against] * 2),
+        away_form=np.array([engine.form_score(config.away.form)] * 2),
+        elo_diff=np.array([config.home.elo - config.away.elo] * 2),
+    )
+    np.testing.assert_allclose(rates[0], lambda_)
+    np.testing.assert_allclose(rates[1], mu)
+
+
+def test_goal_model_file_drives_defaults_and_missing_file_falls_back_to_legacy(tmp_path):
+    assert engine.load_goal_model(tmp_path / "assente.json") == ("legacy", GoalModelParams())
+
+    path = tmp_path / "goal_model.json"
+    path.write_text(json.dumps({"modello_attivo": "calibrato", "parametri": {"elo_k": 2.0}}), encoding="utf-8")
+    active, params = engine.load_goal_model(path)
+    assert active == "calibrato" and params.elo_k == 2.0
+
+    path.write_text(json.dumps({"modello_attivo": "altro", "parametri": {}}), encoding="utf-8")
+    with pytest.raises(ValueError):
+        engine.load_goal_model(path)
+
+
+def test_legacy_model_keeps_original_rho_and_formula():
+    config = replace(config_from_input(parse_match_input(VALID)), goal_model="legacy", dixon_coles_rho=None)
+    assert config.dixon_coles_rho == -0.11
+    assert expected_goals(config)[2]["model"] == "legacy"
+    with pytest.raises(ValueError):
+        replace(config, goal_model="sconosciuto")
+
+
+# Partite reali del 20/10/2026. Il blocco di input deve essere quello usato
+# quella sera nell'app (stesso formato del parser); finché manca, il test
+# della partita viene saltato invece di usare valori inventati.
+REAL_MATCHES_2026_10_20 = {
+    "City-AEK": {"odds": {"1": 1.11}, "input": None},
+    "Roma-Slovan": {"odds": {"1": 1.15, "X": 8.50, "2": 18.00}, "input": None},
+    "Napoli-Bodo": {"odds": {"1": 1.55, "X": 4.50, "2": 5.00}, "input": None},
+    "PSG-Barcellona": {"odds": {"1": 2.40, "X": 4.33, "2": 2.45}, "input": None},
+}
+
+
+@pytest.mark.parametrize("name", REAL_MATCHES_2026_10_20)
+def test_real_matches_stay_close_to_the_no_margin_market(name):
+    match = REAL_MATCHES_2026_10_20[name]
+    if match["input"] is None:
+        pytest.skip(f"{name}: input del 20/10/2026 non ancora forniti")
+    if set(match["odds"]) != {"1", "X", "2"}:
+        pytest.skip(f"{name}: servono le quote 1, X e 2 per togliere il margine")
+    implied = np.array([1.0 / match["odds"][key] for key in ("1", "X", "2")])
+    market = implied / implied.sum()
+    model = _probabilities_1x2(config_from_input(parse_match_input(match["input"])))
+    assert np.all(np.abs(model - market) <= 0.07), f"modello {model.round(3)} mercato {market.round(3)}"
+    if name == "PSG-Barcellona":
+        assert abs(model[0] - model[2]) <= 0.10
