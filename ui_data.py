@@ -489,8 +489,8 @@ def render_registry(result: dict, config, claude: dict | None = None, claude_not
     selections = st.multiselect(
         "Selezioni da registrare", available, default=played or [key for key in DEFAULT_SELECTIONS if key in available],
         format_func=lambda key: f"{market_of(key)} · {key}", key=f"registry_selections_{id(result)}",
-        help="Solo i mercati della tabella del Riepilogo: 1X2, Over 1.5, Over 2.5, Under 2.5, Goal/NoGoal, "
-             "Multigol, Primo tempo, Corner, Cartellini, Combo.")
+        help="Solo i mercati della tabella del Riepilogo (1X2, Doppia chance, DNB, Over/Under 1.5-2.5-3.5, "
+             "Goal/NoGoal, Multigol totale/casa/ospite, 1X2 primo tempo, Over 0.5/1.5 1T, Corner, Cartellini, Combo).")
     if not selections:
         return
     info = SaveInfo(day, time.strip(), competition.strip(), kind, model_version(config, claude=claude is not None), claude_note)

@@ -19,7 +19,7 @@ from typing import Any, Callable, Iterable
 import numpy as np
 import pandas as pd
 
-from prediction_log import COLUMNS, MARKETS, PROBABILITY_COLUMNS, selection_id
+from prediction_log import COLUMNS, MARKETS, PROBABILITY_COLUMNS, PUSH_SELECTIONS, selection_id
 
 MIN_SELECTIONS = 100
 BANDS = (0.0, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0001)
@@ -381,6 +381,7 @@ class FillReport:
     frame: pd.DataFrame
     outcomes: int = 0
     closings: int = 0
+    pushes: int = 0
     not_found: list[str] = field(default_factory=list)
     changes: list[dict] = field(default_factory=list)
 
@@ -392,7 +393,7 @@ def fill_from_results(frame: pd.DataFrame, results: pd.DataFrame, *, source: str
     filled = frame.copy()
     report = FillReport(filled)
     for position, row in filled.iterrows():
-        need_outcome = pd.isna(row["Esito"])
+        need_outcome = pd.isna(row["Esito"]) and "rimborsata" not in row["Note"]
         closing_column = CLOSING_COLUMNS.get(row["Selezione"])
         need_closing = pd.isna(row["Quota_chiusura"]) and closing_column is not None
         if not (need_outcome or need_closing):
@@ -403,18 +404,25 @@ def fill_from_results(frame: pd.DataFrame, results: pd.DataFrame, *, source: str
                 report.not_found.append(row["Partita"])
             continue
         added = {}
-        if need_outcome:
+        details = []
+        if need_outcome and row["Selezione"] in PUSH_SELECTIONS and match["home_goals"] == match["away_goals"]:
+            # DNB con pareggio: puntata restituita, Esito vuoto, esclusa da Brier e ROI.
+            details.append("rimborsata (pareggio): Esito lasciato vuoto")
+            report.pushes += 1
+        elif need_outcome:
             outcome = settle(row["Selezione"], match)
             if outcome is not None:
                 added["Esito"] = float(outcome)
                 report.outcomes += 1
+                if "cartellini" in row["Selezione"]:
+                    details.append("esito sui soli gialli (rossi esclusi)")
         if need_closing and pd.notna(match.get(closing_column)) and float(match[closing_column]) > 1.0:
             added["Quota_chiusura"] = float(match[closing_column])
             report.closings += 1
-        if not added:
+        if not (added or details):
             continue
-        what = " e ".join({"Esito": "esito", "Quota_chiusura": "quota di chiusura media"}[key] for key in added)
-        note = f"{what} da {source} ({match['date']:%d/%m/%Y} {int(match['home_goals'])}-{int(match['away_goals'])}), compilato il {today:%d/%m/%Y}"
+        what = " e ".join({"Esito": "esito", "Quota_chiusura": "quota di chiusura media"}[key] for key in added) or "risultato"
+        note = "; ".join(details + [f"{what} da {source}"]) + f" ({match['date']:%d/%m/%Y} {int(match['home_goals'])}-{int(match['away_goals'])}), compilato il {today:%d/%m/%Y}"
         added["Note"] = f"{row['Note']}; {note}" if row["Note"] else note
         for column, value in added.items():
             filled.at[position, column] = value

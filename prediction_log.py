@@ -16,6 +16,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from datetime import date, datetime
 from io import BytesIO
+import re
 import sqlite3
 from typing import Any, Mapping, Sequence
 
@@ -29,32 +30,48 @@ COLUMNS = (
 )
 PROBABILITY_COLUMNS = ("Prob_finale", "Prob_mercato", "Prob_modello", "Prob_stile", "Prob_Claude")
 # Stessi nomi, stesso ordine della tabella «per mercato» del foglio Riepilogo.
-MARKETS = ("1X2", "Over 1.5", "Over 2.5", "Under 2.5", "Goal/NoGoal", "Multigol", "Primo tempo", "Corner",
-           "Cartellini", "Combo")
+MARKETS = ("1X2", "Doppia chance", "DNB", "Over 1.5", "Under 1.5", "Over 2.5", "Under 2.5", "Over 3.5", "Under 3.5",
+           "Goal/NoGoal", "Multigol", "Multigol casa", "Multigol ospite", "Primo tempo", "Over 0.5 1T", "Over 1.5 1T",
+           "Corner", "Cartellini", "Combo")
+# Il modello e la compilazione degli esiti contano i soli gialli; i regolamenti dei bookmaker possono contare
+# anche i rossi (regola Eurobet non verificata: pagine del regolamento non raggiungibili il 22/10/2026).
+CARDS_NOTE = "cartellini = soli gialli nel modello; verifica se il bookmaker conta anche i rossi"
 TYPES = ("Reale", "A carta")
 # Selezioni proposte di default quando non ci sono quote inserite.
 DEFAULT_SELECTIONS = ("1", "X", "2", "Over 1.5 gol", "Over 2.5 gol", "Under 2.5 gol", "Goal", "No Goal",
                       "Over 0.5 gol 1T", "Over 9.5 corner", "Over 4.5 cartellini")
 
 
+_FIXED_MARKETS = {
+    "1": "1X2", "X": "1X2", "2": "1X2", "1X": "Doppia chance", "X2": "Doppia chance", "12": "Doppia chance",
+    "Casa DNB": "DNB", "Ospite DNB": "DNB", "Goal": "Goal/NoGoal", "No Goal": "Goal/NoGoal",
+    "1 1T": "Primo tempo", "X 1T": "Primo tempo", "2 1T": "Primo tempo",
+    "Over 0.5 gol 1T": "Over 0.5 1T", "Over 1.5 gol 1T": "Over 1.5 1T",
+    **{f"{side} {line} gol": f"{side} {line}" for side in ("Over", "Under") for line in ("1.5", "2.5", "3.5")},
+}
+_MULTIGOL = re.compile(r"^Multigol (?:(?P<team>Casa|Ospite) )?\d+-\d+$")
+# Quote rimborsate (DNB con pareggio): l'evento «push» del motore con lo stesso prefisso.
+PUSH_SELECTIONS = ("Casa DNB", "Ospite DNB")
+
+
 def market_of(selection: str) -> str | None:
-    """Mercato del Riepilogo a cui appartiene una chiave evento del motore (``None`` se non registrabile)."""
+    """Mercato del Riepilogo a cui appartiene una chiave evento del motore (``None`` se non registrabile).
+
+    Le linee senza un nome nella tabella del Riepilogo (es. Over 4.5, Goal 1T) restano non registrabili.
+    """
     key = selection.strip()
     if " + " in key:
         return "Combo"
-    if key.endswith(" 1T"):
-        return "Primo tempo"
-    if "corner" in key:
+    if key in _FIXED_MARKETS:
+        return _FIXED_MARKETS[key]
+    if "corner" in key and not key.endswith(" 1T"):
         return "Corner"
     if "cartellini" in key:
         return "Cartellini"
-    if key in ("1", "X", "2", "1X", "X2", "12"):
-        return "1X2"
-    if key in ("Goal", "No Goal"):
-        return "Goal/NoGoal"
-    if key.startswith("Multigol "):
-        return "Multigol"
-    return {"Over 1.5 gol": "Over 1.5", "Over 2.5 gol": "Over 2.5", "Under 2.5 gol": "Under 2.5"}.get(key)
+    multigol = _MULTIGOL.match(key)
+    if multigol:
+        return {None: "Multigol", "Casa": "Multigol casa", "Ospite": "Multigol ospite"}[multigol["team"]]
+    return None
 
 
 def _day(value: Any) -> str:
@@ -92,11 +109,17 @@ class SaveInfo:
 
 
 def _probability(result: Mapping[str, Any] | None, component: str, selection: str) -> float | None:
+    """Probabilità decimale; per il DNB è condizionata al non rimborso (vinta / (vinta + persa))."""
     if result is None:
         return None
     values = result["components"].get(component) or {}
     value = values.get(selection)
-    return None if value is None else round(float(value) / 100.0, 4)
+    if value is None:
+        return None
+    if selection in PUSH_SELECTIONS:
+        push = float(values.get(f"{selection} push", 0.0))
+        return round(float(value) / (100.0 - push), 4) if push < 100.0 else None
+    return round(float(value) / 100.0, 4)
 
 
 def prediction_rows(base: Mapping[str, Any], selections: Sequence[str], info: SaveInfo, *,
@@ -126,7 +149,7 @@ def prediction_rows(base: Mapping[str, Any], selections: Sequence[str], info: Sa
             "Prob_Claude": _probability(claude, "finale", selection),
             "Quota_presa": (odds or {}).get(selection), "Puntata": (stakes or {}).get(selection),
             "Tipo": info.kind, "Versione_modello": info.version, "Quota_chiusura": None, "Esito": None,
-            "Note": info.note,
+            "Note": "; ".join(part for part in (info.note, CARDS_NOTE if market == "Cartellini" else "") if part),
         })
     return rows
 
