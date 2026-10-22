@@ -45,7 +45,7 @@ def _fill_section(registry, original: bytes, signature: str) -> pd.DataFrame:
     if open_rows and report is None:
         st.info(f"{open_rows} righe senza esito o quota di chiusura.")
         if st.button("Cerca esiti e quote di chiusura nelle fonti", key="performance_fill_button",
-                     help="Risultati, corner, gialli e quote medie di chiusura (1X2, Over/Under 2.5) da football-data.co.uk. "
+                     help="Risultati finali e al 45', corner, gialli (i rossi non sono contati) e quote medie di chiusura (1X2, Over/Under 2.5) da football-data.co.uk. "
                           "I valori già presenti nel file non vengono mai sovrascritti."):
             st.session_state["performance_source_warnings"] = []
             with st.spinner("Scarico i risultati da football-data.co.uk…"):
@@ -59,7 +59,8 @@ def _fill_section(registry, original: bytes, signature: str) -> pd.DataFrame:
     for warning in st.session_state.get("performance_fill_warnings", []):
         st.warning(warning)
     if report.changes:
-        st.success(f"Compilati {report.outcomes} esiti e {report.closings} quote di chiusura (fonte e data in colonna Note).")
+        st.success(f"Compilati {report.outcomes} esiti e {report.closings} quote di chiusura (fonte e data in colonna Note)."
+                   + (f" {report.pushes} DNB rimborsate per pareggio: Esito lasciato vuoto." if report.pushes else ""))
         st.dataframe(pd.DataFrame(report.changes).drop(columns=["_riga"]), hide_index=True, width="stretch")
         st.download_button("Scarica il file aggiornato", updated_workbook(original, registry.sheet, report.changes),
                            file_name="Registro_Previsioni_aggiornato.xlsx", mime=XLSX, key="performance_download",

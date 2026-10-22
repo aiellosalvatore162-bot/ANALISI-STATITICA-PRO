@@ -19,7 +19,7 @@ from performance import (
     RegistryError, bankroll, brier, calibration_table, clv_by_market, collect_results, component_comparison,
     edge_verdicts, fill_from_results, log_loss, read_registry, scores_over_time, settle, split_match, updated_workbook,
 )
-from prediction_log import COLUMNS, MARKETS, PredictionLog, SaveInfo, market_of, model_version, prediction_rows, to_excel
+from prediction_log import CARDS_NOTE, COLUMNS, MARKETS, PredictionLog, SaveInfo, market_of, model_version, prediction_rows, to_excel
 from test_parser import VALID
 from tools.dataset import clean_frames, frame_from_csv
 
@@ -52,14 +52,20 @@ def test_columns_and_markets_match_the_user_template():
     header = [cell.value for cell in workbook["Registro"][1]]
     assert tuple(header[:19]) == COLUMNS
     summary = workbook["Riepilogo"]
-    assert tuple(summary.cell(row=row, column=1).value for row in range(9, 19)) == MARKETS
+    assert tuple(summary.cell(row=row, column=1).value for row in range(9, 9 + len(MARKETS))) == MARKETS
+    assert len(MARKETS) == 19 and summary.cell(row=9 + len(MARKETS), column=1).value is None
 
 
 @pytest.mark.parametrize("selection, market", [
-    ("1", "1X2"), ("X2", "1X2"), ("Over 1.5 gol", "Over 1.5"), ("Over 2.5 gol", "Over 2.5"), ("Under 2.5 gol", "Under 2.5"),
-    ("Goal", "Goal/NoGoal"), ("No Goal", "Goal/NoGoal"), ("Multigol 2-4", "Multigol"), ("Multigol Casa 1-2", "Multigol"),
-    ("Over 0.5 gol 1T", "Primo tempo"), ("1 1T", "Primo tempo"), ("Over 9.5 corner", "Corner"), ("1 corner", "Corner"),
-    ("Over 4.5 cartellini", "Cartellini"), ("1 + Over 1.5 gol", "Combo"), ("Over 3.5 gol", None), ("Casa DNB", None),
+    ("1", "1X2"), ("X2", "Doppia chance"), ("12", "Doppia chance"), ("Casa DNB", "DNB"), ("Ospite DNB", "DNB"),
+    ("Over 1.5 gol", "Over 1.5"), ("Under 1.5 gol", "Under 1.5"), ("Over 2.5 gol", "Over 2.5"), ("Under 2.5 gol", "Under 2.5"),
+    ("Over 3.5 gol", "Over 3.5"), ("Under 3.5 gol", "Under 3.5"), ("Goal", "Goal/NoGoal"), ("No Goal", "Goal/NoGoal"),
+    ("Multigol 2-4", "Multigol"), ("Multigol Casa 1-2", "Multigol casa"), ("Multigol Ospite 0-1", "Multigol ospite"),
+    ("1 1T", "Primo tempo"), ("X 1T", "Primo tempo"), ("Over 0.5 gol 1T", "Over 0.5 1T"), ("Over 1.5 gol 1T", "Over 1.5 1T"),
+    ("Over 9.5 corner", "Corner"), ("1 corner", "Corner"), ("Over 4.5 cartellini", "Cartellini"), ("1 + Over 1.5 gol", "Combo"),
+    # Linee senza nome nella tabella del Riepilogo: non registrabili.
+    ("Over 4.5 gol", None), ("Under 0.5 gol", None), ("1X 1T", None), ("Goal 1T", None), ("Under 0.5 gol 1T", None),
+    ("Casa DNB push", None),
 ])
 def test_market_names_are_fixed(selection, market):
     assert market_of(selection) == market
@@ -79,12 +85,18 @@ def test_rows_carry_every_component(simulations):
     assert one["Quota_presa"] == 1.9 and one["Puntata"] == 10.0 and one["Tipo"] == "Reale"
     assert one["Quota_chiusura"] is None and one["Esito"] is None
     assert rows[2]["Mercato"] == "Cartellini" and rows[2]["Quota_presa"] is None
+    assert CARDS_NOTE in rows[2]["Note"] and rows[0]["Note"] == ""
     # Senza Claude né stile la finale è la simulazione di base.
     plain = prediction_rows(base, ["X"], INFO)[0]
     assert plain["Prob_finale"] == pytest.approx(base["components"]["finale"]["X"] / 100)
     assert plain["Prob_stile"] is None and plain["Prob_Claude"] is None
     with pytest.raises(ValueError, match="non previsto"):
-        prediction_rows(base, ["Over 3.5 gol"], INFO)
+        prediction_rows(base, ["Over 4.5 gol"], INFO)
+    # DNB: probabilità condizionata al non rimborso, come la quota.
+    dnb = prediction_rows(base, ["Casa DNB"], INFO)[0]
+    finale = base["components"]["finale"]
+    assert dnb["Mercato"] == "DNB"
+    assert dnb["Prob_finale"] == pytest.approx(finale["Casa DNB"] / (100 - finale["Casa DNB push"]), abs=1e-4)
 
 
 def test_model_version_describes_the_configuration(simulations):
@@ -140,7 +152,7 @@ def test_empty_template_is_read_without_rows():
 def test_sample_file_with_duplicates_blank_rows_and_empty_columns():
     registry = read_registry(SAMPLE.read_bytes())
     frame = registry.frame
-    assert registry.duplicates == 1 and len(frame) == 8  # 10 righe scritte, 1 vuota, 1 doppione
+    assert registry.duplicates == 1 and len(frame) == 14  # 16 righe scritte, 1 vuota, 1 doppione
     assert frame["ID"].is_unique
     assert "2026-08-23|Venezia - Lecce|1X2|2" in set(frame["ID"])  # ID ricostruito
     torino = frame[frame["Partita"] == "Torino - Milan"].iloc[0]
@@ -189,20 +201,37 @@ def test_split_match_accepts_common_separators():
 def test_fill_from_results_completes_only_missing_values():
     registry = read_registry(SAMPLE.read_bytes())
     report = fill_from_results(registry.frame, _results(), today=date(2026, 10, 22))
-    filled = report.frame.set_index("Partita")
-    inter = report.frame[(report.frame["Partita"] == "Inter - Monza") & (report.frame["Selezione"] == "1")].iloc[0]
-    assert inter["Esito"] == 1 and inter["Quota_chiusura"] == pytest.approx(1.15)
-    assert "football-data.co.uk" in inter["Note"] and "22/10/2026" in inter["Note"]
-    assert filled.loc["Udinese - Como", "Esito"] == 0 and filled.loc["Udinese - Como", "Quota_chiusura"] == pytest.approx(2.00)
-    assert filled.loc["Genoa - Napoli", "Esito"] == 1 and pd.isna(filled.loc["Genoa - Napoli", "Quota_chiusura"])
-    assert filled.loc["Torino - Milan", "Esito"] == 0  # 1 giallo in tutto
-    assert filled.loc["Venezia - Lecce", "Esito"] == 1 and filled.loc["Venezia - Lecce", "Quota_chiusura"] == pytest.approx(4.54)
-    combo = report.frame[report.frame["Selezione"] == "1 + Over 1.5 gol"].iloc[0]
-    assert combo["Esito"] == 1
+    rows = report.frame.set_index(["Partita", "Selezione"])
+
+    def cell(match, selection, column):
+        return rows.loc[(match, selection), column]
+
+    assert cell("Inter - Monza", "1", "Esito") == 1 and cell("Inter - Monza", "1", "Quota_chiusura") == pytest.approx(1.15)
+    note = cell("Inter - Monza", "1", "Note")
+    assert "football-data.co.uk" in note and "22/10/2026" in note
+    assert cell("Udinese - Como", "Over 2.5 gol", "Esito") == 0
+    assert cell("Udinese - Como", "Over 2.5 gol", "Quota_chiusura") == pytest.approx(2.00)
+    assert cell("Genoa - Napoli", "Over 9.5 corner", "Esito") == 1
+    assert pd.isna(cell("Genoa - Napoli", "Over 9.5 corner", "Quota_chiusura"))
+    assert cell("Torino - Milan", "Over 4.5 cartellini", "Esito") == 0  # 1 giallo in tutto
+    assert "soli gialli" in cell("Torino - Milan", "Over 4.5 cartellini", "Note")
+    assert cell("Venezia - Lecce", "2", "Esito") == 1 and cell("Venezia - Lecce", "2", "Quota_chiusura") == pytest.approx(4.54)
+    assert cell("Inter - Monza", "1 + Over 1.5 gol", "Esito") == 1
+    # Nuovi mercati della fase H2.
+    assert cell("Udinese - Como", "1 1T", "Esito") == 1  # 1-0 al 45'
+    assert cell("Inter - Monza", "Over 3.5 gol", "Esito") == 1
+    assert cell("Inter - Monza", "Over 1.5 gol 1T", "Esito") == 1  # 1-1 al 45'
+    assert cell("Genoa - Napoli", "Multigol Ospite 1-2", "Esito") == 1
+    assert cell("Torino - Milan", "X2", "Esito") == 1
+    # DNB con pareggio (1-1): rimborsata, Esito vuoto e annotato; non viene ricompilata la volta dopo.
+    assert pd.isna(cell("Udinese - Como", "Casa DNB", "Esito")) and "rimborsata" in cell("Udinese - Como", "Casa DNB", "Note")
     # Valori già presenti non si toccano.
-    assert filled.loc["Atalanta - Sassuolo", "Quota_chiusura"] == 1.70 and filled.loc["Atalanta - Sassuolo", "Note"] == "esito inserito a mano"
+    assert cell("Atalanta - Sassuolo", "Goal", "Quota_chiusura") == 1.70
+    assert cell("Atalanta - Sassuolo", "Goal", "Note") == "esito inserito a mano"
     assert report.not_found == ["Real Madrid - Barcellona"]
-    assert report.outcomes == 6 and report.closings == 3
+    assert report.outcomes == 11 and report.closings == 3 and report.pushes == 1
+    again = fill_from_results(report.frame, _results())
+    assert again.pushes == 0 and again.outcomes == 0 and again.changes == []
 
 
 def test_updated_workbook_keeps_formulas_and_fills_duplicates():
