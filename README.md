@@ -204,9 +204,10 @@ Puntata, Tipo, Versione_modello, Quota_chiusura, Esito, Note`.
   registrabili. Per il DNB la probabilità è condizionata al non rimborso; con il
   pareggio la riga resta senza Esito (annotata «rimborsata») ed è esclusa dalle
   misure.
-- Cartellini: il modello e gli esiti automatici contano i soli gialli; le righe
-  Cartellini lo ricordano in `Note`. Il regolamento Eurobet (rossi contati o no,
-  con quale peso) non è stato verificato: controllalo prima di giocare.
+- Cartellini: esiti automatici in punti con la regola della configurazione
+  (default Eurobet: giallo 1, rosso 2, doppia ammonizione 3). Per le partite
+  inglesi e scozzesi, se ci sono rossi, `Note` avverte che un'eventuale doppia
+  ammonizione vale 2 invece di 3 (il primo giallo non è nei dati).
 - `ID` = data + partita + mercato + selezione: salvare di nuovo la stessa
   selezione aggiorna la riga. **Scarica registro Excel** dà le righe della
   sessione, pronte da incollare nel foglio Registro.
@@ -308,8 +309,9 @@ Il motore:
 5. deriva tutti i mercati score-dependent dagli stessi campioni, inclusi
    1X2, doppia chance, DNB, Goal/No Goal, Over/Under, somme e multigol totali
    e di squadra;
-6. calcola un unico totale Poisson per corner e cartellini, poi ripartisce
-   ciascun totale tra Casa e Ospite senza alterare le soglie del match;
+6. calcola un unico totale per corner e cartellini, poi ripartisce ciascun
+   totale tra Casa e Ospite senza alterare le soglie del match; i cartellini
+   sono punti del bookmaker (vedi «Punti cartellini»);
 7. mostra score modale, intervalli Wilson e il ledger dei contributi;
 8. espone per ogni mercato l'intervallo Wilson 95% e l'affidabilità campionaria;
 9. calcola EV e Kelly frazionato (Quarter-Kelly, 25% del Kelly pieno) per le
@@ -385,6 +387,26 @@ Il pareggio (`X`) non viene mai segnalato come `VALORE` (`no_value_markets` in
 reso in perdita perché Poisson + Dixon-Coles non riproduce esattamente la X
 quotata. L'EV resta visibile nell'audit. Il confronto per esito tra Shin e
 metodo proporzionale si rigenera con `python -m tools.baseline --analisi-pareggio`.
+
+### Punti cartellini (regola del bookmaker)
+
+I mercati cartellini sono in punti, con la regola in `regola_cartellini` di
+`config/goal_model.json`: default Eurobet `peso_giallo` 1, `peso_rosso` 2,
+`doppia_ammonizione` `giallo_e_rosso` (primo giallo 1 + rosso 2 = 3, il secondo
+giallo non si conta). Alternative: `solo_rosso` e `due_gialli_e_rosso`, che
+richiedono `quota_rossi_doppia_ammonizione` (i dati non distinguono i rossi da
+doppio giallo, quindi nessun valore di default).
+
+Il motore simula i gialli come prima (medie di squadra, arbitro, correzioni di
+stile e di Claude sui gialli) e aggiunge i rossi con Poisson di media
+`card_red_ratio` × gialli attesi: le correzioni scalano gialli e rossi nella
+stessa proporzione e nessun cartellino è contato due volte. `card_red_ratio` e
+la dispersione si ritarano con `python -m tools.calibrate --cartellini-punti`
+(gialli HY/AY e rossi HR/AR di football-data.co.uk) e si misurano con
+`python -m tools.baseline --cartellini-punti`. Secondo `notes.txt` di
+football-data.co.uk, nelle leghe europee la doppia ammonizione è registrata come
+giallo più rosso (punti esatti); in Inghilterra e Scozia manca il primo giallo,
+per cui lì la doppia ammonizione vale 2 invece di 3 (approssimazione dichiarata).
 
 ### Primo tempo e mercati secondari
 
