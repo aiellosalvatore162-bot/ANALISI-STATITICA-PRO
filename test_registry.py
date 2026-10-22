@@ -19,7 +19,7 @@ from performance import (
     RegistryError, bankroll, brier, calibration_table, clv_by_market, collect_results, component_comparison,
     edge_verdicts, fill_from_results, log_loss, read_registry, scores_over_time, settle, split_match, updated_workbook,
 )
-from prediction_log import CARDS_NOTE, COLUMNS, MARKETS, PredictionLog, SaveInfo, market_of, model_version, prediction_rows, to_excel
+from prediction_log import COLUMNS, MARKETS, PredictionLog, SaveInfo, market_of, model_version, prediction_rows, to_excel
 from test_parser import VALID
 from tools.dataset import clean_frames, frame_from_csv
 
@@ -85,7 +85,7 @@ def test_rows_carry_every_component(simulations):
     assert one["Quota_presa"] == 1.9 and one["Puntata"] == 10.0 and one["Tipo"] == "Reale"
     assert one["Quota_chiusura"] is None and one["Esito"] is None
     assert rows[2]["Mercato"] == "Cartellini" and rows[2]["Quota_presa"] is None
-    assert CARDS_NOTE in rows[2]["Note"] and rows[0]["Note"] == ""
+    assert rows[2]["Note"] == "" and rows[0]["Note"] == ""
     # Senza Claude né stile la finale è la simulazione di base.
     plain = prediction_rows(base, ["X"], INFO)[0]
     assert plain["Prob_finale"] == pytest.approx(base["components"]["finale"]["X"] / 100)
@@ -152,7 +152,7 @@ def test_empty_template_is_read_without_rows():
 def test_sample_file_with_duplicates_blank_rows_and_empty_columns():
     registry = read_registry(SAMPLE.read_bytes())
     frame = registry.frame
-    assert registry.duplicates == 1 and len(frame) == 14  # 16 righe scritte, 1 vuota, 1 doppione
+    assert registry.duplicates == 1 and len(frame) == 15  # 17 righe scritte, 1 vuota, 1 doppione
     assert frame["ID"].is_unique
     assert "2026-08-23|Venezia - Lecce|1X2|2" in set(frame["ID"])  # ID ricostruito
     torino = frame[frame["Partita"] == "Torino - Milan"].iloc[0]
@@ -181,12 +181,18 @@ def test_missing_columns_are_reported():
 
 def test_settle_uses_engine_event_definitions():
     result = {"home_goals": 2, "away_goals": 1, "home_ht_goals": 0, "away_ht_goals": 1,
-              "home_corners": 6, "away_corners": 4, "home_yellows": 3, "away_yellows": 2}
+              "home_corners": 6, "away_corners": 4, "home_yellows": 3, "away_yellows": 2, "home_reds": 0, "away_reds": 1}
     assert settle("1", result) == 1 and settle("X2", result) == 0
     assert settle("Over 2.5 gol", result) == 1 and settle("Under 2.5 gol", result) == 0
     assert settle("Goal", result) == 1 and settle("Multigol 2-4", result) == 1
     assert settle("2 1T", result) == 1 and settle("Over 9.5 corner", result) == 1
     assert settle("Over 4.5 cartellini", result) == 1 and settle("Multigol Casa 1-2", result) == 1
+    # Regola Eurobet: 5 gialli + 1 rosso = 7 punti; ospite 2 + 2 = 4 punti contro i 3 della casa.
+    assert settle("Over 6.5 cartellini", result) == 1 and settle("Under 6.5 cartellini", result) == 0
+    assert settle("2 cartellini", result) == 1
+    assert settle("Over 4.5 cartellini", {**result, "away_reds": np.nan}) is None
+    yellows_only = engine.CardRule(red_weight=0)
+    assert settle("Over 6.5 cartellini", result, yellows_only) == 0
     assert settle("1 + Over 3.5 gol", result) == 0 and settle("1 + Goal", result) == 1
     assert settle("Over 9.5 corner", {"home_goals": 1, "away_goals": 0, "home_corners": np.nan}) is None
     assert settle("Selezione inesistente", result) is None
@@ -214,7 +220,8 @@ def test_fill_from_results_completes_only_missing_values():
     assert cell("Genoa - Napoli", "Over 9.5 corner", "Esito") == 1
     assert pd.isna(cell("Genoa - Napoli", "Over 9.5 corner", "Quota_chiusura"))
     assert cell("Torino - Milan", "Over 4.5 cartellini", "Esito") == 0  # 1 giallo in tutto
-    assert "soli gialli" in cell("Torino - Milan", "Over 4.5 cartellini", "Note")
+    assert "gialli" not in cell("Torino - Milan", "Over 4.5 cartellini", "Note")
+    assert cell("Genoa - Frosinone", "Over 6.5 cartellini", "Esito") == 1  # 5 gialli + 1 rosso = 7 punti
     assert cell("Venezia - Lecce", "2", "Esito") == 1 and cell("Venezia - Lecce", "2", "Quota_chiusura") == pytest.approx(4.54)
     assert cell("Inter - Monza", "1 + Over 1.5 gol", "Esito") == 1
     # Nuovi mercati della fase H2.
@@ -229,7 +236,7 @@ def test_fill_from_results_completes_only_missing_values():
     assert cell("Atalanta - Sassuolo", "Goal", "Quota_chiusura") == 1.70
     assert cell("Atalanta - Sassuolo", "Goal", "Note") == "esito inserito a mano"
     assert report.not_found == ["Real Madrid - Barcellona"]
-    assert report.outcomes == 11 and report.closings == 3 and report.pushes == 1
+    assert report.outcomes == 12 and report.closings == 3 and report.pushes == 1
     again = fill_from_results(report.frame, _results())
     assert again.pushes == 0 and again.outcomes == 0 and again.changes == []
 

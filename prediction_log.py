@@ -33,9 +33,6 @@ PROBABILITY_COLUMNS = ("Prob_finale", "Prob_mercato", "Prob_modello", "Prob_stil
 MARKETS = ("1X2", "Doppia chance", "DNB", "Over 1.5", "Under 1.5", "Over 2.5", "Under 2.5", "Over 3.5", "Under 3.5",
            "Goal/NoGoal", "Multigol", "Multigol casa", "Multigol ospite", "Primo tempo", "Over 0.5 1T", "Over 1.5 1T",
            "Corner", "Cartellini", "Combo")
-# Il modello e la compilazione degli esiti contano i soli gialli; i regolamenti dei bookmaker possono contare
-# anche i rossi (regola Eurobet non verificata: pagine del regolamento non raggiungibili il 22/10/2026).
-CARDS_NOTE = "cartellini = soli gialli nel modello; verifica se il bookmaker conta anche i rossi"
 TYPES = ("Reale", "A carta")
 # Selezioni proposte di default quando non ci sono quote inserite.
 DEFAULT_SELECTIONS = ("1", "X", "2", "Over 1.5 gol", "Over 2.5 gol", "Under 2.5 gol", "Goal", "No Goal",
@@ -149,7 +146,7 @@ def prediction_rows(base: Mapping[str, Any], selections: Sequence[str], info: Sa
             "Prob_Claude": _probability(claude, "finale", selection),
             "Quota_presa": (odds or {}).get(selection), "Puntata": (stakes or {}).get(selection),
             "Tipo": info.kind, "Versione_modello": info.version, "Quota_chiusura": None, "Esito": None,
-            "Note": "; ".join(part for part in (info.note, CARDS_NOTE if market == "Cartellini" else "") if part),
+            "Note": info.note,
         })
     return rows
 

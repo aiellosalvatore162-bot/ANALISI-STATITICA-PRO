@@ -67,7 +67,7 @@ def probability_lines(result: Mapping[str, Any]) -> list[str]:
         + f" | Over 0.5 1T {_pct(final.get('Over 0.5 gol 1T'))} | Over 1.5 1T {_pct(final.get('Over 1.5 gol 1T'))}",
         f"Corner: media {markets['corners']['mean']:.2f} | "
         + " | ".join(f"Over {line} {_pct(markets['corners'][f'Over_{line}']['percentage'])}" for line in ("8.5", "9.5", "10.5")),
-        f"Cartellini: media {markets['cards']['mean']:.2f} | "
+        f"Cartellini (punti: {result['model']['card_rule']}): media {markets['cards']['mean']:.2f} | "
         + " | ".join(f"Over {line} {_pct(markets['cards'][f'Over_{line}']['percentage'])}" for line in ("3.5", "4.5", "5.5")),
     ]
     model = result["model"]
@@ -121,7 +121,8 @@ def analysis_prompt(block: str, result: Mapping[str, Any], *, sources: list[dict
         "",
         "Regole del blocco:",
         "- gol_casa, gol_ospite, corner e cartellini sono fattori moltiplicativi (1.00 = nessuna modifica). "
-        "Limiti applicati dall'app: gol e corner 0.90-1.10, cartellini 0.85-1.15.",
+        "Limiti applicati dall'app: gol e corner 0.90-1.10, cartellini 0.85-1.15. Il fattore cartellini si applica "
+        "ai gialli attesi e, nella stessa proporzione, ai rossi attesi.",
         "- Ogni correzione diversa da 1.00 deve avere una fonte con link (https://...): senza fonte viene ignorata.",
         "- Usa arbitro_gialli_medi solo se hai trovato la media dell'arbitro designato, con il numero di partite.",
         "- Ometti le righe per cui non hai informazioni affidabili. confidenza: bassa, media o alta.",

@@ -630,3 +630,48 @@ def test_default_half_time_split_keeps_the_even_share():
     assert first_half.sum() == pytest.approx(1.0)
     goals = np.arange(matrix.shape[0])
     assert (first_half.sum(axis=1) * goals).sum() == pytest.approx(0.5 * (matrix.sum(axis=1) * goals).sum())
+
+
+# --- Punti cartellini (regola del bookmaker, fase H3) ---------------------------------------------
+
+def test_card_rule_is_read_from_config_and_validated(tmp_path):
+    assert engine.DEFAULT_CARD_RULE == engine.CardRule(1, 2, "giallo_e_rosso", None)
+    path = tmp_path / "goal_model.json"
+    path.write_text(json.dumps({"regola_cartellini": {"peso_giallo": 1, "peso_rosso": 3, "doppia_ammonizione": "solo_rosso",
+                                                      "quota_rossi_doppia_ammonizione": 0.5}}), encoding="utf-8")
+    assert engine.load_card_rule(path) == engine.CardRule(1, 3, "solo_rosso", 0.5)
+    assert engine.load_card_rule(tmp_path / "assente.json") == engine.CardRule()
+    with pytest.raises(ValueError, match="quota_rossi_doppia_ammonizione"):
+        engine.CardRule(double_yellow="due_gialli_e_rosso")  # nessuna quota inventata
+    with pytest.raises(ValueError, match="interi"):
+        engine.CardRule(red_weight=1.5)
+    with pytest.raises(ValueError):
+        engine.CardRule(double_yellow="altro")
+
+
+def test_card_points_follow_the_double_yellow_rule():
+    # Convenzione europea: doppia ammonizione = 1 giallo + 1 rosso nei dati.
+    assert engine.card_points(1, 1, engine.CardRule()) == 3  # Eurobet: primo giallo 1 + rosso 2
+    assert engine.card_points(1, 1, engine.CardRule(double_yellow="solo_rosso", double_yellow_share=1.0), 1) == 2
+    assert engine.card_points(1, 1, engine.CardRule(double_yellow="due_gialli_e_rosso", double_yellow_share=1.0), 1) == 4
+    assert engine.card_points(4, 0, engine.CardRule()) == 4
+
+
+def test_simulated_card_points_include_reds_with_their_weight():
+    config = engine.config_from_input(parse_match_input(VALID), simulations=200_000, seed=11)
+    params = replace(config.count_model, card_red_ratio=0.05, card_dispersion=0.0)
+    with_reds = replace(config, count_model=params)
+    yellows_only = replace(config, count_model=replace(params, card_red_ratio=0.0))
+    points = engine.simulate_match(with_reds)["markets"]["cards"]["mean"]
+    yellows = engine.simulate_match(yellows_only)["markets"]["cards"]["mean"]
+    expected = engine.card_total_mean(with_reds) * (1 + 2 * 0.05)
+    assert engine.card_points_mean(with_reds) == pytest.approx(expected)
+    assert points == pytest.approx(expected, rel=0.01) and yellows == pytest.approx(engine.card_total_mean(config), rel=0.01)
+    # La correzione di Claude scala gialli e rossi insieme: nessun doppio conteggio.
+    claude = replace(with_reds, claude=engine.ClaudeAdjustment(cards=1.1))
+    assert engine.card_points_mean(claude) == pytest.approx(expected * 1.1)
+    result = engine.simulate_match(with_reds)
+    assert result["model"]["card_rule"] == "giallo 1, rosso 2, doppia ammonizione giallo e rosso"
+    assert result["model"]["card_red_mean"] == pytest.approx(result["model"]["card_yellow_mean"] * 0.05, abs=1e-4)
+    # Corner e gialli usano lo stesso flusso casuale: aggiungere i rossi non cambia i corner.
+    assert result["markets"]["corners"] == engine.simulate_match(yellows_only)["markets"]["corners"]
