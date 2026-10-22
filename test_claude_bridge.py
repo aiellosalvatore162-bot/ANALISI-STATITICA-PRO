@@ -99,7 +99,7 @@ def test_analysis_prompt_contains_instructions_inputs_probabilities_and_format()
     prompt = analysis_prompt(VALID, result, sources=sources, match_date="25/10/2026", competition="Serie A")
     for expected in ("formazioni", "squalifiche", "Turnover", "Arbitro designato", "coppe europee", "meteo",
                      "Incoerenze", "CASA: Inter", "ClubElo (agg. 21/10/2026", "1X2:", "Multigol:", "Primo tempo:",
-                     "Corner: media", "Cartellini: media", "mercato λ", "finali λ", RESPONSE_FORMAT):
+                     "Corner: media", "Cartellini (punti: giallo 1, rosso 2", "mercato λ", "finali λ", RESPONSE_FORMAT):
         assert expected in prompt, expected
 
 

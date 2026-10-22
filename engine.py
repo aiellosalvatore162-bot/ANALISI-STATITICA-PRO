@@ -163,6 +163,9 @@ class CountModelParams:
     card_referee_yellow_weight: float = 1.0
     card_referee_fouls_weight: float = 1.0
     card_dispersion: float = 0.0
+    # Rossi attesi per giallo atteso (Poisson): 0 = solo gialli. Tarato con
+    # ``python -m tools.calibrate --cartellini-punti``.
+    card_red_ratio: float = 0.0
 
 
 def load_count_model(path: Path = GOAL_MODEL_PATH) -> CountModelParams:
@@ -173,6 +176,68 @@ def load_count_model(path: Path = GOAL_MODEL_PATH) -> CountModelParams:
 
 
 DEFAULT_COUNT_MODEL = load_count_model()
+
+
+DOUBLE_YELLOW_RULES = ("giallo_e_rosso", "solo_rosso", "due_gialli_e_rosso")
+# football-data.co.uk notes.txt: in English and Scottish leagues the first yellow of a double booking is not
+# among the yellows (only the red); in the European leagues it is counted as yellow plus red.
+SECOND_YELLOW_EXCLUDED_LEAGUES = ("E0", "E1", "E2", "E3", "EC", "SC0", "SC1", "SC2", "SC3")
+
+
+@dataclass(frozen=True)
+class CardRule:
+    """How the card market counts bookings (default: Eurobet, yellow 1, red 2).
+
+    Counts follow the European football-data convention: a player sent off for
+    a second yellow has the first yellow among the yellows and the red among
+    the reds; the second yellow is not counted. ``double_yellow`` says what such
+    a player is worth: ``giallo_e_rosso`` = yellow + red weight (Eurobet, 3),
+    ``solo_rosso`` = red weight only, ``due_gialli_e_rosso`` = two yellows + red.
+    The data do not tell second-yellow reds from straight reds, so the other
+    two rules need ``double_yellow_share`` (share of reds that come from a second
+    yellow) written explicitly in the configuration: there is no hidden default.
+    """
+
+    yellow_weight: int = 1
+    red_weight: int = 2
+    double_yellow: str = "giallo_e_rosso"
+    double_yellow_share: float | None = None
+
+    def __post_init__(self) -> None:
+        if self.double_yellow not in DOUBLE_YELLOW_RULES:
+            raise ValueError(f"regola_cartellini.doppia_ammonizione deve essere una di {DOUBLE_YELLOW_RULES}.")
+        if any(not float(weight).is_integer() or weight < 0 for weight in (self.yellow_weight, self.red_weight)):
+            raise ValueError("I pesi di giallo e rosso devono essere interi non negativi (linee x.5 senza pareggi).")
+        if self.double_yellow != "giallo_e_rosso" and (self.double_yellow_share is None or not 0.0 <= self.double_yellow_share <= 1.0):
+            raise ValueError("Con la regola di doppia ammonizione «" + self.double_yellow + "» serve "
+                             "regola_cartellini.quota_rossi_doppia_ammonizione (0-1): i dati non la forniscono.")
+
+    @property
+    def double_yellow_extra(self) -> int:
+        """Points added (or removed) for each red that comes from a second yellow."""
+        return {"giallo_e_rosso": 0, "solo_rosso": -self.yellow_weight, "due_gialli_e_rosso": self.yellow_weight}[self.double_yellow]
+
+    def describe(self) -> str:
+        return f"giallo {self.yellow_weight}, rosso {self.red_weight}, doppia ammonizione {self.double_yellow.replace('_', ' ')}"
+
+
+def card_points(yellows, reds, rule: CardRule, double_yellows=0):
+    """Card-market points from counted yellows and reds (European convention, see ``CardRule``)."""
+    return rule.yellow_weight * yellows + rule.red_weight * reds + rule.double_yellow_extra * double_yellows
+
+
+def load_card_rule(path: Path = GOAL_MODEL_PATH) -> CardRule:
+    if not path.exists():
+        return CardRule()
+    data = json.loads(path.read_text(encoding="utf-8")).get("regola_cartellini", {})
+    return CardRule(
+        yellow_weight=int(data.get("peso_giallo", 1)), red_weight=int(data.get("peso_rosso", 2)),
+        double_yellow=data.get("doppia_ammonizione", "giallo_e_rosso"),
+        double_yellow_share=data.get("quota_rossi_doppia_ammonizione"),
+    )
+
+
+DEFAULT_CARD_RULE = load_card_rule()
 
 
 @dataclass(frozen=True)
@@ -255,6 +320,7 @@ class MatchConfig:
     market_anchor: MarketAnchorParams = DEFAULT_MARKET_ANCHOR
     half_time: HalfTimeParams = DEFAULT_HALF_TIME
     count_model: CountModelParams = DEFAULT_COUNT_MODEL
+    card_rule: CardRule = DEFAULT_CARD_RULE
     tactical: TacticalFactors | None = None
     tactical_switches: TacticalSwitches = DEFAULT_TACTICAL_SWITCHES
     claude: ClaudeAdjustment | None = None
@@ -1047,8 +1113,16 @@ def corner_signals(config: MatchConfig) -> tuple[float, float]:
     return home, away
 
 
+def card_points_mean(config: MatchConfig) -> float:
+    """Expected card-market points: yellows plus reds (``card_red_ratio`` per expected yellow) with the rule weights."""
+    rule = config.card_rule
+    share = rule.double_yellow_share or 0.0
+    red_points = rule.red_weight + rule.double_yellow_extra * share
+    return card_total_mean(config) * (rule.yellow_weight + config.count_model.card_red_ratio * red_points)
+
+
 def card_total_mean(config: MatchConfig) -> float:
-    """Team card propensity adjusted by the referee's observed severity.
+    """Expected yellow cards: team propensity adjusted by the referee's observed severity.
 
     The yellow average is the level factor and the fouls average is the tempo
     factor.
@@ -1160,13 +1234,27 @@ def simulate_match(config: MatchConfig) -> dict[str, Any]:
     home_corners = rng.binomial(corners, home_corner_share)
     away_corners = corners - home_corners
 
-    cards = _count_samples(rng, card_total_mean(config), config.count_model.card_dispersion if config.count_model.active else 0.0, config.simulations)
+    yellow_mean = card_total_mean(config)
+    yellows = _count_samples(rng, yellow_mean, config.count_model.card_dispersion if config.count_model.active else 0.0, config.simulations)
     card_signal_total = max(0.0, config.home.cards_for + config.away.cards_for)
     home_card_share = (
         config.home.cards_for / card_signal_total if card_signal_total > 0.0 else 0.5
     )
-    home_cards = rng.binomial(cards, home_card_share)
-    away_cards = cards - home_cards
+    home_yellows = rng.binomial(yellows, home_card_share)
+    away_yellows = yellows - home_yellows
+    # Reds after the yellows, so the yellow samples do not depend on the rule.
+    reds = rng.poisson(config.count_model.card_red_ratio * yellow_mean, config.simulations)
+    home_reds = rng.binomial(reds, home_card_share)
+    away_reds = reds - home_reds
+    rule = config.card_rule
+    if rule.double_yellow_extra:
+        home_double = rng.binomial(home_reds, rule.double_yellow_share)
+        away_double = rng.binomial(away_reds, rule.double_yellow_share)
+    else:
+        home_double = away_double = 0
+    home_cards = card_points(home_yellows, home_reds, rule, home_double)
+    away_cards = card_points(away_yellows, away_reds, rule, away_double)
+    cards = home_cards + away_cards
     counts = (home_corners, away_corners, home_cards, away_cards)
 
     events = _events_for_scores(config, (goals_home, goals_away, first_home, first_away), counts)
@@ -1248,7 +1336,7 @@ def simulate_match(config: MatchConfig) -> dict[str, Any]:
     fixed_score_scenario = _conditional_scenarios(events, {"score": fixed_score_mask})["score"]
     result = {
         "input": {"home": config.home.__dict__, "away": config.away.__dict__, "referee_yellow_avg": config.referee_yellow_avg, "referee_fouls_avg": config.referee_fouls_avg},
-        "model": {"lambda": round(lambda_, 6), "mu": round(mu, 6), "lambda_modello": round(anchoring["model_lambda"], 6), "mu_modello": round(anchoring["model_mu"], 6), "goal_model": config.goal_model, "first_half_shares": dict(zip(("home", "away"), (round(float(share), 4) for share in first_half_shares(lambda_, mu, config.half_time)))), "dixon_coles_rho": config.dixon_coles_rho, "simulation_count": config.simulations, "seed": config.seed, "formula_ledger": ledger},
+        "model": {"lambda": round(lambda_, 6), "mu": round(mu, 6), "lambda_modello": round(anchoring["model_lambda"], 6), "mu_modello": round(anchoring["model_mu"], 6), "goal_model": config.goal_model, "card_rule": config.card_rule.describe(), "card_yellow_mean": round(card_total_mean(config), 4), "card_red_mean": round(card_total_mean(config) * config.count_model.card_red_ratio, 4), "first_half_shares": dict(zip(("home", "away"), (round(float(share), 4) for share in first_half_shares(lambda_, mu, config.half_time)))), "dixon_coles_rho": config.dixon_coles_rho, "simulation_count": config.simulations, "seed": config.seed, "formula_ledger": ledger},
         "markets": markets,
         "conditional_scenarios": conditional_scenarios,
         "fixed_score_scenario": fixed_score_scenario,

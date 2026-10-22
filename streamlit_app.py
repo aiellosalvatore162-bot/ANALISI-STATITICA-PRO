@@ -1032,9 +1032,11 @@ if result:
             st.metric("Media match stimata", f'{result["markets"]["corners"]["mean"]:.2f}', "Corner Casa + Ospite")
             st.caption("Modello Poisson; il dato non è condizionato al segno finale.")
         with referee_col:
-            st.markdown('<div class="section-kicker">CARTELLINI GIALLI</div>', unsafe_allow_html=True)
-            st.metric("Media match stimata", f'{result["markets"]["cards"]["mean"]:.2f}', "Scala da medie squadra e arbitro")
-            st.caption("Il modello esclude i rossi e non usa dipendenza dal risultato.")
+            st.markdown('<div class="section-kicker">CARTELLINI (PUNTI)</div>', unsafe_allow_html=True)
+            st.metric("Media match stimata", f'{result["markets"]["cards"]["mean"]:.2f}', "Punti cartellini Casa + Ospite")
+            st.caption(f'Regola: {result["model"]["card_rule"]}. Gialli attesi {result["model"]["card_yellow_mean"]:.2f} '
+                       f'(medie squadra e arbitro), rossi attesi {result["model"]["card_red_mean"]:.2f} '
+                       "(quota media dei rossi per giallo); nessuna dipendenza dal risultato.")
 
         favorite_sign = summary["favorite_sign"]
         favorite_interval = summary["confidence_intervals_95"][favorite_sign]
