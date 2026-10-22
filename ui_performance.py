@@ -9,7 +9,7 @@ import altair as alt
 import pandas as pd
 import streamlit as st
 
-from dashboard import GLOSSARY
+from dashboard import GLOSSARY, missing_as_dash
 from performance import (
     MIN_SELECTIONS, RegistryError, bankroll, calibration_table, clv_by_market, collect_results, component_comparison,
     edge_verdicts, fill_from_results, read_registry, scores_over_time, updated_workbook,
@@ -62,7 +62,7 @@ def _fill_section(registry, original: bytes, signature: str) -> pd.DataFrame:
     if report.changes:
         st.success(f"Compilati {report.outcomes} esiti e {report.closings} quote di chiusura (fonte e data in colonna Note)."
                    + (f" {report.pushes} DNB rimborsate per pareggio: Esito lasciato vuoto." if report.pushes else ""))
-        st.dataframe(pd.DataFrame(report.changes).drop(columns=["_riga"]), hide_index=True, width="stretch")
+        st.dataframe(missing_as_dash(pd.DataFrame(report.changes).drop(columns=["_riga"])), hide_index=True, width="stretch")
         st.download_button("Scarica il file aggiornato", updated_workbook(original, registry.sheet, report.changes),
                            file_name="Registro_Previsioni_aggiornato.xlsx", mime=XLSX, key="performance_download",
                            help="Il tuo file con le sole colonne Quota_chiusura, Esito e Note compilate: formule e fogli restano uguali.")
@@ -104,7 +104,7 @@ def render_performance() -> None:
     st.subheader("Vantaggio per mercato")
     st.caption(f"«Vantaggio dimostrato» solo con almeno {MIN_SELECTIONS} selezioni con esito e CLV medio positivo.")
     verdicts = _percent(edge_verdicts(frame), ["% vinte", "Prob. media finale", "CLV medio", "ROI"])
-    st.dataframe(verdicts.round({"Brier finale": 4}), hide_index=True, width="stretch")
+    st.dataframe(missing_as_dash(verdicts.round({"Brier finale": 4})), hide_index=True, width="stretch")
 
     st.subheader("Calibrazione per mercato")
     calibration = calibration_table(frame)
@@ -118,7 +118,7 @@ def render_performance() -> None:
             y=alt.Y("Frequenza reale", title="Frequenza reale %", scale=alt.Scale(domain=[0, 100])),
             tooltip=["Fascia", "Selezioni", "Prob. prevista", "Frequenza reale"])
         st.altair_chart(diagonal + points, width="stretch")
-        st.dataframe(subset, hide_index=True, width="stretch")
+        st.dataframe(missing_as_dash(subset), hide_index=True, width="stretch")
         st.caption("Sulla diagonale = tarato. Sotto la diagonale le probabilità sono troppo alte, sopra troppo basse.")
 
     st.subheader("Brier e log-loss nel tempo", help=GLOSSARY["Brier"])
@@ -129,19 +129,19 @@ def render_performance() -> None:
         st.altair_chart(alt.Chart(long).mark_line(point=True).encode(
             x=alt.X("Periodo:T"), y="Valore", color="Misura", tooltip=["Periodo:T", "Misura", alt.Tooltip("Valore", format=".4f")]),
             width="stretch")
-        st.dataframe(scores.round(4), hide_index=True, width="stretch")
+        st.dataframe(missing_as_dash(scores.round(4)), hide_index=True, width="stretch")
 
     st.subheader("CLV medio per mercato", help=GLOSSARY["CLV"])
     clv = clv_by_market(frame)
     if clv.empty:
         st.info("Nessuna riga con quota presa e quota di chiusura.")
     else:
-        st.dataframe(_percent(clv, ["CLV medio", "Quote battute"]), hide_index=True, width="stretch")
+        st.dataframe(missing_as_dash(_percent(clv, ["CLV medio", "Quote battute"])), hide_index=True, width="stretch")
         st.caption("CLV = quota presa / quota di chiusura − 1. Positivo = hai preso una quota migliore della chiusura.")
 
     st.subheader("ROI e saldo")
     summary, timeline = bankroll(frame)
-    st.dataframe(_percent(summary, ["ROI", "CLV medio"]).round({"Puntata totale": 2, "Profitto": 2}), hide_index=True, width="stretch")
+    st.dataframe(missing_as_dash(_percent(summary, ["ROI", "CLV medio"]).round({"Puntata totale": 2, "Profitto": 2})), hide_index=True, width="stretch")
     if not timeline.empty:
         timeline = timeline.assign(Ordine=range(1, len(timeline) + 1))
         st.altair_chart(alt.Chart(timeline).mark_line(point=True).encode(
@@ -150,6 +150,6 @@ def render_performance() -> None:
         st.caption("Reale e A carta hanno saldi separati.")
 
     st.subheader("Quale componente migliora davvero")
-    st.dataframe(component_comparison(frame).round(4), hide_index=True, width="stretch")
+    st.dataframe(missing_as_dash(component_comparison(frame).round(4)), hide_index=True, width="stretch")
     st.caption("Brier e log-loss più bassi = meglio. Nei confronti a coppie si usano solo le selezioni con entrambe le "
                "probabilità; «migliora davvero» richiede una differenza di Brier negativa oltre due errori standard.")
