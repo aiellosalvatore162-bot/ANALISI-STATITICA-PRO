@@ -19,7 +19,7 @@ from typing import Any, Callable, Iterable
 import numpy as np
 import pandas as pd
 
-from prediction_log import COLUMNS, MARKETS, PROBABILITY_COLUMNS, market_of, selection_id
+from prediction_log import COLUMNS, MARKETS, PROBABILITY_COLUMNS, selection_id
 
 MIN_SELECTIONS = 100
 BANDS = (0.0, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0001)
