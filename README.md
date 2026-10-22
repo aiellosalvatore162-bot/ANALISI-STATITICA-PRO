@@ -184,6 +184,31 @@ In **Crea partita**, **Prepara estrazione dati per Claude** genera le istruzioni
 per trasformare il testo copiato da un sito nel blocco del parser; il blocco
 restituito si incolla nel campo apposito e passa dal controllo di plausibilità.
 
+## Dashboard
+
+Dopo la simulazione i risultati sono in sette tab: **Panoramica** (tabellone con
+gol attesi, risultato più probabile e confidenza; barra 1X2; gol; semaforo del
+valore; «Le giocate più solide di questa partita»), **Gol** (Over/Under,
+gol per squadra, Multigol, primo tempo come barre con la linea del 50%),
+**Corner e cartellini** (valore atteso e soglia consigliata), **Risultati
+esatti** (mappa di calore con gruppo minimo e il mio gruppo), **Claude**,
+**Registro** e **Prestazioni**. Ogni scheda ha un numero grande e una frase in
+italiano semplice; parametri, tabelle complete e diagnostica stanno negli
+expander chiusi. Percentuali con 1 decimale, quote con 2; tooltip su EV, CLV,
+Brier, ancoraggio e confidenza.
+
+Grafica in `dashboard.py` (solo presentazione, HTML statico senza JavaScript,
+escape di tutti i testi esterni): campo verde con linee bianche, font Barlow
+(Google Fonts), badge con colori sociali e iniziali (niente stemmi), tema chiaro
+e scuro con contrasto testo ≥ 4,5:1, card a una colonna sotto i 640 px. Colori
+dei dati: Casa blu e Ospite arancio validati per daltonismo; Pareggio grigio
+neutro sempre con etichetta; semaforo del valore sempre con testo.
+`.streamlit/config.toml` imposta il verde come colore primario nei due temi.
+
+Screenshot (desktop e mobile, chiaro e scuro) in `docs/screenshot/`, rigenerati
+con `python -m tools.screenshots` (richiede Playwright, vedi
+`requirements-dev.txt`).
+
 ## Risultati esatti e gruppi
 
 Dopo la simulazione, la sezione **Risultati esatti** mostra i risultati dello
