@@ -32,7 +32,7 @@ PROBABILITY_COLUMNS = ("Prob_finale", "Prob_mercato", "Prob_modello", "Prob_stil
 # Stessi nomi, stesso ordine della tabella «per mercato» del foglio Riepilogo.
 MARKETS = ("1X2", "Doppia chance", "DNB", "Over 1.5", "Under 1.5", "Over 2.5", "Under 2.5", "Over 3.5", "Under 3.5",
            "Goal/NoGoal", "Multigol", "Multigol casa", "Multigol ospite", "Primo tempo", "Over 0.5 1T", "Over 1.5 1T",
-           "Corner", "Cartellini", "Combo")
+           "Corner", "Cartellini", "Combo", "Risultati esatti")
 TYPES = ("Reale", "A carta")
 # Selezioni proposte di default quando non ci sono quote inserite.
 DEFAULT_SELECTIONS = ("1", "X", "2", "Over 1.5 gol", "Over 2.5 gol", "Under 2.5 gol", "Goal", "No Goal",
@@ -46,6 +46,8 @@ _FIXED_MARKETS = {
     "Over 0.5 gol 1T": "Over 0.5 1T", "Over 1.5 gol 1T": "Over 1.5 1T",
     **{f"{side} {line} gol": f"{side} {line}" for side in ("Over", "Under") for line in ("1.5", "2.5", "3.5")},
 }
+# Gruppo di risultati esatti: «1-0/2-0/2-1» (vedi exact_scores.group_selection).
+_EXACT_GROUP = re.compile(r"^\d{1,2}-\d{1,2}(?:/\d{1,2}-\d{1,2})*$")
 _MULTIGOL = re.compile(r"^Multigol (?:(?P<team>Casa|Ospite) )?\d+-\d+$")
 # Quote rimborsate (DNB con pareggio): l'evento «push» del motore con lo stesso prefisso.
 PUSH_SELECTIONS = ("Casa DNB", "Ospite DNB")
@@ -59,6 +61,8 @@ def market_of(selection: str) -> str | None:
     key = selection.strip()
     if " + " in key:
         return "Combo"
+    if _EXACT_GROUP.match(key):
+        return "Risultati esatti"
     if key in _FIXED_MARKETS:
         return _FIXED_MARKETS[key]
     if "corner" in key and not key.endswith(" 1T"):
@@ -109,6 +113,11 @@ def _probability(result: Mapping[str, Any] | None, component: str, selection: st
     """Probabilità decimale; per il DNB è condizionata al non rimborso (vinta / (vinta + persa))."""
     if result is None:
         return None
+    if _EXACT_GROUP.match(selection):
+        from exact_scores import group_probability, group_scores
+
+        distribution = (result.get("exact_scores") or {}).get(component)
+        return None if distribution is None else round(group_probability(distribution, group_scores(selection)), 4)
     values = result["components"].get(component) or {}
     value = values.get(selection)
     if value is None:
@@ -134,7 +143,7 @@ def prediction_rows(base: Mapping[str, Any], selections: Sequence[str], info: Sa
     rows = []
     for selection in selections:
         market = market_of(selection)
-        if market is None or selection not in final["components"]["finale"]:
+        if market is None or (market != "Risultati esatti" and selection not in final["components"]["finale"]):
             raise ValueError(f"Selezione «{selection}»: mercato non previsto dal registro.")
         rows.append({
             "ID": selection_id(info.day, match, market, selection), "Data": info.day, "Ora": info.time,
