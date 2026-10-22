@@ -423,5 +423,95 @@
       "solo_rosso",
       "due_gialli_e_rosso"
     ]
+  },
+  "risultati_esatti": {
+    "data": "2026-10-22",
+    "partite_fuori_campione": 254,
+    "risultato_piu_probabile": {
+      "prevista": 0.12229124446986303,
+      "reale": 0.1220472440944882
+    },
+    "copertura_gruppo_minimo": {
+      "fuori_campione": [
+        {
+          "copertura_nominale": 0.4,
+          "frequenza_reale": 0.4213,
+          "copertura_prevista_media": 0.4366,
+          "risultati_medi": 4.6811
+        },
+        {
+          "copertura_nominale": 0.5,
+          "frequenza_reale": 0.5118,
+          "copertura_prevista_media": 0.5326,
+          "risultati_medi": 6.122
+        },
+        {
+          "copertura_nominale": 0.6,
+          "frequenza_reale": 0.5945,
+          "copertura_prevista_media": 0.6276,
+          "risultati_medi": 7.7795
+        },
+        {
+          "copertura_nominale": 0.7,
+          "frequenza_reale": 0.685,
+          "copertura_prevista_media": 0.7216,
+          "risultati_medi": 9.7992
+        },
+        {
+          "copertura_nominale": 0.8,
+          "frequenza_reale": 0.8071,
+          "copertura_prevista_media": 0.815,
+          "risultati_medi": 12.5394
+        },
+        {
+          "copertura_nominale": 0.9,
+          "frequenza_reale": 0.8937,
+          "copertura_prevista_media": 0.9075,
+          "risultati_medi": 17.0906
+        }
+      ],
+      "taratura": [
+        {
+          "copertura_nominale": 0.4,
+          "frequenza_reale": 0.46,
+          "copertura_prevista_media": 0.44,
+          "risultati_medi": 4.4183
+        },
+        {
+          "copertura_nominale": 0.5,
+          "frequenza_reale": 0.5617,
+          "copertura_prevista_media": 0.535,
+          "risultati_medi": 5.7279
+        },
+        {
+          "copertura_nominale": 0.6,
+          "frequenza_reale": 0.6557,
+          "copertura_prevista_media": 0.6306,
+          "risultati_medi": 7.2696
+        },
+        {
+          "copertura_nominale": 0.7,
+          "frequenza_reale": 0.7405,
+          "copertura_prevista_media": 0.7235,
+          "risultati_medi": 9.1385
+        },
+        {
+          "copertura_nominale": 0.8,
+          "frequenza_reale": 0.8373,
+          "copertura_prevista_media": 0.816,
+          "risultati_medi": 11.6827
+        },
+        {
+          "copertura_nominale": 0.9,
+          "frequenza_reale": 0.9246,
+          "copertura_prevista_media": 0.9082,
+          "risultati_medi": 15.946
+        }
+      ]
+    },
+    "log_loss_fuori_campione": {
+      "ancorato": 3.0154,
+      "frequenze_storiche": 3.2734
+    }
   }
 }

@@ -719,6 +719,114 @@ def card_points_analysis(features: pd.DataFrame, before: "engine.CountModelParam
     return "\n".join(lines)
 
 
+# --- Risultati esatti ----------------------------------------------------------------------
+
+EXACT_COVERAGES = (0.4, 0.5, 0.6, 0.7, 0.8, 0.9)
+EXACT_BINS = (0.0, 0.02, 0.04, 0.06, 0.08, 0.10, 0.12, 0.15, 0.20, 1.0)
+EXACT_MAX_GOALS = 10
+
+
+def _score_matrices(features: pd.DataFrame, anchored: bool) -> np.ndarray:
+    from tools.calibrate import score_matrices
+
+    predictions = predict(features, anchored=anchored)
+    rho = config_for_row(features.iloc[0].to_dict()).dixon_coles_rho
+    return score_matrices(predictions["lambda"].to_numpy(), predictions["mu"].to_numpy(), rho, EXACT_MAX_GOALS)
+
+
+def exact_score_metrics(matrices: np.ndarray, home: np.ndarray, away: np.ndarray, reference: np.ndarray) -> dict[str, Any]:
+    """Log-loss, risultato più probabile, calibrazione per celle e copertura del gruppo minimo."""
+    count = len(home)
+    flat = matrices.reshape(count, -1)
+    observed = np.clip(home, 0, EXACT_MAX_GOALS) * (EXACT_MAX_GOALS + 1) + np.clip(away, 0, EXACT_MAX_GOALS)
+    hit = np.zeros_like(flat, dtype=bool)
+    hit[np.arange(count), observed] = True
+    log_loss_model = float(-np.mean(np.log(np.maximum(flat[np.arange(count), observed], 1e-12))))
+    log_loss_reference = float(-np.mean(np.log(np.maximum(reference.reshape(-1)[observed], 1e-12))))
+    top = flat.argmax(axis=1)
+    order = np.argsort(-flat, axis=1)
+    sorted_probabilities = np.take_along_axis(flat, order, axis=1)
+    cumulative = np.cumsum(sorted_probabilities, axis=1)
+    rank = np.argmax(order == observed[:, None], axis=1)
+    coverage = []
+    for nominal in EXACT_COVERAGES:
+        size = np.argmax(cumulative >= nominal - 1e-12, axis=1) + 1
+        coverage.append({"copertura_nominale": nominal, "frequenza_reale": float(np.mean(rank < size)),
+                         "copertura_prevista_media": float(np.mean(cumulative[np.arange(count), size - 1])),
+                         "risultati_medi": float(np.mean(size))})
+    cells = []
+    for low, high in zip(EXACT_BINS[:-1], EXACT_BINS[1:]):
+        mask = (flat >= low) & (flat < high)
+        if mask.sum():
+            cells.append({"fascia": f"{low:.0%}–{high:.0%}", "celle": int(mask.sum()),
+                          "prevista": float(flat[mask].mean()), "reale": float(hit[mask].mean())})
+    return {
+        "partite": count, "log_loss": log_loss_model, "log_loss_frequenze": log_loss_reference,
+        "risultato_piu_probabile": {"prevista": float(flat[np.arange(count), top].mean()), "reale": float(np.mean(top == observed))},
+        "copertura": coverage, "celle": cells,
+    }
+
+
+def exact_score_analysis(features: pd.DataFrame) -> tuple[str, dict[str, Any]]:
+    """Calibrazione dei risultati esatti sulle stagioni di valutazione (modello ancorato alle quote di chiusura)."""
+    data = features[features["season"].isin([season for seasons in EVALUATION_SETS.values() for season in seasons])]
+    anchored = _score_matrices(data, anchored=True)
+    model_only = _score_matrices(data, anchored=False)
+    home, away = data["home_goals"].to_numpy(int), data["away_goals"].to_numpy(int)
+    # Riferimento ingenuo: frequenze storiche dei risultati nelle stagioni di taratura.
+    calibration = data["season"].isin(dataset.CALIBRATION_SEASONS).to_numpy()
+    reference = np.zeros((EXACT_MAX_GOALS + 1, EXACT_MAX_GOALS + 1))
+    np.add.at(reference, (np.clip(home[calibration], 0, EXACT_MAX_GOALS), np.clip(away[calibration], 0, EXACT_MAX_GOALS)), 1)
+    reference = (reference + 0.5) / (reference + 0.5).sum()
+    lines = [
+        "## Risultati esatti (calibrazione storica)", "",
+        f"Generato il {date.today():%d/%m/%Y} con `python -m tools.baseline --risultati-esatti`. Matrici Dixon-Coles con i gol "
+        "attesi finali (modello ancorato alle quote medie di chiusura 1X2 e O/U 2.5) e, per confronto, del solo modello. "
+        "Riferimento ingenuo: frequenze dei risultati nelle stagioni di taratura (nel fuori campione è un riferimento "
+        "onesto, nella taratura è in-sample).", "",
+    ]
+    summary: dict[str, Any] = {}
+    for set_name, seasons in EVALUATION_SETS.items():
+        mask = data["season"].isin(seasons).to_numpy()
+        metrics = exact_score_metrics(anchored[mask], home[mask], away[mask], reference)
+        model_metrics = exact_score_metrics(model_only[mask], home[mask], away[mask], reference)
+        summary[set_name] = metrics
+        top = metrics["risultato_piu_probabile"]
+        lines += [
+            f"### {set_name} ({metrics['partite']} partite)", "",
+            "| Misura | Valore |", "|---|---|",
+            f"| Log-loss risultato esatto: ancorato / solo modello / frequenze storiche | {metrics['log_loss']:.4f} / "
+            f"{model_metrics['log_loss']:.4f} / {metrics['log_loss_frequenze']:.4f} |",
+            f"| Risultato più probabile: probabilità media prevista / frequenza reale | {top['prevista']:.1%} / {top['reale']:.1%} |",
+            "", "Gruppo minimo (i risultati più probabili fino alla copertura scelta):", "",
+            "| Copertura scelta | Copertura prevista media | Frequenza reale | Risultati medi nel gruppo |", "|---|---|---|---|",
+        ]
+        lines += [f"| {row['copertura_nominale']:.0%} | {row['copertura_prevista_media']:.1%} | {row['frequenza_reale']:.1%} | "
+                  f"{row['risultati_medi']:.1f} |" for row in metrics["copertura"]]
+        lines += ["", "Calibrazione dei singoli risultati (tutte le celle della matrice):", "",
+                  "| Probabilità prevista | Celle | Prevista media | Frequenza reale |", "|---|---|---|---|"]
+        lines += [f"| {row['fascia']} | {row['celle']} | {row['prevista']:.2%} | {row['reale']:.2%} |" for row in metrics["celle"]]
+        lines.append("")
+    return "\n".join(lines), summary
+
+
+def save_exact_score_summary(summary: dict[str, Any]) -> None:
+    """Sintesi per l'app nella sezione ``risultati_esatti`` della configurazione (solo questa sezione)."""
+    from tools.calibrate import _update_config
+
+    holdout = summary["fuori campione 2026-27"]
+    _update_config({"risultati_esatti": {
+        "data": date.today().isoformat(),
+        "partite_fuori_campione": holdout["partite"],
+        "risultato_piu_probabile": holdout["risultato_piu_probabile"],
+        "copertura_gruppo_minimo": {
+            "fuori_campione": [{key: round(value, 4) for key, value in row.items()} for row in holdout["copertura"]],
+            "taratura": [{key: round(value, 4) for key, value in row.items()} for row in summary["taratura 2024-25/2025-26"]["copertura"]],
+        },
+        "log_loss_fuori_campione": {"ancorato": round(holdout["log_loss"], 4), "frequenze_storiche": round(holdout["log_loss_frequenze"], 4)},
+    }})
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--label", help="Titolo della sezione, es. PRIMA o DOPO")
@@ -727,12 +835,16 @@ def main() -> None:
     parser.add_argument("--tara-ancoraggio", action="store_true", help="Tara peso del mercato e metodo di margine")
     parser.add_argument("--corner-cartellini", action="store_true", help="Corner e gialli prima/dopo la taratura")
     parser.add_argument("--cartellini-punti", action="store_true", help="Punti cartellini (gialli e rossi) prima/dopo")
+    parser.add_argument("--risultati-esatti", action="store_true", help="Calibrazione storica dei risultati esatti")
     parser.add_argument("--mercati-secondari", action="store_true", help="Multigol, somma gol e primo tempo prima/dopo")
     parser.add_argument("--analisi-pareggio", action="store_true", help="Confronta Shin e proporzionale per 1, X e 2")
     parser.add_argument("--output", type=Path, help="File markdown a cui aggiungere la sezione")
     args = parser.parse_args()
     if args.corner_cartellini:
         markdown = count_analysis(load_usable_features(), engine.CountModelParams(), engine.DEFAULT_COUNT_MODEL)
+    elif args.risultati_esatti:
+        markdown, summary = exact_score_analysis(load_usable_features())
+        save_exact_score_summary(summary)
     elif args.cartellini_punti:
         tuning = json.loads(engine.GOAL_MODEL_PATH.read_text(encoding="utf-8"))["corner_cartellini"]["taratura_punti"]
         before = replace(engine.DEFAULT_COUNT_MODEL, card_red_ratio=0.0, card_dispersion=tuning["dispersione_gialli"]["prima"])

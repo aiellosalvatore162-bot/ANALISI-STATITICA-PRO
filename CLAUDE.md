@@ -82,6 +82,11 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   `python -m tools.calibrate --cartellini-punti` e si misurano con
   `python -m tools.baseline --cartellini-punti`. Nei dati inglesi/scozzesi la
   doppia ammonizione vale 2 invece di 3 (`SECOND_YELLOW_EXCLUDED_LEAGUES`).
+- Risultati esatti: `result["exact_scores"]` (finale, modello, mercato) dallo
+  stesso campione; logica dei gruppi in `exact_scores.py` (coerenza e
+  correlazione esatte per i mercati che dipendono dal solo punteggio finale),
+  interfaccia in `ui_exact.py`. Verifica storica con
+  `python -m tools.baseline --risultati-esatti` (sezione `risultati_esatti`).
 - Profili di stile in `datasources/style.py` (z-score per campionato, cache
   SQLite); archetipi in `config/style_archetypes.json`, rigenerati con
   `python -m tools.style`.
@@ -94,9 +99,10 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   l'ancoraggio al mercato (`MatchConfig.claude`).
 - Registro delle previsioni unico in `prediction_log.py`: colonne A–S del file
   dell'utente `tests/fixtures/Registro_Previsioni.xlsx` (nomi e ordine esatti),
-  probabilità in decimali, nomi mercato fissi (`MARKETS`, i 19 del foglio
+  probabilità in decimali, nomi mercato fissi (`MARKETS`, i 20 del foglio
   Riepilogo; DNB con probabilità condizionata al non rimborso; cartellini in
-  punti con la regola del bookmaker), `ID` = data|partita|mercato|selezione come chiave (niente
+  punti con la regola del bookmaker; «Risultati esatti» con Selezione =
+  gruppo «1-0/2-0/2-1»), `ID` = data|partita|mercato|selezione come chiave (niente
   doppioni). Misure della pagina Prestazioni in `performance.py` (legge solo
   A–S, ricalcola le colonne grigie), interfaccia in `ui_performance.py`. Gli
   esiti si ricavano con le definizioni degli eventi del motore
@@ -112,7 +118,7 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   profili di stile (E), avversari simili (F, attiva solo la correzione
   cartellini), Claude via copia e incolla (G), registro Excel e pagina
   Prestazioni (H), allineamento ai 19 mercati del Riepilogo (H2), punti
-  cartellini con la regola Eurobet (H3).
+  cartellini con la regola Eurobet (H3), risultati esatti e gruppi (I).
 - Test: `python -m pytest -q` (solo fixture salvate, nessuna rete); 2 `xfail`
   noti (PSG-Barcellona, Napoli-Bodø, input stimati).
 

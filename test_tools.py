@@ -143,3 +143,18 @@ def test_card_points_distribution_matches_the_engine_rule():
     assert points_sf(4.5, np.array([4.0]), 0.0, np.array([0.2]), rule)[0] == pytest.approx(pmf[0, 5:].sum())
     data = pd.DataFrame({"home_yellows": [2, 3], "away_yellows": [1, 0], "home_reds": [0, 1], "away_reds": [1, 0]})
     assert list(observed_points(data, rule)) == [5, 5]
+
+
+def test_exact_score_metrics_on_a_known_matrix():
+    size = baseline.EXACT_MAX_GOALS + 1
+    matrix = np.zeros((size, size))
+    matrix[1, 0], matrix[1, 1], matrix[0, 0], matrix[2, 1] = 0.4, 0.3, 0.2, 0.1
+    matrices = np.stack([matrix, matrix])
+    metrics = baseline.exact_score_metrics(matrices, np.array([1, 2]), np.array([0, 1]), matrix)
+    assert metrics["log_loss"] == pytest.approx(-(np.log(0.4) + np.log(0.1)) / 2)
+    assert metrics["risultato_piu_probabile"] == {"prevista": pytest.approx(0.4), "reale": 0.5}
+    coverage = {row["copertura_nominale"]: row for row in metrics["copertura"]}
+    # 40%: solo 1-0 (vinto nella prima partita); 70%: 1-0 e 1-1; 90%: anche 0-0, il 2-1 resta fuori.
+    assert coverage[0.4]["risultati_medi"] == 1 and coverage[0.4]["frequenza_reale"] == 0.5
+    assert coverage[0.7]["risultati_medi"] == 2 and coverage[0.9]["risultati_medi"] == 3
+    assert coverage[0.9]["frequenza_reale"] == 0.5

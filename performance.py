@@ -337,6 +337,13 @@ def settle(selection: str, result: pd.Series | dict, card_rule=None) -> int | No
     """
     from engine import DEFAULT_CARD_RULE, _event_catalog, _team_multigol_ranges, card_points
 
+    from exact_scores import is_group, settle_group
+
+    if is_group(selection):
+        home, away = result.get("home_goals"), result.get("away_goals")
+        if home is None or away is None or pd.isna(home) or pd.isna(away):
+            return None
+        return settle_group(selection, home, away)
     legs = selection.split(" + ")
     needed = {column for leg in legs for column in _needs(leg)}
     values = {}

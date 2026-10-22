@@ -53,7 +53,7 @@ def test_columns_and_markets_match_the_user_template():
     assert tuple(header[:19]) == COLUMNS
     summary = workbook["Riepilogo"]
     assert tuple(summary.cell(row=row, column=1).value for row in range(9, 9 + len(MARKETS))) == MARKETS
-    assert len(MARKETS) == 19 and summary.cell(row=9 + len(MARKETS), column=1).value is None
+    assert len(MARKETS) == 20 and MARKETS[-1] == "Risultati esatti" and summary.cell(row=9 + len(MARKETS), column=1).value is None
 
 
 @pytest.mark.parametrize("selection, market", [
@@ -65,7 +65,7 @@ def test_columns_and_markets_match_the_user_template():
     ("Over 9.5 corner", "Corner"), ("1 corner", "Corner"), ("Over 4.5 cartellini", "Cartellini"), ("1 + Over 1.5 gol", "Combo"),
     # Linee senza nome nella tabella del Riepilogo: non registrabili.
     ("Over 4.5 gol", None), ("Under 0.5 gol", None), ("1X 1T", None), ("Goal 1T", None), ("Under 0.5 gol 1T", None),
-    ("Casa DNB push", None),
+    ("Casa DNB push", None), ("1-0/2-0/2-1", "Risultati esatti"), ("0-0", "Risultati esatti"), ("1-0/", None),
 ])
 def test_market_names_are_fixed(selection, market):
     assert market_of(selection) == market
@@ -152,7 +152,7 @@ def test_empty_template_is_read_without_rows():
 def test_sample_file_with_duplicates_blank_rows_and_empty_columns():
     registry = read_registry(SAMPLE.read_bytes())
     frame = registry.frame
-    assert registry.duplicates == 1 and len(frame) == 15  # 17 righe scritte, 1 vuota, 1 doppione
+    assert registry.duplicates == 1 and len(frame) == 16  # 18 righe scritte, 1 vuota, 1 doppione
     assert frame["ID"].is_unique
     assert "2026-08-23|Venezia - Lecce|1X2|2" in set(frame["ID"])  # ID ricostruito
     torino = frame[frame["Partita"] == "Torino - Milan"].iloc[0]
@@ -236,7 +236,8 @@ def test_fill_from_results_completes_only_missing_values():
     assert cell("Atalanta - Sassuolo", "Goal", "Quota_chiusura") == 1.70
     assert cell("Atalanta - Sassuolo", "Goal", "Note") == "esito inserito a mano"
     assert report.not_found == ["Real Madrid - Barcellona"]
-    assert report.outcomes == 12 and report.closings == 3 and report.pushes == 1
+    assert cell("Inter - Monza", "3-1/4-1", "Esito") == 1  # finita 4-1
+    assert report.outcomes == 13 and report.closings == 3 and report.pushes == 1
     again = fill_from_results(report.frame, _results())
     assert again.pushes == 0 and again.outcomes == 0 and again.changes == []
 
@@ -340,3 +341,18 @@ def test_measures_on_the_sample_file_after_filling():
     summary, _ = bankroll(frame)
     assert set(summary["Tipo"]) == {"Reale", "A carta"}
     assert not component_comparison(frame).empty and not calibration_table(frame).empty
+
+
+def test_exact_score_group_rows_use_the_score_distribution(simulations):
+    config, base, _, claude = simulations
+    rows = prediction_rows(base, ["2-1/1-0/2-0"], INFO, claude=claude, odds={"2-1/1-0/2-0": 3.2})
+    row = rows[0]
+    assert row["Mercato"] == "Risultati esatti" and row["Selezione"] == "2-1/1-0/2-0"
+    expected = sum(claude["exact_scores"]["finale"].get(score, 0) for score in ("1-0", "2-0", "2-1")) / 100
+    assert row["Prob_finale"] == pytest.approx(expected, abs=1e-4)
+    model = sum(base["exact_scores"]["modello"].get(score, 0) for score in ("1-0", "2-0", "2-1")) / 100
+    assert row["Prob_modello"] == pytest.approx(model, abs=1e-4) and row["Prob_mercato"] is not None
+    assert row["Quota_presa"] == 3.2
+    assert settle("1-0/2-0/2-1", {"home_goals": 2, "away_goals": 0}) == 1
+    assert settle("1-0/2-0/2-1", {"home_goals": 0, "away_goals": 0}) == 0
+    assert settle("1-0/2-0", {"home_goals": np.nan, "away_goals": 0}) is None

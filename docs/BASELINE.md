@@ -404,3 +404,70 @@ Generato il 22/10/2026 con `python -m tools.baseline --cartellini-punti`. Regola
 | Over 5.5 punti: log-loss / Brier / ECE | 0.5985 / 0.4073 / 0.0905 | 0.5777 / 0.3914 / 0.0265 |
 | Over 6.5 punti: log-loss / Brier / ECE | 0.4383 / 0.2659 / 0.0610 | 0.4226 / 0.2580 / 0.0358 |
 
+## Risultati esatti (calibrazione storica)
+
+Generato il 22/10/2026 con `python -m tools.baseline --risultati-esatti`. Matrici Dixon-Coles con i gol attesi finali (modello ancorato alle quote medie di chiusura 1X2 e O/U 2.5) e, per confronto, del solo modello. Riferimento ingenuo: frequenze dei risultati nelle stagioni di taratura (nel fuori campione è un riferimento onesto, nella taratura è in-sample).
+
+### taratura 2024-25/2025-26 (2852 partite)
+
+| Misura | Valore |
+|---|---|
+| Log-loss risultato esatto: ancorato / solo modello / frequenze storiche | 2.8540 / 2.8878 / 3.0013 |
+| Risultato più probabile: probabilità media prevista / frequenza reale | 12.9% / 13.3% |
+
+Gruppo minimo (i risultati più probabili fino alla copertura scelta):
+
+| Copertura scelta | Copertura prevista media | Frequenza reale | Risultati medi nel gruppo |
+|---|---|---|---|
+| 40% | 44.0% | 46.0% | 4.4 |
+| 50% | 53.5% | 56.2% | 5.7 |
+| 60% | 63.1% | 65.6% | 7.3 |
+| 70% | 72.4% | 74.1% | 9.1 |
+| 80% | 81.6% | 83.7% | 11.7 |
+| 90% | 90.8% | 92.5% | 15.9 |
+
+Calibrazione dei singoli risultati (tutte le celle della matrice):
+
+| Probabilità prevista | Celle | Prevista media | Frequenza reale |
+|---|---|---|---|
+| 0%–2% | 304938 | 0.11% | 0.10% |
+| 2%–4% | 12853 | 2.90% | 2.85% |
+| 4%–6% | 8969 | 4.97% | 4.95% |
+| 6%–8% | 6902 | 6.96% | 6.97% |
+| 8%–10% | 6136 | 9.02% | 9.44% |
+| 10%–12% | 2602 | 10.92% | 11.15% |
+| 12%–15% | 2484 | 13.36% | 14.37% |
+| 15%–20% | 207 | 15.66% | 14.01% |
+| 20%–100% | 1 | 20.29% | 0.00% |
+
+### fuori campione 2026-27 (254 partite)
+
+| Misura | Valore |
+|---|---|
+| Log-loss risultato esatto: ancorato / solo modello / frequenze storiche | 3.0154 / 3.0553 / 3.2734 |
+| Risultato più probabile: probabilità media prevista / frequenza reale | 12.2% / 12.2% |
+
+Gruppo minimo (i risultati più probabili fino alla copertura scelta):
+
+| Copertura scelta | Copertura prevista media | Frequenza reale | Risultati medi nel gruppo |
+|---|---|---|---|
+| 40% | 43.7% | 42.1% | 4.7 |
+| 50% | 53.3% | 51.2% | 6.1 |
+| 60% | 62.8% | 59.4% | 7.8 |
+| 70% | 72.2% | 68.5% | 9.8 |
+| 80% | 81.5% | 80.7% | 12.5 |
+| 90% | 90.7% | 89.4% | 17.1 |
+
+Calibrazione dei singoli risultati (tutte le celle della matrice):
+
+| Probabilità prevista | Celle | Prevista media | Frequenza reale |
+|---|---|---|---|
+| 0%–2% | 27014 | 0.12% | 0.14% |
+| 2%–4% | 1243 | 2.92% | 3.30% |
+| 4%–6% | 897 | 4.96% | 4.24% |
+| 6%–8% | 678 | 6.93% | 7.08% |
+| 8%–10% | 528 | 9.00% | 7.95% |
+| 10%–12% | 203 | 10.89% | 7.88% |
+| 12%–15% | 163 | 13.30% | 16.56% |
+| 15%–20% | 8 | 15.89% | 37.50% |
+
