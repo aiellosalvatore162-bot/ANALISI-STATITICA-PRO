@@ -374,3 +374,33 @@ Generato il 21/10/2026 con `python -m tools.baseline --corner-cartellini`. Medie
 | Gialli totali Over 4.5 | log-loss / Brier / ECE | 0.7352 / 0.4941 / 0.1606 | 0.6351 / 0.4440 / 0.0103 |
 | Gialli totali Over 5.5 | log-loss / Brier / ECE | 0.6117 / 0.3637 / 0.1457 | 0.5158 / 0.3361 / 0.0275 |
 
+## Punti cartellini (regola del bookmaker, prima/dopo)
+
+Generato il 22/10/2026 con `python -m tools.baseline --cartellini-punti`. Regola: giallo 1, rosso 2, doppia ammonizione giallo e rosso. Prima = modello dei soli gialli usato come previsione dei punti; dopo = gialli più rossi (0.0455 rossi per giallo atteso), dispersione gialli 0 → 12.3537. Punti reali da gialli e rossi di football-data.co.uk: esatti nelle leghe europee; in Premier League la doppia ammonizione vale 2 invece di 3 (il primo giallo non è nei dati).
+
+### taratura 2024-25/2025-26 (2851 partite, di cui 2101 con conteggio esatto)
+
+| Misura | Prima | Dopo |
+|---|---|---|
+| Punti medi reali / previsti | 4.353 / 3.990 | 4.353 / 4.353 |
+| Errore medio assoluto | 1.893 | 1.912 |
+| Log-verosimiglianza negativa | 2.3082 | 2.2634 |
+| Log-verosimiglianza negativa (solo leghe esatte) | 2.3437 | 2.2868 |
+| Over 3.5 punti: log-loss / Brier / ECE | 0.6693 / 0.4766 / 0.0210 | 0.6665 / 0.4739 / 0.0086 |
+| Over 4.5 punti: log-loss / Brier / ECE | 0.6799 / 0.4865 / 0.0469 | 0.6745 / 0.4816 / 0.0135 |
+| Over 5.5 punti: log-loss / Brier / ECE | 0.5880 / 0.3977 / 0.0587 | 0.5792 / 0.3913 / 0.0183 |
+| Over 6.5 punti: log-loss / Brier / ECE | 0.4756 / 0.2940 / 0.0641 | 0.4579 / 0.2856 / 0.0079 |
+
+### fuori campione 2026-27 (254 partite, di cui 193 con conteggio esatto)
+
+| Misura | Prima | Dopo |
+|---|---|---|
+| Punti medi reali / previsti | 4.169 / 3.848 | 4.169 / 4.198 |
+| Errore medio assoluto | 1.810 | 1.792 |
+| Log-verosimiglianza negativa | 2.2203 | 2.1994 |
+| Log-verosimiglianza negativa (solo leghe esatte) | 2.2102 | 2.1946 |
+| Over 3.5 punti: log-loss / Brier / ECE | 0.6720 / 0.4792 / 0.0197 | 0.6689 / 0.4761 / 0.0501 |
+| Over 4.5 punti: log-loss / Brier / ECE | 0.6577 / 0.4659 / 0.0536 | 0.6521 / 0.4600 / 0.0520 |
+| Over 5.5 punti: log-loss / Brier / ECE | 0.5985 / 0.4073 / 0.0905 | 0.5777 / 0.3914 / 0.0265 |
+| Over 6.5 punti: log-loss / Brier / ECE | 0.4383 / 0.2659 / 0.0610 | 0.4226 / 0.2580 / 0.0358 |
+

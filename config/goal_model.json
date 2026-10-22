@@ -242,7 +242,8 @@
       "card_team_weight": 0.304781,
       "card_referee_yellow_weight": 0.24755,
       "card_referee_fouls_weight": 0.047841,
-      "card_dispersion": 0.0
+      "card_dispersion": 12.353724,
+      "card_red_ratio": 0.045451
     },
     "taratura": {
       "data": "2026-10-21",
@@ -287,6 +288,35 @@
         }
       },
       "regola": "attivo solo se migliora la log-verosimiglianza fuori campione rispetto alle formule originali"
+    },
+    "taratura_punti": {
+      "data": "2026-10-22",
+      "regola": "giallo 1, rosso 2, doppia ammonizione giallo e rosso",
+      "dati": "gialli (HY, AY) e rossi (HR, AR) reali di football-data.co.uk; punti = peso giallo·gialli + peso rosso·rossi. Esatti nelle leghe europee (doppia ammonizione = giallo + rosso); in Premier League il primo giallo della doppia ammonizione non è nei dati (approssimazione: vale 2 invece di 3).",
+      "rossi_per_giallo": 0.045451,
+      "dispersione_gialli": {
+        "prima": 0.0,
+        "rifatta_sui_punti": 12.353724,
+        "miglioramento_fuori_campione": 0.0014,
+        "attiva": true
+      },
+      "partite_taratura": 2851,
+      "partite_fuori_campione": 254,
+      "metriche": {
+        "taratura": {
+          "punti_nll": {
+            "prima": 2.30821,
+            "dopo": 2.26343
+          }
+        },
+        "fuori_campione": {
+          "punti_nll": {
+            "prima": 2.2203,
+            "dopo": 2.19945
+          }
+        }
+      },
+      "attiva": true
     }
   },
   "scenario_tattico": {
@@ -381,5 +411,17 @@
       },
       "documento": "docs/STILI.md"
     }
+  },
+  "regola_cartellini": {
+    "peso_giallo": 1,
+    "peso_rosso": 2,
+    "doppia_ammonizione": "giallo_e_rosso",
+    "quota_rossi_doppia_ammonizione": null,
+    "fonte": "regola Eurobet confermata dall'utente il 22/10/2026: giallo 1, rosso 2, doppia ammonizione = primo giallo 1 + rosso 2 (secondo giallo non contato)",
+    "opzioni_doppia_ammonizione": [
+      "giallo_e_rosso",
+      "solo_rosso",
+      "due_gialli_e_rosso"
+    ]
   }
 }
