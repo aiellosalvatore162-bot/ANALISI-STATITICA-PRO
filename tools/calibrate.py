@@ -377,8 +377,11 @@ def calibrate_counts() -> dict:
     }
     improves = (metrics["fuori_campione"]["corner_nll"]["dopo"] + metrics["fuori_campione"]["cartellini_nll"]["dopo"]
                 < metrics["fuori_campione"]["corner_nll"]["prima"] + metrics["fuori_campione"]["cartellini_nll"]["prima"])
+    previous = json.loads(engine.GOAL_MODEL_PATH.read_text(encoding="utf-8")).get("corner_cartellini", {}) \
+        if engine.GOAL_MODEL_PATH.exists() else {}
     section = {
-        "parametri": asdict(replace(calibrated, active=bool(improves))),
+        # La quota dei rossi è della taratura --cartellini-punti: resta quella salvata.
+        "parametri": asdict(replace(calibrated, active=bool(improves), card_red_ratio=engine.DEFAULT_COUNT_MODEL.card_red_ratio)),
         "taratura": {
             "data": date.today().isoformat(),
             "dati": "corner e gialli reali football-data.co.uk; input = medie mobili delle 10 gare precedenti; "
@@ -391,15 +394,118 @@ def calibrate_counts() -> dict:
             "regola": "attivo solo se migliora la log-verosimiglianza fuori campione rispetto alle formule originali",
         },
     }
+    if "taratura_punti" in previous:
+        section["taratura_punti"] = previous["taratura_punti"]
     _update_config({"corner_cartellini": section})
     return section
+
+
+# --- Punti cartellini (regola del bookmaker) ----------------------------------------------
+
+POINT_LINES = (3.5, 4.5, 5.5, 6.5)
+SECOND_YELLOW_EXCLUDED = engine.SECOND_YELLOW_EXCLUDED_LEAGUES
+
+
+def points_data(features: pd.DataFrame) -> pd.DataFrame:
+    return count_data(features).dropna(subset=["home_reds", "away_reds"])
+
+
+def observed_points(data: pd.DataFrame, rule: engine.CardRule) -> np.ndarray:
+    """Punti reali: esatti nelle leghe europee; in Inghilterra/Scozia una doppia ammonizione vale un giallo in meno."""
+    yellows = (data["home_yellows"] + data["away_yellows"]).to_numpy(int)
+    reds = (data["home_reds"] + data["away_reds"]).to_numpy(int)
+    return np.asarray(engine.card_points(yellows, reds, rule), dtype=int)
+
+
+def points_pmf(yellow_mean: np.ndarray, dispersion: float, red_mean: np.ndarray, rule: engine.CardRule,
+               max_points: int = 60, max_reds: int = 8) -> np.ndarray:
+    """Distribuzione dei punti come nel motore: gialli Poisson/binomiale negativa + rossi Poisson, pesati."""
+    yellow_mean = np.asarray(yellow_mean, float)
+    counts = np.arange(max_points + 1)
+    yellow = np.exp(count_logpmf(counts[None, :], yellow_mean[:, None], dispersion))
+    reds = poisson.pmf(np.arange(max_reds + 1)[None, :], np.asarray(red_mean, float)[:, None])
+    pmf = np.zeros((len(yellow_mean), max_points + 1))
+    for red_count in range(max_reds + 1):
+        for yellow_count in range(max_points + 1):
+            points = rule.yellow_weight * yellow_count + rule.red_weight * red_count
+            if points <= max_points:
+                pmf[:, points] += reds[:, red_count] * yellow[:, yellow_count]
+    return pmf
+
+
+def points_nll(yellow_mean, dispersion, red_mean, rule, observed) -> float:
+    pmf = points_pmf(yellow_mean, dispersion, red_mean, rule)
+    return float(-np.mean(np.log(np.maximum(pmf[np.arange(len(observed)), np.minimum(observed, pmf.shape[1] - 1)], 1e-300))))
+
+
+def points_sf(threshold: float, yellow_mean, dispersion, red_mean, rule) -> np.ndarray:
+    pmf = points_pmf(yellow_mean, dispersion, red_mean, rule)
+    return pmf[:, int(np.floor(threshold)) + 1:].sum(axis=1)
+
+
+def calibrate_card_points(rule: engine.CardRule | None = None) -> dict:
+    """Quota dei rossi per giallo atteso e dispersione sui punti; i pesi del modello gialli restano invariati."""
+    rule = rule or engine.DEFAULT_CARD_RULE
+    if rule.double_yellow != "giallo_e_rosso":
+        raise SystemExit("La taratura sui dati supporta solo la doppia ammonizione «giallo_e_rosso»: football-data non "
+                         "distingue i rossi da doppio giallo dai rossi diretti.")
+    data = points_data(baseline.load_usable_features())
+    train = data[data["season"].isin(dataset.CALIBRATION_SEASONS)]
+    holdout = data[data["season"].isin(dataset.HOLDOUT_SEASONS)]
+    params = engine.DEFAULT_COUNT_MODEL
+    shape = params.card_dispersion if params.active else 0.0
+
+    def yellow_mean(subset):
+        return count_means(params, subset)["cards"]
+
+    reds = (train["home_reds"] + train["away_reds"]).to_numpy(float)
+    ratio = float(reds.sum() / yellow_mean(train).sum())  # stima di massima verosimiglianza Poisson
+
+    def nll(subset, red_ratio, dispersion):
+        mean = yellow_mean(subset)
+        return points_nll(mean, dispersion, red_ratio * mean, rule, observed_points(subset, rule))
+
+    fitted = minimize(lambda x: nll(train, ratio, float(np.exp(x[0]))), [math.log(10.0)], method="L-BFGS-B",
+                      bounds=[(math.log(0.5), math.log(1000.0))])
+    refit = round(float(np.exp(fitted.x[0])), 6)
+    gain = nll(holdout, ratio, shape) - nll(holdout, ratio, refit)
+    dispersion = refit if gain >= MIN_IMPROVEMENT else shape
+    metrics = {
+        name: {"punti_nll": {"prima": round(nll(subset, 0.0, shape), 5), "dopo": round(nll(subset, ratio, dispersion), 5)}}
+        for name, subset in (("taratura", train), ("fuori_campione", holdout))
+    }
+    improves = metrics["fuori_campione"]["punti_nll"]["dopo"] < metrics["fuori_campione"]["punti_nll"]["prima"]
+    config = json.loads(engine.GOAL_MODEL_PATH.read_text(encoding="utf-8"))
+    section = config["corner_cartellini"]
+    section["parametri"]["card_red_ratio"] = round(ratio, 6) if improves else 0.0
+    section["parametri"]["card_dispersion"] = dispersion if improves else shape
+    section["taratura_punti"] = {
+        "data": date.today().isoformat(),
+        "regola": rule.describe(),
+        "dati": "gialli (HY, AY) e rossi (HR, AR) reali di football-data.co.uk; punti = peso giallo·gialli + peso rosso·rossi. "
+                "Esatti nelle leghe europee (doppia ammonizione = giallo + rosso); in Premier League il primo giallo "
+                "della doppia ammonizione non è nei dati (approssimazione: vale 2 invece di 3).",
+        "rossi_per_giallo": round(ratio, 6),
+        "dispersione_gialli": {"prima": shape, "rifatta_sui_punti": refit, "miglioramento_fuori_campione": round(gain, 5),
+                               "attiva": dispersion != shape},
+        "partite_taratura": int(len(train)), "partite_fuori_campione": int(len(holdout)),
+        "metriche": metrics,
+        "attiva": bool(improves),
+    }
+    _update_config({"corner_cartellini": section})
+    return section["taratura_punti"]
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--primo-tempo", action="store_true", help="Tara solo la quota di gol del primo tempo")
     parser.add_argument("--corner-cartellini", action="store_true", help="Tara i modelli di corner e cartellini")
+    parser.add_argument("--cartellini-punti", action="store_true",
+                        help="Tara rossi e dispersione sui punti cartellini (regola_cartellini della configurazione)")
     args = parser.parse_args()
+    if args.cartellini_punti:
+        print(json.dumps(calibrate_card_points(), indent=2, ensure_ascii=False))
+        return
     if args.corner_cartellini:
         print(json.dumps(calibrate_counts(), indent=2, ensure_ascii=False))
         return

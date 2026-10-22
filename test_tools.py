@@ -126,3 +126,20 @@ def test_half_time_fit_recovers_known_shares():
     params = calibrate.fit_half_time(data, with_slope=False)
     assert params.home_share == pytest.approx(0.44, abs=0.02)
     assert params.away_share == pytest.approx(0.41, abs=0.02)
+
+
+def test_card_points_distribution_matches_the_engine_rule():
+    from scipy.stats import poisson as poisson_dist
+
+    from tools.calibrate import observed_points, points_pmf, points_sf
+
+    rule = engine.CardRule()
+    pmf = points_pmf(np.array([4.0, 2.5]), 0.0, np.array([0.2, 0.0]), rule)
+    assert pmf.sum(axis=1) == pytest.approx([1.0, 1.0], abs=1e-9)
+    # Senza rossi i punti sono i gialli.
+    assert pmf[1, :10] == pytest.approx(poisson_dist.pmf(np.arange(10), 2.5))
+    # Un rosso vale 2: P(punti = 1) = P(0 rossi)·P(1 giallo).
+    assert pmf[0, 1] == pytest.approx(poisson_dist.pmf(0, 0.2) * poisson_dist.pmf(1, 4.0))
+    assert points_sf(4.5, np.array([4.0]), 0.0, np.array([0.2]), rule)[0] == pytest.approx(pmf[0, 5:].sum())
+    data = pd.DataFrame({"home_yellows": [2, 3], "away_yellows": [1, 0], "home_reds": [0, 1], "away_reds": [1, 0]})
+    assert list(observed_points(data, rule)) == [5, 5]

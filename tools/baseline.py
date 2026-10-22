@@ -670,6 +670,55 @@ def count_analysis(features: pd.DataFrame, before: "engine.CountModelParams", af
     return "\n".join(lines)
 
 
+def card_points_analysis(features: pd.DataFrame, before: "engine.CountModelParams", after: "engine.CountModelParams",
+                         rule: "engine.CardRule") -> str:
+    """Punti cartellini (regola del bookmaker) prima/dopo, sulle stesse partite di valutazione."""
+    from tools.calibrate import POINT_LINES, SECOND_YELLOW_EXCLUDED, count_means, observed_points, points_data, points_nll, points_sf
+
+    data = points_data(features)
+    data = data[data["season"].isin([season for seasons in EVALUATION_SETS.values() for season in seasons])]
+    variants = {"prima": before, "dopo": after}
+    lines = [
+        "## Punti cartellini (regola del bookmaker, prima/dopo)", "",
+        f"Generato il {date.today():%d/%m/%Y} con `python -m tools.baseline --cartellini-punti`. Regola: {rule.describe()}. "
+        "Prima = modello dei soli gialli usato come previsione dei punti; dopo = gialli più rossi "
+        f"({after.card_red_ratio:.4f} rossi per giallo atteso), dispersione gialli {before.card_dispersion:g} → "
+        f"{after.card_dispersion:g}. Punti reali da gialli e rossi di football-data.co.uk: esatti nelle leghe europee; "
+        "in Premier League la doppia ammonizione vale 2 invece di 3 (il primo giallo non è nei dati).", "",
+    ]
+    for set_name, seasons in EVALUATION_SETS.items():
+        subset = data[data["season"].isin(seasons)]
+        observed = observed_points(subset, rule)
+        exact = ~subset["league"].isin(SECOND_YELLOW_EXCLUDED).to_numpy()
+        lines += [f"### {set_name} ({len(subset)} partite, di cui {int(exact.sum())} con conteggio esatto)", "",
+                  "| Misura | Prima | Dopo |", "|---|---|---|"]
+        means, results = {}, {}
+        for name, params in variants.items():
+            yellow = count_means(params, subset)["cards"]
+            shape = params.card_dispersion if params.active else 0.0
+            red = yellow * params.card_red_ratio
+            means[name] = yellow * (rule.yellow_weight + rule.red_weight * params.card_red_ratio)
+            results[name] = (yellow, shape, red)
+        lines.append(f"| Punti medi reali / previsti | {observed.mean():.3f} / {means['prima'].mean():.3f} | "
+                     f"{observed.mean():.3f} / {means['dopo'].mean():.3f} |")
+        mae = {name: float(np.mean(np.abs(means[name] - observed))) for name in variants}
+        lines.append(f"| Errore medio assoluto | {mae['prima']:.3f} | {mae['dopo']:.3f} |")
+        nll = {name: points_nll(*results[name], rule, observed) for name in variants}
+        lines.append(f"| Log-verosimiglianza negativa | {nll['prima']:.4f} | {nll['dopo']:.4f} |")
+        nll_exact = {name: points_nll(results[name][0][exact], results[name][1], results[name][2][exact], rule, observed[exact])
+                     for name in variants}
+        lines.append(f"| Log-verosimiglianza negativa (solo leghe esatte) | {nll_exact['prima']:.4f} | {nll_exact['dopo']:.4f} |")
+        for threshold in POINT_LINES:
+            outcome = (observed > threshold).astype(int)
+            scores = {name: summarize(binary(points_sf(threshold, *results[name], rule)), outcome) for name in variants}
+            lines.append(
+                f"| Over {threshold:g} punti: log-loss / Brier / ECE | "
+                f"{scores['prima']['log_loss']:.4f} / {scores['prima']['brier']:.4f} / {scores['prima']['ece']:.4f} | "
+                f"{scores['dopo']['log_loss']:.4f} / {scores['dopo']['brier']:.4f} / {scores['dopo']['ece']:.4f} |")
+        lines.append("")
+    return "\n".join(lines)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--label", help="Titolo della sezione, es. PRIMA o DOPO")
@@ -677,12 +726,17 @@ def main() -> None:
     parser.add_argument("--ancorato", action="store_true", help="Passa le quote di chiusura al motore")
     parser.add_argument("--tara-ancoraggio", action="store_true", help="Tara peso del mercato e metodo di margine")
     parser.add_argument("--corner-cartellini", action="store_true", help="Corner e gialli prima/dopo la taratura")
+    parser.add_argument("--cartellini-punti", action="store_true", help="Punti cartellini (gialli e rossi) prima/dopo")
     parser.add_argument("--mercati-secondari", action="store_true", help="Multigol, somma gol e primo tempo prima/dopo")
     parser.add_argument("--analisi-pareggio", action="store_true", help="Confronta Shin e proporzionale per 1, X e 2")
     parser.add_argument("--output", type=Path, help="File markdown a cui aggiungere la sezione")
     args = parser.parse_args()
     if args.corner_cartellini:
         markdown = count_analysis(load_usable_features(), engine.CountModelParams(), engine.DEFAULT_COUNT_MODEL)
+    elif args.cartellini_punti:
+        tuning = json.loads(engine.GOAL_MODEL_PATH.read_text(encoding="utf-8"))["corner_cartellini"]["taratura_punti"]
+        before = replace(engine.DEFAULT_COUNT_MODEL, card_red_ratio=0.0, card_dispersion=tuning["dispersione_gialli"]["prima"])
+        markdown = card_points_analysis(load_usable_features(), before, engine.DEFAULT_COUNT_MODEL, engine.DEFAULT_CARD_RULE)
     elif args.mercati_secondari:
         markdown = secondary_analysis(load_usable_features(), engine.HalfTimeParams(), engine.DEFAULT_HALF_TIME)
     elif args.analisi_pareggio:
