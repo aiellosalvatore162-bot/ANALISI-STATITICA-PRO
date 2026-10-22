@@ -22,6 +22,7 @@ from parser import MatchInputError, MatchInput, parse_match_input
 from ui_data import (
     render_automatic, render_claude, render_create, render_registry, render_style, render_tactical, show_provenance,
 )
+from ui_exact import render_exact_scores
 from ui_performance import render_performance
 
 
@@ -1183,6 +1184,8 @@ if result:
         else:
             st.info("Nessuna quota valida inserita.")
     st.caption(result["financial"]["risk_note"])
+
+    render_exact_scores(result)
 
     if st.session_state.get("result_config") is not None:
         claude_result, claude_note = render_claude(result, st.session_state["result_config"], text)

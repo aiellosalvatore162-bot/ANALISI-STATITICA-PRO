@@ -1,0 +1,99 @@
+"""Sezione Streamlit «Risultati esatti»: tabella, gruppo minimo, gruppo personale con quota, coerenza e correlazione."""
+
+from __future__ import annotations
+
+import streamlit as st
+
+from exact_scores import (
+    UNCERTAINTY_NOTE, coherence, coherence_summary, correlation, group_probability, group_selection, group_value,
+    minimum_group, score_table,
+)
+
+
+def _historical_note() -> str | None:
+    """Sintesi della verifica storica (``python -m tools.baseline --risultati-esatti``), se presente."""
+    import json
+    from datetime import date
+
+    from engine import GOAL_MODEL_PATH
+
+    try:
+        section = json.loads(GOAL_MODEL_PATH.read_text(encoding="utf-8")).get("risultati_esatti")
+    except (OSError, ValueError):
+        return None
+    if not section:
+        return None
+    rows = section.get("copertura_gruppo_minimo", {}).get("fuori_campione", [])
+    coverage = " · ".join(f"{row['copertura_nominale']:.0%} → {row['frequenza_reale']:.0%}" for row in rows)
+    return (f"Verifica storica ({section['partite_fuori_campione']} partite fuori campione, {date.fromisoformat(section['data']):%d/%m/%Y}): "
+            f"gruppo minimo, copertura prevista → realizzata: {coverage}. Risultato più probabile: previsto "
+            f"{section['risultato_piu_probabile']['prevista']:.1%}, realizzato {section['risultato_piu_probabile']['reale']:.1%}.")
+
+
+def render_exact_scores(result: dict) -> None:
+    st.subheader("Risultati esatti")
+    distribution = result["exact_scores"]["finale"]
+    st.warning(UNCERTAINTY_NOTE)
+    note = _historical_note()
+    if note:
+        st.caption(note)
+    table = score_table(distribution)
+    st.caption(f"{result['model']['simulation_count']:,} simulazioni · {len(table)} risultati diversi. "
+               "Quota equa = 1 / probabilità.".replace(",", "."))
+    st.dataframe(table.head(20), hide_index=True, width="stretch")
+    if len(table) > 20:
+        with st.expander(f"Tutti i {len(table)} risultati"):
+            st.dataframe(table, hide_index=True, width="stretch")
+
+    st.markdown("**Gruppo minimo**")
+    coverage = st.slider("Copertura desiderata %", 40, 90, 70, 5, key="exact_coverage")
+    chosen, probability = minimum_group(distribution, coverage / 100.0)
+    columns = st.columns(3)
+    columns[0].metric("Risultati necessari", len(chosen))
+    columns[1].metric("Probabilità del gruppo", f"{probability:.1%}")
+    columns[2].metric("Quota equa del gruppo", f"{1 / probability:.2f}" if probability else "—")
+    st.caption("Gruppo: " + group_selection(chosen).replace("/", ", "))
+
+    st.markdown("**Il mio gruppo**")
+    picked = st.multiselect("Risultati del gruppo", list(table["Risultato"]), key="exact_group_scores",
+                            help="Es. 1-0, 2-0, 2-1, 1-1: vince se il risultato finale è uno di questi.")
+    offered = st.number_input("Quota offerta (es. Eurobet) per questa combinazione", min_value=0.0, value=0.0, step=0.05,
+                              format="%.2f", key="exact_group_odds", help="0 = nessuna quota.")
+    if not picked:
+        st.session_state.pop("exact_group", None)
+        return
+    selection = group_selection(picked)
+    probability = group_probability(distribution, picked)
+    value = group_value(probability, offered or None)
+    columns = st.columns(3)
+    columns[0].metric("Probabilità del gruppo", f"{probability:.2%}")
+    columns[1].metric("Quota equa", f"{value['fair_odds']:.2f}" if value["fair_odds"] else "—")
+    columns[2].metric("Valore atteso (EV)", f"{value['ev']:+.1%}" if value["ev"] is not None else "—")
+    if value["ev"] is not None and value["ev"] < 0:
+        st.error(f"EV negativo: alla quota {offered:.2f} il gruppo vale meno di quanto rischi (quota equa {value['fair_odds']:.2f}).")
+    elif value["ev"] is not None:
+        st.success("EV positivo sul modello: ricorda l'incertezza alta dei risultati esatti prima di giocarlo.")
+    spread = [(label, result["exact_scores"].get(component)) for label, component in
+              (("solo modello", "modello"), ("solo mercato", "mercato"))]
+    shown = [f"{label} {group_probability(values, picked):.2%}" for label, values in spread if values]
+    if shown:
+        st.caption("Stessa probabilità con le singole componenti: " + " · ".join(shown) + ". Più sono lontane, più è incerta.")
+    st.session_state["exact_group"] = {"selection": selection, "odds": offered if offered > 1.0 else None}
+
+    st.markdown("**Coerenza con gli altri mercati**")
+    table = coherence(distribution, picked)
+    st.info(coherence_summary(table))
+    st.dataframe(table, hide_index=True, width="stretch")
+
+    st.markdown("**In schedina con altri mercati**")
+    finale = result["components"]["finale"]
+    legs = st.multiselect("Altri mercati che vuoi combinare con il gruppo", sorted(finale), key="exact_group_legs")
+    if legs:
+        joint = correlation(distribution, picked, legs, finale)
+        st.dataframe(joint, hide_index=True, width="stretch")
+        redundant = joint[joint["Giudizio"].str.startswith("ridondante")]["Mercato"].tolist()
+        if redundant:
+            st.warning("Correlazione: " + ", ".join(redundant) + " contiene già tutto il gruppo. In schedina la "
+                       "probabilità resta quella del solo gruppo: una quota combinata calcolata come prodotto la "
+                       "sopravvaluta, e molti bookmaker non accettano combinazioni correlate.")
+        st.caption("Probabilità congiunta sul campione simulato, non il prodotto delle probabilità (come nel Combo Builder).")

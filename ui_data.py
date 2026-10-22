@@ -478,6 +478,13 @@ def render_registry(result: dict, config, claude: dict | None = None, claude_not
     base = _base_result(result, config) if styled is not None else result
     available = [key for key in result["components"]["finale"] if market_of(key) is not None]
     played = [key for key in (config.odds or {}) if key in available]
+    odds = dict(config.odds or {})
+    group = st.session_state.get("exact_group")  # dalla sezione «Risultati esatti»
+    if group:
+        available.append(group["selection"])
+        played.append(group["selection"])
+        if group["odds"]:
+            odds[group["selection"]] = group["odds"]
     meta = st.session_state.get("match_meta") or {}
     now = datetime.now()
     columns = st.columns(4)
@@ -488,13 +495,14 @@ def render_registry(result: dict, config, claude: dict | None = None, claude_not
     kind = columns[3].radio("Tipo", TYPES, index=1, horizontal=True, key="registry_kind")
     selections = st.multiselect(
         "Selezioni da registrare", available, default=played or [key for key in DEFAULT_SELECTIONS if key in available],
-        format_func=lambda key: f"{market_of(key)} · {key}", key=f"registry_selections_{id(result)}",
+        format_func=lambda key: f"{market_of(key)} · {key}", key=f"registry_selections_{id(result)}_{(group or {}).get('selection', '')}",
         help="Solo i mercati della tabella del Riepilogo (1X2, Doppia chance, DNB, Over/Under 1.5-2.5-3.5, "
-             "Goal/NoGoal, Multigol totale/casa/ospite, 1X2 primo tempo, Over 0.5/1.5 1T, Corner, Cartellini, Combo).")
+             "Goal/NoGoal, Multigol totale/casa/ospite, 1X2 primo tempo, Over 0.5/1.5 1T, Corner, Cartellini, Combo, "
+             "Risultati esatti dal gruppo scelto nella sezione omonima).")
     if not selections:
         return
     info = SaveInfo(day, time.strip(), competition.strip(), kind, model_version(config, claude=claude is not None), claude_note)
-    rows = prediction_rows(base, selections, info, styled=styled, claude=claude, odds=config.odds)
+    rows = prediction_rows(base, selections, info, styled=styled, claude=claude, odds=odds)
     edited = st.data_editor(
         pd.DataFrame(rows), hide_index=True, width="stretch", key=f"registry_editor_{id(result)}",
         disabled=[column for column in rows[0] if column not in ("Quota_presa", "Puntata", "Tipo", "Note")],
