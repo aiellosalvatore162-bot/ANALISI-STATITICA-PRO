@@ -196,9 +196,17 @@ Puntata, Tipo, Versione_modello, Quota_chiusura, Esito, Note`.
   sole quote, `Prob_modello` il solo modello, `Prob_stile` la simulazione con lo
   scenario tattico attivo, `Prob_Claude` quella con le correzioni di Claude;
   `Prob_finale` è l'ultima disponibile.
-- `Mercato` usa sempre i nomi della tabella «per mercato» del Riepilogo: 1X2,
-  Over 1.5, Over 2.5, Under 2.5, Goal/NoGoal, Multigol, Primo tempo, Corner,
-  Cartellini, Combo. Le altre linee (es. Over 3.5, DNB) non sono registrabili.
+- `Mercato` usa sempre i 19 nomi della tabella «per mercato» del Riepilogo:
+  1X2, Doppia chance, DNB, Over 1.5, Under 1.5, Over 2.5, Under 2.5, Over 3.5,
+  Under 3.5, Goal/NoGoal, Multigol (totale), Multigol casa, Multigol ospite,
+  Primo tempo (1X2 del primo tempo), Over 0.5 1T, Over 1.5 1T, Corner,
+  Cartellini, Combo. Le linee senza nome (es. Over 4.5, Goal 1T) non sono
+  registrabili. Per il DNB la probabilità è condizionata al non rimborso; con il
+  pareggio la riga resta senza Esito (annotata «rimborsata») ed è esclusa dalle
+  misure.
+- Cartellini: il modello e gli esiti automatici contano i soli gialli; le righe
+  Cartellini lo ricordano in `Note`. Il regolamento Eurobet (rossi contati o no,
+  con quale peso) non è stato verificato: controllalo prima di giocare.
 - `ID` = data + partita + mercato + selezione: salvare di nuovo la stessa
   selezione aggiorna la riga. **Scarica registro Excel** dà le righe della
   sessione, pronte da incollare nel foglio Registro.
@@ -210,7 +218,7 @@ calibrazione per fasce, Brier e log-loss nel tempo, CLV medio per mercato, ROI e
 saldo separati per Reale e A carta, confronto delle componenti (mercato,
 modello, stile, Claude) sulle stesse selezioni. **Cerca esiti e quote di
 chiusura** compila solo le celle vuote da football-data.co.uk (esiti di tutti i
-mercati registrabili; quote medie di chiusura per 1X2 e Over/Under 2.5), annota
+mercati registrabili, primo tempo dal risultato al 45'; quote medie di chiusura per 1X2 e Over/Under 2.5), annota
 fonte e data in `Note` e permette di scaricare il file aggiornato con formule e
 fogli intatti. Coppe (Champions League) e campionati non coperti restano da
 compilare a mano.
