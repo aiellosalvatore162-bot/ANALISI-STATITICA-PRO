@@ -4,9 +4,9 @@ import hashlib
 from datetime import date
 
 import pandas as pd
-import altair as alt
 import streamlit as st
 
+import dashboard
 from engine import config_from_input, final_goal_rates, simulate_match
 from historical import (
     HistoricalDataError,
@@ -47,105 +47,8 @@ def _mark_input_touched() -> None:
     st.session_state["input_touched"] = True
 
 
-st.markdown(
-    """
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap');
-    :root {
-        --ink: #f0f5fa;
-        --muted: #9eb1c2;
-        --pitch: #3bd18b;
-        --pitch-soft: #123b3b;
-        --coral: #ff6e68;
-        --yellow: #f4c95d;
-        --paper: #071727;
-        --surface: #10263a;
-        --line: #294258;
-    }
-    html, body, [class*="css"] { font-family: 'Manrope', sans-serif; letter-spacing: 0; }
-    .stApp { background-color: var(--paper); color: var(--ink); background-image: repeating-linear-gradient(90deg, rgba(49,111,135,.045) 0, rgba(49,111,135,.045) 9%, transparent 9%, transparent 18%); }
-    [data-testid="stHeader"] { background: rgba(7, 23, 39, .94); }
-    [data-testid="stMain"] > div { background-image: linear-gradient(90deg, transparent calc(50% - 1px), rgba(147,185,204,.075) 50%, transparent calc(50% + 1px)); }
-    .block-container { max-width: 1600px; padding-top: 1.2rem; padding-bottom: 4rem; }
-    h1, h2, h3, [data-testid="stMetricValue"] { font-family: 'Space Grotesk', sans-serif !important; color: var(--ink); letter-spacing: 0 !important; }
-    h1 { font-size: 2.15rem !important; line-height: 1.1 !important; margin-bottom: .25rem !important; }
-    h2, h3 { line-height: 1.2 !important; }
-    p, label, [data-testid="stCaptionContainer"] { color: var(--muted); }
-    .brand-strip { display: flex; align-items: center; gap: .7rem; margin: 0 0 .85rem; color: var(--muted); font: 500 .72rem 'DM Mono', monospace; }
-    .brand-mark { color: var(--pitch); font: 700 .78rem 'Space Grotesk', sans-serif; }
-    .brand-divider { width: 1px; height: 14px; background: var(--line); }
-    .brand-status { margin-left: auto; padding: .28rem .5rem; color: var(--pitch); background: var(--pitch-soft); border: 1px solid rgba(59,209,139,.18); border-radius: 4px; }
-    .score-card {
-        background: linear-gradient(150deg, rgba(20,45,65,.98), rgba(12,32,49,.98));
-        border: 1px solid var(--line);
-        border-top: 2px solid var(--pitch);
-        border-radius: 6px;
-        padding: 15px 17px;
-        min-height: 142px;
-        margin-bottom: 12px;
-        animation: rise-in .35s ease-out both;
-        box-shadow: 0 12px 30px rgba(0,0,0,.13);
-    }
-    .score-card .eyebrow { color: var(--muted); font: 500 .7rem 'DM Mono', monospace; text-transform: uppercase; }
-    .score-card .market { color: var(--ink); font-size: 1rem; font-weight: 750; margin: 6px 0 9px; }
-    .score-card .prob { color: var(--pitch); font: 700 2rem/1 'Space Grotesk', sans-serif; }
-    .score-card .meta { color: var(--muted); font-size: .76rem; line-height: 1.6; margin-top: 10px; }
-    .score-card .confidence { color: var(--muted); font-size: .74rem; font-weight: 650; }
-    .score-card .badge { display: inline-block; border-radius: 4px; padding: 4px 8px; margin-top: 9px; font: 500 .68rem 'DM Mono', monospace; }
-    .score-card .positive { color: var(--pitch); background: rgba(59,209,139,.12); }
-    .score-card .negative { color: var(--coral); background: rgba(255,110,104,.12); }
-    .score-card .neutral { color: var(--yellow); background: rgba(244,201,93,.12); }
-    .score-card .suspicious { color: #1a1300; background: var(--yellow); font-weight: 700; }
-    .score-card.suspicious-card { border-color: var(--yellow); box-shadow: 0 0 0 1px var(--yellow), 0 12px 30px rgba(0,0,0,.13); }
-    .score-card .sources { color: var(--ink); font-size: .76rem; margin-top: 8px; }
-    .section-kicker { color: var(--pitch); font: 500 .74rem 'DM Mono', monospace; text-transform: uppercase; margin: 18px 0 8px; }
-    .input-card-title { color: var(--ink); font: 700 1.1rem 'Space Grotesk', sans-serif; margin-bottom: 2px; }
-    .input-card-subtitle { color: var(--muted); font-size: .82rem; margin-bottom: 12px; }
-    div[data-testid="stVerticalBlockBorderWrapper"] {
-        border-color: var(--line);
-        border-radius: 6px;
-        background: rgba(16,38,58,.93);
-    }
-    div[data-testid="stVerticalBlockBorderWrapper"] > div { padding: 0.8rem 1rem; }
-    div[data-testid="stRadio"] label, div[data-testid="stNumberInput"] label,
-    div[data-testid="stSlider"] label, div[data-testid="stTextInput"] label,
-    div[data-testid="stTextArea"] label { color: var(--ink); font-weight: 650; }
-    div[data-testid="stMetric"] { background: rgba(16,38,58,.96); border: 1px solid var(--line); border-bottom: 2px solid var(--yellow); border-radius: 5px; padding: .72rem .8rem; }
-    div[data-testid="stMetricLabel"] { color: var(--muted); }
-    div[data-testid="stMetricValue"] { color: var(--ink); }
-    .stButton > button[kind="primary"] { background: #167b68; border-color: #2a9c82; color: white; border-radius: 5px; font-weight: 750; transition: transform .15s ease, background .15s ease; }
-    .stButton > button[kind="primary"]:hover { background: #199378; border-color: #3bd18b; transform: translateY(-1px); }
-    .stButton > button:not([kind="primary"]) { color: var(--ink); background: #142f45; border-color: var(--line); border-radius: 5px; }
-    [data-baseweb="tab-list"] { gap: .3rem; border-bottom: 1px solid var(--line); }
-    [data-baseweb="tab"] { color: var(--muted); }
-    [aria-selected="true"][data-baseweb="tab"] { color: var(--pitch) !important; }
-    [data-testid="stDataFrame"] { border: 1px solid var(--line); border-radius: 5px; overflow: hidden; }
-    [data-testid="stExpander"] { border-color: var(--line); background: rgba(16,38,58,.74); }
-    [data-testid="stAlert"] { background: #102b40; color: var(--ink); border: 1px solid var(--line); }
-    [data-testid="stMarkdownContainer"] strong { color: var(--ink); }
-    [data-testid="stSelectbox"] label { color: var(--ink); }
-    [data-baseweb="input"], [data-baseweb="textarea"], [data-baseweb="select"] > div { background: #0b1e30; border-color: var(--line); color: var(--ink); }
-    [data-baseweb="input"] input, [data-baseweb="textarea"] textarea { color: var(--ink); -webkit-text-fill-color: var(--ink); }
-    [data-testid="stNumberInput"] button { background: #18344a; color: var(--ink); border-color: var(--line); }
-    [data-testid="stSlider"] [role="slider"] { background: var(--pitch); border-color: var(--pitch); }
-    .pitch-rule { height: 1px; background: linear-gradient(90deg, transparent, rgba(151,190,207,.28), transparent); margin: .75rem 0 1.1rem; }
-    @keyframes rise-in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
-    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-st.markdown(
-    '<div class="brand-strip"><span class="brand-mark">SIMULPRO</span>'
-    '<span class="brand-divider"></span><span>FOOTBALL MODEL LAB</span>'
-    '<span class="brand-status">ON-DEMAND ENGINE</span></div>',
-    unsafe_allow_html=True,
-)
-if st.sidebar.radio("Pagina", ["Simulatore", "Prestazioni"], key="page") == "Prestazioni":
-    render_performance()
-    st.stop()
-st.title("Motore on-demand")
-st.caption("Dashboard analitica senza calendario o database: input dichiarato, calcolo riproducibile e quote opzionali.")
+st.html(dashboard.theme_css(st.context.theme.type))
+st.html(dashboard.hero())
 
 with st.expander("Backtest storico gratuito · modello separato", expanded=False):
     st.markdown(
@@ -349,7 +252,7 @@ try:
 except MatchInputError as exc:
     parse_error = str(exc)
 
-with st.expander("🔍 Diagnostica Parser & Quote", expanded=True):
+with st.expander("Diagnostica: cosa ha letto il parser", expanded=False):
     if parsed_preview is None:
         st.error(f"Parser non pronto: {parse_error}")
         st.caption("Completa i campi obbligatori per visualizzare i dati estratti.")
@@ -461,7 +364,7 @@ if parsed_preview is not None and st.session_state.get("input_touched", False):
 if parsed_preview is not None and st.session_state.get("input_touched", False):
     automatic_prediction = st.session_state.get("automatic_prediction")
     if automatic_prediction:
-        with st.expander("Previsione automatica · storico se disponibile", expanded=True):
+        with st.expander("Previsione automatica dallo storico (modello separato)", expanded=False):
             manual_only = automatic_prediction["source_mode"] == "manual_only"
             if manual_only:
                 st.warning(
@@ -632,7 +535,7 @@ def _source_probabilities(event_name: str | None) -> str:
 
     def value(name: str) -> str:
         source = components.get(name)
-        return f"{source[event_name]:.2f}%" if source and event_name in source else "—"
+        return f"{source[event_name]:.1f}%" if source and event_name in source else "—"
 
     return (
         f'<div class="sources">Solo mercato {value("mercato")} · Solo modello {value("modello")} · '
@@ -647,6 +550,7 @@ def _card(
     financial: dict,
     event_name: str | None = None,
 ) -> None:
+    esc = dashboard.esc
     probability = float(market["percentage"])
     interval = market.get("confidence_interval_95", [0.0, 0.0])
     reliability = float(market.get("reliability_pct", 0.0))
@@ -658,35 +562,31 @@ def _card(
     fair_odds = market.get("fair_odds")
     if quote is None:
         comparison = "Quota bookmaker —"
-        badge = '<span class="badge neutral">SOLO MODELLO</span>'
+        badge = '<span class="vbadge neutral">SOLO MODELLO · nessuna quota</span>'
     else:
-        comparison = f"Quota bookmaker {float(quote):.2f} · Implicita {float(implied):.2f}%"
+        comparison = f"Quota bookmaker {float(quote):.2f} · Implicita {float(implied):.1f}%"
         badge_class = "positive" if float(ev) > 0 else "negative"
-        badge_text = f"VALORE +{float(ev):.2f}%" if float(ev) > 0 else f"EV {float(ev):.2f}%"
+        badge_text = f"▲ VALORE · EV +{float(ev):.1f}%" if float(ev) > 0 else f"▼ Non conviene · EV {float(ev):.1f}%"
         if financial.get("value_excluded") and float(ev) > 0:
             badge_class = "neutral"
-            badge_text = f"EV {float(ev):+.2f}% · VALORE non segnalato su questo mercato (storicamente in perdita)"
+            badge_text = f"● EV {float(ev):+.1f}% · VALORE non segnalato su questo mercato (storicamente in perdita)"
         if financial.get("suspicious_value"):
             badge_class = "suspicious"
             badge_text += f" · valore sospetto: verifica i dati (scarto modello/mercato {financial['model_market_gap_pct']:.1f} punti)"
-        badge = f'<span class="badge {badge_class}">{badge_text}</span>'
-    fair_meta = f" · Quota equa {float(fair_odds):.3f}" if fair_odds is not None else " · Quota equa —"
-    ev_meta = f" · EV {float(ev):+.2f}%" if ev is not None else " · EV —"
-    push_meta = f" · Push {float(push):.2f}%" if push is not None and float(push) > 0 else ""
-    stake_meta = f" · Quarter-Kelly {float(stake):.2f}% bankroll" if stake is not None else " · Quarter-Kelly —"
-    st.markdown(
-        f"""
-        <div class="score-card{' suspicious-card' if financial.get('suspicious_value') else ''}">
-          <div class="eyebrow">{eyebrow}</div>
-          <div class="confidence">Stabilità campionaria {reliability:.2f}% · Wilson 95% [{float(interval[0]):.2f}%, {float(interval[1]):.2f}%]</div>
-          <div class="market">{label}</div>
-          <div class="prob">{probability:.2f}%</div>
-          {_source_probabilities(event_name)}
-          <div class="meta">Probabilità finale · {comparison}{fair_meta}{ev_meta}{push_meta}{stake_meta}</div>
-          {badge}
-        </div>
-        """,
-        unsafe_allow_html=True,
+        badge = f'<span class="vbadge {badge_class}">{esc(badge_text)}</span>'
+    fair_meta = f" · Quota equa {float(fair_odds):.2f}" if fair_odds is not None else " · Quota equa —"
+    ev_meta = f" · EV {float(ev):+.1f}%" if ev is not None else " · EV —"
+    push_meta = f" · Push {float(push):.1f}%" if push is not None and float(push) > 0 else ""
+    stake_meta = f" · Quarter-Kelly {float(stake):.1f}% bankroll" if stake is not None else " · Quarter-Kelly —"
+    st.html(
+        f'<div class="score-card{" suspicious-card" if financial.get("suspicious_value") else ""}">'
+        f'<div class="eyebrow">{esc(eyebrow)}</div>'
+        f'<div class="market">{esc(label)}</div>'
+        f'<div class="prob">{probability:.1f}%</div>'
+        f'{_source_probabilities(event_name)}'
+        f'<div class="meta">{esc("Probabilità finale · " + comparison + fair_meta + ev_meta + push_meta + stake_meta)}</div>'
+        f'<div class="confidence">Stabilità campionaria {reliability:.1f}% · Wilson 95% [{float(interval[0]):.1f}%, {float(interval[1]):.1f}%]</div>'
+        f'{badge}</div>'
     )
 
 
@@ -698,7 +598,7 @@ def _cards_section(
     financial_rows: dict[str, dict],
     columns: int = 3,
 ) -> None:
-    st.markdown(f'<div class="section-kicker">{title}</div>', unsafe_allow_html=True)
+    st.html(f'<div class="section-kicker">{dashboard.esc(title)}</div>')
     entries = list(items.items())
     for start in range(0, len(entries), columns):
         card_columns = st.columns(columns, gap="medium")
@@ -722,494 +622,227 @@ def _catalog_cards_section(group: str, result: dict, financial_rows: dict) -> No
     ]
     if not entries:
         return
-    st.markdown(f'<div class="section-kicker">{group.replace("_", " ").title()}</div>', unsafe_allow_html=True)
+    st.html(f'<div class="section-kicker">{dashboard.esc(group.replace("_", " ").title())}</div>')
     for definition, market in entries:
         financial = financial_rows.get(definition.event_key, {})
         _card(group.replace("_", " ").title(), definition.label, market, financial, definition.event_key)
+
+
+def _overview_tab(result: dict, financial_rows: dict) -> None:
+    model, summary = result["model"], result["summary"]
+    st.html(dashboard.scoreboard(result))
+    st.html(dashboard.legend())
+    st.html(dashboard.grid([dashboard.outcome_card(result), dashboard.goals_card(result), dashboard.value_card(result)]))
+    st.html(dashboard.solid_picks_box(result))
+    anchoring = result.get("market_anchoring", {})
+    with st.expander("Dettagli tecnici: gol attesi, ancoraggio, affidabilità", expanded=False):
+        metrics = st.columns(3)
+        metrics[0].metric("Gol attesi casa (λ)", f'{model["lambda"]:.2f}')
+        metrics[1].metric("Gol attesi ospite (μ)", f'{model["mu"]:.2f}')
+        metrics[2].metric("Campioni Monte Carlo", f'{model["simulation_count"]:,}'.replace(",", "."))
+        if anchoring.get("active"):
+            fit = anchoring["market"]
+            st.caption(
+                f'Gol attesi · modello λ {anchoring["model_lambda"]:.2f} / μ {anchoring["model_mu"]:.2f} · '
+                f'mercato λ {anchoring["market_lambda"]:.2f} / μ {anchoring["market_mu"]:.2f} '
+                f'(margine tolto con metodo {fit["method"]}, errore di adattamento max {fit["max_fit_error_pct"]:.1f} punti) · '
+                f'finale λ {model["lambda"]:.2f} / μ {model["mu"]:.2f}. {anchoring["reason"]}'
+            )
+        else:
+            st.caption(f'Gol attesi solo dal modello: {anchoring.get("reason", "ancoraggio non disponibile.")}')
+        favorite_sign = summary["favorite_sign"]
+        favorite_interval = summary["confidence_intervals_95"][favorite_sign]
+        st.caption(
+            f'Risultato fisso coerente col segno {favorite_sign}: {summary["modal_score"]["home"]}-{summary["modal_score"]["away"]} '
+            f'({summary["modal_score"]["share_pct"]:.1f}% del campione). Intervallo Wilson 95% del favorito: '
+            f'{favorite_interval[0]:.1f}%–{favorite_interval[1]:.1f}%.'
+        )
+        st.warning(
+            "Gli intervalli descrivono solo l'errore di campionamento della simulazione, non se λ, μ o le "
+            "probabilità siano corrette. La calibrazione si misura nella tab Prestazioni."
+        )
+        st.caption(summary["reliability"]["warning"])
+    with st.expander("Mercati coerenti col risultato fisso", expanded=False):
+        fixed_score_groups = {
+            "1x2", "double_chance", "goal_no_goal", "over_under", "team_goals",
+            "multigol_complete", "team_multigol", "goal_sums", "team_scoring", "combos",
+        }
+        fixed_score_rows = []
+        for market, probability in result["fixed_score_scenario"]["markets"].items():
+            definition = definition_for_event(market)
+            if definition and definition.group in fixed_score_groups:
+                fixed_score_rows.append({"Mercato": definition.label, "Esito col risultato fisso": "Sì" if probability == 100.0 else "No"})
+        st.dataframe(pd.DataFrame(fixed_score_rows), hide_index=True, width="stretch", height=300)
+    with st.expander("Scenario condizionato al segno", expanded=False):
+        _conditional_scenario(result)
+    with st.expander("Schedina mista e value bet", expanded=False):
+        _value_details(result)
+    with st.expander("Esiti e doppia chance: tutte le schede", expanded=False):
+        _cards_section("1X2 finale", result["markets"]["1x2"], {"1": "Vittoria Casa", "X": "Pareggio", "2": "Vittoria Ospite"},
+                       {"1": "1", "X": "X", "2": "2"}, financial_rows)
+        _cards_section("Doppia chance", result["markets"]["double_chance"], {}, {key: key for key in ("1X", "X2", "12")}, financial_rows)
+        _cards_section("Draw No Bet", result["markets"]["draw_no_bet"], {"Casa": "Casa DNB", "Ospite": "Ospite DNB"},
+                       {"Casa": "Casa DNB", "Ospite": "Ospite DNB"}, financial_rows)
+    with st.expander("Catalogo completo dei mercati", expanded=False):
+        st.caption("Le card sono generate dalle definizioni condivise da parser, motore e dashboard.")
+        for group in MARKET_GROUPS:
+            _catalog_cards_section(group, result, financial_rows)
+    with st.expander("Profili di stile delle squadre", expanded=False):
+        render_style(result["input"]["home"]["name"], result["input"]["away"]["name"])
+    with st.expander("Sintesi statistica e audit del calcolo", expanded=False):
+        st.write(result["statistical_report"])
+        st.json({"model": model, "input": result["input"], "confidence_intervals_95": summary["confidence_intervals_95"]})
+
+
+def _conditional_scenario(result: dict) -> None:
+    st.caption(
+        "Probabilità dei mercati osservate solo nelle simulazioni con il segno selezionato. "
+        "Le probabilità base e l’analisi delle quote restano incondizionate."
+    )
+    most_likely_sign = max(result["markets"]["1x2"], key=lambda key: result["markets"]["1x2"][key]["percentage"])
+    scenario_col, group_col = st.columns(2)
+    with scenario_col:
+        scenario_sign = st.selectbox(
+            "Esito finale ipotizzato", ("1", "X", "2"), index=("1", "X", "2").index(most_likely_sign),
+            format_func=lambda sign: {"1": "1 · Vittoria Casa", "X": "X · Pareggio", "2": "2 · Vittoria Ospite"}[sign],
+            key="conditional_scenario_sign",
+        )
+    with group_col:
+        scenario_group = st.selectbox("Gruppo mercati", ("Tutti", *MARKET_GROUPS, "Altri"), key="conditional_scenario_group")
+    scenario = result["conditional_scenarios"][scenario_sign]
+    st.metric(f"Campioni con segno {scenario_sign}", f'{scenario["sample_count"]:,} · {scenario["sample_share_pct"]:.1f}%'.replace(",", "."))
+    if scenario["sample_count"] == 0:
+        st.warning("Nessun campione ha prodotto questo segno: aumenta il numero di simulazioni per stimarlo.")
+        return
+    scenario_rows = []
+    for market, probability in scenario["markets"].items():
+        definition = definition_for_event(market)
+        group = definition.group if definition else "Altri"
+        if scenario_group != "Tutti" and group != scenario_group:
+            continue
+        scenario_rows.append({"Mercato": definition.label if definition else market, "Probabilità condizionata %": round(probability, 1),
+                              "Gruppo": group.replace("_", " ").title()})
+    st.dataframe(pd.DataFrame(scenario_rows).sort_values("Probabilità condizionata %", ascending=False, na_position="last"),
+                 hide_index=True, width="stretch")
+
+
+def _value_details(result: dict) -> None:
+    st.markdown("**Schedina mista**")
+    st.caption(result["smart_combo"]["message"])
+    recommendation = result["smart_combo"].get("recommendation")
+    if recommendation:
+        combo_interval = recommendation["confidence_interval_95"]
+        st.html(
+            '<div class="score-card"><div class="eyebrow">Schedina mista · 2 leg</div>'
+            f'<div class="market">{dashboard.esc(" + ".join(recommendation["legs"]))}</div>'
+            f'<div class="prob">{recommendation["simulated_probability_pct"]:.1f}%</div>'
+            f'<div class="meta">Quota combinata {recommendation["combined_odds"]:.2f} · EV {recommendation["ev_pct"]:+.1f}% · '
+            f'Quarter-Kelly {recommendation["recommended_stake_pct"]:.1f}% bankroll</div>'
+            f'<div class="confidence">Stabilità campionaria {recommendation["reliability_pct"]:.1f}% · Wilson 95% '
+            f'[{combo_interval[0]:.1f}%, {combo_interval[1]:.1f}%]</div></div>'
+        )
+    st.markdown("**Value bet e rischio**")
+    value_bets = result["financial"].get("value_bets", [])
+    if value_bets:
+        best_value = result["financial"]["best_value"]
+        st.success(f"Consigliato per il profitto: {best_value['market']} · EV {best_value['ev_pct']:+.1f}% · "
+                   f"Quarter-Kelly {best_value['recommended_stake_pct']:.1f}% del bankroll")
+        value_frame = pd.DataFrame(value_bets)
+        st.dataframe(value_frame.style.apply(
+            lambda row: ["background-color: rgba(244,201,93,.35)" if row.get("suspicious_value") else "" for _ in row], axis=1,
+        ).format(precision=2), width="stretch")
+        if value_frame.get("suspicious_value", pd.Series(dtype=bool)).any():
+            st.warning("Righe evidenziate: valore sospetto, verifica i dati. Modello e mercato divergono di oltre 10 punti.")
+    else:
+        st.info("Nessuna value bet a EV positivo tra le quote inserite.")
+    if result["financial"]["markets"]:
+        st.markdown("**Audit completo delle quote**")
+        st.dataframe(pd.DataFrame(result["financial"]["markets"]).round(2), width="stretch")
+    st.caption(result["financial"]["risk_note"])
+
+
+def _goals_tab(result: dict, financial_rows: dict) -> None:
+    st.html(dashboard.grid([dashboard.goals_card(result), dashboard.team_goals_card(result),
+                            dashboard.multigol_card(result), dashboard.first_half_card(result)], wide=True))
+    with st.expander("Over / Under, Goal / No Goal e Multigol: tutte le schede", expanded=False):
+        _cards_section("Over / Under gol", result["markets"]["over_under"],
+                       {key: key.replace("_", " ") for key in result["markets"]["over_under"]},
+                       {key: f"{key.replace('_', ' ')} gol" for key in result["markets"]["over_under"]}, financial_rows)
+        _cards_section("Goal / No Goal", result["markets"]["goal_no_goal"], {"Goal": "Entrambe le squadre segnano", "No_Goal": "No Goal"},
+                       {"Goal": "Goal", "No_Goal": "No Goal"}, financial_rows)
+        _cards_section("Multigol completo", result["markets"]["multigol_complete"],
+                       {key: f"Multigol totale {key}" for key in result["markets"]["multigol_complete"]},
+                       {key: f"Multigol {key}" for key in result["markets"]["multigol_complete"]}, financial_rows)
+        for team_name in ("Casa", "Ospite"):
+            team_items = {key: market for key, market in result["markets"]["team_multigol"].items() if key.startswith(f"{team_name} ")}
+            _cards_section(f"Multigol {team_name}", team_items, {key: f"Multigol {key}" for key in team_items},
+                           {key: f"Multigol {key}" for key in team_items}, financial_rows)
+        _cards_section("Combo", result["markets"]["combos"], {key: key for key in result["markets"]["combos"]},
+                       {key: key for key in result["markets"]["combos"]}, financial_rows)
+    with st.expander("Primo e secondo tempo: tutte le schede", expanded=False):
+        _cards_section("1X2 1° tempo", result["markets"]["first_half_1x2"], {}, {key: f"{key} 1T" for key in ("1", "X", "2")}, financial_rows)
+        _cards_section("Doppia chance 1° tempo", result["markets"]["first_half_double_chance"], {}, {key: f"{key} 1T" for key in ("1X", "X2", "12")}, financial_rows)
+        _cards_section("1X2 2° tempo", result["markets"]["second_half_1x2"], {}, {key: f"{key} 2T" for key in ("1", "X", "2")}, financial_rows)
+        _cards_section("Doppia chance 2° tempo", result["markets"]["second_half_double_chance"], {}, {key: f"{key} 2T" for key in ("1X", "X2", "12")}, financial_rows)
+        _cards_section("Over / Under 1° tempo", result["markets"]["first_half_over_under"], {},
+                       {key: f"{key.replace('_', ' ')} gol 1T" for key in result["markets"]["first_half_over_under"]}, financial_rows)
+        _cards_section("Goal / No Goal 1° tempo", result["markets"]["first_half_goal_no_goal"],
+                       {"Goal": "Entrambe segnano 1° tempo", "No_Goal": "No Goal 1° tempo"}, {"Goal": "Goal 1T", "No_Goal": "No Goal 1T"}, financial_rows)
+    with st.expander("Gol per squadra, somme e BTTS: tutte le schede", expanded=False):
+        _cards_section("Goal squadra", result["markets"]["team_scoring"], {}, {}, financial_rows)
+        _cards_section("Goal squadra · Over / Under", result["markets"]["team_goals"], {key: key for key in result["markets"]["team_goals"]},
+                       {key: key for key in result["markets"]["team_goals"]}, financial_rows)
+        _cards_section("Somma gol esatta", result["markets"]["goal_sums"], {key: f"Somma gol {key}" for key in result["markets"]["goal_sums"]},
+                       {key: f"Somma gol {key}" for key in result["markets"]["goal_sums"]}, financial_rows)
+        _cards_section("BTTS nei tempi", result["markets"]["both_teams"], {key: key for key in result["markets"]["both_teams"]}, {}, financial_rows)
+
+
+def _counts_tab(result: dict, financial_rows: dict) -> None:
+    st.html(dashboard.grid([dashboard.corners_card(result), dashboard.cards_card(result)], wide=True))
+    with st.expander("Corner: tutte le schede", expanded=False):
+        corner_labels = {key: key.replace("_", " ") for key in result["markets"]["corners"] if key != "mean"}
+        _cards_section("Corner totali", {key: value for key, value in result["markets"]["corners"].items() if key != "mean"},
+                       corner_labels, {key: f"{key.replace('_', ' ')} corner" for key in corner_labels}, financial_rows)
+        _cards_section("1X2 corner", result["markets"]["corner_1x2"], {"1": "Più corner Casa", "X": "Parità corner", "2": "Più corner Ospite"},
+                       {"1": "1 corner", "X": "X corner", "2": "2 corner"}, financial_rows)
+        _cards_section("Corner per squadra", result["markets"]["team_corners"], {key: key.replace("_", " ") for key in result["markets"]["team_corners"]},
+                       {key: key.replace("_", " ") for key in result["markets"]["team_corners"]}, financial_rows)
+    with st.expander("Cartellini: tutte le schede", expanded=False):
+        card_labels = {key: key.replace("_", " ") for key in result["markets"]["cards"] if key != "mean"}
+        _cards_section("Punti cartellini", {key: value for key, value in result["markets"]["cards"].items() if key != "mean"},
+                       card_labels, {key: f"{key.replace('_', ' ')} cartellini" for key in card_labels}, financial_rows)
+        _cards_section("1X2 cartellini", result["markets"]["card_1x2"], {"1": "Più cartellini Casa", "X": "Parità cartellini", "2": "Più cartellini Ospite"},
+                       {"1": "1 cartellini", "X": "X cartellini", "2": "2 cartellini"}, financial_rows)
+        _cards_section("Cartellini per squadra", result["markets"]["team_cards"], {key: key.replace("_", " ") for key in result["markets"]["team_cards"]},
+                       {key: key.replace("_", " ") for key in result["markets"]["team_cards"]}, financial_rows)
 
 
 result = st.session_state.get("result")
 if result and st.session_state.get("result_signature") != current_signature:
     st.info("Configurazione modificata: riesegui la simulazione per aggiornare i risultati.")
     result = None
+tab_names = ["Panoramica", "Gol", "Corner e cartellini", "Risultati esatti", "Claude", "Registro", "Prestazioni"]
+tabs = st.tabs(tab_names)
 if result:
-    model = result["model"]
-    summary = result["summary"]
-    st.subheader("Score-style match center")
-    metrics = st.columns(5)
-    metrics[0].metric("Casa λ", model["lambda"])
-    metrics[1].metric("Ospite μ", model["mu"])
-    metrics[2].metric(
-        "Segno più probabile",
-        f'{summary["favorite_sign"]} · {summary["favorite_sign_probability_pct"]:.2f}%',
-    )
-    metrics[3].metric(
-        "Risultato fisso coerente",
-        f'{summary["modal_score"]["home"]} - {summary["modal_score"]["away"]}',
-        f'{summary["modal_score"]["share_pct"]:.2f}% del campione',
-    )
-    metrics[4].metric(
-        "Calibrazione predittiva",
-        "Non misurata",
-        help="Il modello non è stato confrontato con risultati storici out-of-sample. La precisione Monte Carlo non equivale all’accuratezza delle previsioni.",
-    )
-    anchoring = result.get("market_anchoring", {})
-    if anchoring.get("active"):
-        fit = anchoring["market"]
-        st.caption(
-            f'Gol attesi · modello λ {anchoring["model_lambda"]:.3f} / μ {anchoring["model_mu"]:.3f} · '
-            f'mercato λ {anchoring["market_lambda"]:.3f} / μ {anchoring["market_mu"]:.3f} '
-            f'(margine tolto con metodo {fit["method"]}, errore di adattamento max {fit["max_fit_error_pct"]:.2f} punti) · '
-            f'finale λ {model["lambda"]:.3f} / μ {model["mu"]:.3f}. {anchoring["reason"]}'
-        )
-    else:
-        st.caption(f'Gol attesi solo dal modello: {anchoring.get("reason", "ancoraggio non disponibile.")}')
-    global_score = summary["most_likely_exact_score"]
-    st.caption(
-        f'Score più frequente senza vincolo sul segno: '
-        f'{global_score["home"]}-{global_score["away"]} '
-        f'({global_score["share_pct"]:.2f}% del campione). Il risultato fisso è il punteggio '
-        f'più frequente condizionato al segno {summary["favorite_sign"]}.'
-    )
-
-    st.subheader("Mercati coerenti col risultato fisso")
-    st.caption(
-        "Qui sono mostrate le conseguenze deterministiche del punteggio esatto selezionato. "
-        "Corner e cartellini restano distribuzioni probabilistiche separate."
-    )
-    fixed_score_groups = {
-        "1x2", "double_chance", "goal_no_goal", "over_under", "team_goals",
-        "multigol_complete", "team_multigol", "goal_sums", "team_scoring", "combos",
-    }
-    fixed_score_rows = []
-    for market, probability in result["fixed_score_scenario"]["markets"].items():
-        definition = definition_for_event(market)
-        if definition and definition.group in fixed_score_groups:
-            fixed_score_rows.append({
-                "Mercato": definition.label,
-                "Esito col risultato fisso": "Sì" if probability == 100.0 else "No",
-            })
-    st.dataframe(
-        pd.DataFrame(fixed_score_rows),
-        hide_index=True,
-        width="stretch",
-        height=300,
-    )
-
     financial_rows = {row["market"]: row for row in result["financial"]["markets"]}
-    tabs = st.tabs([
-        "Esiti & Doppia Chance",
-        "Gol & Under/Over",
-        "Multigol Totali & Squadra",
-        "Corner",
-        "Cartellini",
-        "Dashboard",
-        "Parziali",
-        "Squadre",
-        "Catalogo completo",
-        "Stile",
-    ])
     with tabs[0]:
-        _cards_section(
-            "1X2 finale",
-            result["markets"]["1x2"],
-            {"1": "Vittoria Casa", "X": "Pareggio", "2": "Vittoria Ospite"},
-            {"1": "1", "X": "X", "2": "2"},
-            financial_rows,
-        )
-        _cards_section(
-            "1X2 primo tempo",
-            result["markets"]["first_half_1x2"],
-            {"1": "Casa 1° tempo", "X": "Pareggio 1° tempo", "2": "Ospite 1° tempo"},
-            {"1": "1 1T", "X": "X 1T", "2": "2 1T"},
-            financial_rows,
-        )
+        _overview_tab(result, financial_rows)
     with tabs[1]:
-        _cards_section(
-            "Over / Under gol",
-            result["markets"]["over_under"],
-            {key: key.replace("_", " ") for key in result["markets"]["over_under"]},
-            {key: f"{key.replace('_', ' ').replace('Over ', 'Over ').replace('Under ', 'Under ')} gol" for key in result["markets"]["over_under"]},
-            financial_rows,
-        )
+        _goals_tab(result, financial_rows)
     with tabs[2]:
-        _cards_section(
-            "Goal / No Goal",
-            result["markets"]["goal_no_goal"],
-            {"Goal": "Entrambe le squadre segnano", "No_Goal": "No Goal"},
-            {"Goal": "Goal", "No_Goal": "No Goal"},
-            financial_rows,
-        )
-        _cards_section(
-            "Multigol",
-            result["markets"]["multigol"],
-            {key: f"Multigol {key}" for key in result["markets"]["multigol"]},
-            {key: f"Multigol {key}" for key in result["markets"]["multigol"]},
-            financial_rows,
-        )
-        _cards_section(
-            "Multigol completo",
-            result["markets"]["multigol_complete"],
-            {key: f"Multigol totale {key}" for key in result["markets"]["multigol_complete"]},
-            {key: f"Multigol {key}" for key in result["markets"]["multigol_complete"]},
-            financial_rows,
-        )
-        team_multigol_tabs = st.tabs(["Multigol Casa", "Multigol Ospite"])
-        for team_tab, team_name in zip(team_multigol_tabs, ("Casa", "Ospite")):
-            with team_tab:
-                team_items = {
-                    key: market
-                    for key, market in result["markets"]["team_multigol"].items()
-                    if key.startswith(f"{team_name} ")
-                }
-                _cards_section(
-                    f"Tutte le fasce · {team_name}",
-                    team_items,
-                    {key: f"Multigol {key}" for key in team_items},
-                    {key: f"Multigol {key}" for key in team_items},
-                    financial_rows,
-                )
-        _cards_section(
-            "Combo",
-            result["markets"]["combos"],
-            {key: key for key in result["markets"]["combos"]},
-            {key: key for key in result["markets"]["combos"]},
-            financial_rows,
-        )
+        _counts_tab(result, financial_rows)
     with tabs[3]:
-        corner_labels = {key: key.replace("_", " ") for key in result["markets"]["corners"] if key != "mean"}
-        _cards_section(
-            f"Calci d'angolo · media {result['markets']['corners']['mean']}",
-            {key: value for key, value in result["markets"]["corners"].items() if key != "mean"},
-            corner_labels,
-            {key: f"{key.replace('_', ' ')} corner" for key in corner_labels},
-            financial_rows,
-        )
-        _cards_section(
-            "1X2 corner",
-            result["markets"]["corner_1x2"],
-            {"1": "Più corner Casa", "X": "Parità corner", "2": "Più corner Ospite"},
-            {"1": "1 corner", "X": "X corner", "2": "2 corner"},
-            financial_rows,
-        )
-        _cards_section(
-            "Corner per squadra",
-            result["markets"]["team_corners"],
-            {key: key.replace("_", " ") for key in result["markets"]["team_corners"]},
-            {key: key.replace("_", " ") for key in result["markets"]["team_corners"]},
-            financial_rows,
-        )
+        render_exact_scores(result)
+    claude_result, claude_note = None, ""
     with tabs[4]:
-        card_labels = {key: key.replace("_", " ") for key in result["markets"]["cards"] if key != "mean"}
-        _cards_section(
-            f"Cartellini · media {result['markets']['cards']['mean']}",
-            {key: value for key, value in result["markets"]["cards"].items() if key != "mean"},
-            card_labels,
-            {key: f"{key.replace('_', ' ')} cartellini" for key in card_labels},
-            financial_rows,
-        )
-        _cards_section(
-            "1X2 cartellini",
-            result["markets"]["card_1x2"],
-            {"1": "Più cartellini Casa", "X": "Parità cartellini", "2": "Più cartellini Ospite"},
-            {"1": "1 cartellini", "X": "X cartellini", "2": "2 cartellini"},
-            financial_rows,
-        )
-        _cards_section(
-            "Cartellini per squadra",
-            result["markets"]["team_cards"],
-            {key: key.replace("_", " ") for key in result["markets"]["team_cards"]},
-            {key: key.replace("_", " ") for key in result["markets"]["team_cards"]},
-            financial_rows,
-        )
+        if st.session_state.get("result_config") is not None:
+            claude_result, claude_note = render_claude(result, st.session_state["result_config"], text)
     with tabs[5]:
-        st.markdown('<div class="pitch-rule"></div>', unsafe_allow_html=True)
-        st.caption("MATCH INTELLIGENCE · probabilità derivate dagli stessi campioni")
-        sign_order = ["1", "X", "2"]
-        sign_labels = {"1": "Casa", "X": "Pareggio", "2": "Ospite"}
-        sign_colors = {"Casa": "#3bd18b", "Pareggio": "#f4c95d", "Ospite": "#ff6e68"}
-        sign_frame = pd.DataFrame([
-            {
-                "Esito": sign_labels[sign],
-                "Probabilità": result["markets"]["1x2"][sign]["percentage"],
-                "Wilson basso": summary["confidence_intervals_95"][sign][0],
-                "Wilson alto": summary["confidence_intervals_95"][sign][1],
-                "Campioni": result["markets"]["1x2"][sign]["count"],
-            }
-            for sign in sign_order
-        ])
-        chart_theme = {
-            "background": "transparent",
-            "axis": {"labelColor": "#b8c9d7", "titleColor": "#d9e4ed", "gridColor": "#294258", "domainColor": "#496175", "tickColor": "#496175"},
-            "legend": {"labelColor": "#d9e4ed", "titleColor": "#d9e4ed"},
-            "title": {"color": "#f0f5fa", "font": "Space Grotesk", "fontSize": 15, "anchor": "start"},
-            "view": {"stroke": None},
-        }
-        sign_scale = alt.Scale(domain=["Casa", "Pareggio", "Ospite"], range=[sign_colors["Casa"], sign_colors["Pareggio"], sign_colors["Ospite"]])
-        sign_bars = alt.Chart(sign_frame).mark_bar(size=56, cornerRadiusTopLeft=4, cornerRadiusTopRight=4).encode(
-            x=alt.X("Esito:N", sort=["Casa", "Pareggio", "Ospite"], axis=alt.Axis(title=None, labelAngle=0)),
-            y=alt.Y("Probabilità:Q", scale=alt.Scale(domain=[0, 100]), axis=alt.Axis(title="Probabilità (%)", values=[0, 20, 40, 60, 80, 100])),
-            color=alt.Color("Esito:N", scale=sign_scale, legend=None),
-            tooltip=[alt.Tooltip("Esito:N"), alt.Tooltip("Probabilità:Q", format=".2f"), alt.Tooltip("Wilson basso:Q", format=".2f"), alt.Tooltip("Wilson alto:Q", format=".2f"), alt.Tooltip("Campioni:Q", format=",")],
-        )
-        sign_intervals = alt.Chart(sign_frame).mark_rule(color="#f0f5fa", strokeWidth=2).encode(
-            x=alt.X("Esito:N", sort=["Casa", "Pareggio", "Ospite"]),
-            y=alt.Y("Wilson basso:Q"),
-            y2=alt.Y2("Wilson alto:Q"),
-        )
-        sign_points = alt.Chart(sign_frame).mark_point(color="#f0f5fa", filled=True, size=72, stroke="#071727", strokeWidth=1).encode(
-            x=alt.X("Esito:N", sort=["Casa", "Pareggio", "Ospite"]),
-            y=alt.Y("Probabilità:Q"),
-        )
-        sign_chart = (sign_bars + sign_intervals + sign_points).properties(height=260, title="Esito finale · con intervallo Wilson 95%").configure(**chart_theme)
-
-        goals = result["dashboard"]["goals_distribution"]
-        goal_frame = pd.DataFrame({"Gol": goals["goals"], "Casa": goals["home"], "Ospite": goals["away"]}).melt(
-            id_vars="Gol", var_name="Squadra", value_name="Probabilità"
-        )
-        goal_chart = alt.Chart(goal_frame).mark_line(point=alt.OverlayMarkDef(filled=True, size=65), strokeWidth=3).encode(
-            x=alt.X("Gol:N", sort=goals["goals"], axis=alt.Axis(title="Gol segnati · fascia 8+ inclusa")),
-            y=alt.Y("Probabilità:Q", scale=alt.Scale(zero=True), axis=alt.Axis(title="Probabilità (%)")),
-            color=alt.Color("Squadra:N", scale=alt.Scale(domain=["Casa", "Ospite"], range=["#3bd18b", "#ff6e68"])),
-            tooltip=[alt.Tooltip("Squadra:N"), alt.Tooltip("Gol:N"), alt.Tooltip("Probabilità:Q", format=".2f")],
-        ).properties(height=260, title="Distribuzione gol per squadra").configure(**chart_theme)
-
-        chart_col1, chart_col2 = st.columns(2, gap="large")
-        with chart_col1:
-            st.altair_chart(sign_chart, width="stretch", theme=None)
-        with chart_col2:
-            st.altair_chart(goal_chart, width="stretch", theme=None)
-
-        exact = result["dashboard"]["exact_score_distribution"]
-        score_rows = [
-            {"Gol Casa": home_score, "Gol Ospite": away_score, "Probabilità": exact["probabilities_pct"][home_index][away_index]}
-            for home_index, home_score in enumerate(exact["labels"])
-            for away_index, away_score in enumerate(exact["labels"])
-        ]
-        score_frame = pd.DataFrame(score_rows)
-        score_heatmap = alt.Chart(score_frame).mark_rect(stroke="#17334a", strokeWidth=1).encode(
-            x=alt.X("Gol Casa:N", sort=exact["labels"], axis=alt.Axis(title="Gol Casa")),
-            y=alt.Y("Gol Ospite:N", sort=list(reversed(exact["labels"])), axis=alt.Axis(title="Gol Ospite")),
-            color=alt.Color("Probabilità:Q", scale=alt.Scale(scheme="tealblues"), legend=alt.Legend(title="% simulazioni")),
-            tooltip=[alt.Tooltip("Gol Casa:N"), alt.Tooltip("Gol Ospite:N"), alt.Tooltip("Probabilità:Q", format=".3f")],
-        ).properties(height=360, title="Matrice punteggio esatto · valori percentuali").configure(**chart_theme)
-        st.altair_chart(score_heatmap, width="stretch", theme=None)
-
-        threshold_rows = []
-        for side in ("Over", "Under"):
-            for key, market in result["markets"]["over_under"].items():
-                if key.startswith(side):
-                    threshold_rows.append({
-                        "Mercato": side,
-                        "Soglia": float(key.split("_")[1]),
-                        "Probabilità": market["percentage"],
-                        "Wilson basso": market["confidence_interval_95"][0],
-                        "Wilson alto": market["confidence_interval_95"][1],
-                    })
-        threshold_frame = pd.DataFrame(threshold_rows)
-        threshold_encoding = {
-            "x": alt.X("Soglia:Q", axis=alt.Axis(title="Soglia gol", format=".1f")),
-            "color": alt.Color("Mercato:N", scale=alt.Scale(domain=["Over", "Under"], range=["#3bd18b", "#ff6e68"])),
-        }
-        threshold_errors = alt.Chart(threshold_frame).mark_rule(strokeWidth=2, opacity=.62).encode(
-            **threshold_encoding,
-            y=alt.Y("Wilson basso:Q", scale=alt.Scale(domain=[0, 100])),
-            y2=alt.Y2("Wilson alto:Q"),
-        )
-        threshold_lines = alt.Chart(threshold_frame).mark_line(point=alt.OverlayMarkDef(filled=True, size=60), strokeWidth=3).encode(
-            x=alt.X("Soglia:Q", axis=alt.Axis(title="Soglia gol", format=".1f")),
-            y=alt.Y("Probabilità:Q", scale=alt.Scale(domain=[0, 100]), axis=alt.Axis(title="Probabilità (%)")),
-            color=alt.Color("Mercato:N", scale=alt.Scale(domain=["Over", "Under"], range=["#3bd18b", "#ff6e68"])),
-            tooltip=[alt.Tooltip("Mercato:N"), alt.Tooltip("Soglia:Q", format=".1f"), alt.Tooltip("Probabilità:Q", format=".2f"), alt.Tooltip("Wilson basso:Q", format=".2f"), alt.Tooltip("Wilson alto:Q", format=".2f")],
-        )
-        threshold_chart = (threshold_lines + threshold_errors).properties(
-            height=250, title="Curve Over / Under · intervalli Wilson 95%"
-        ).configure(**chart_theme)
-        st.altair_chart(threshold_chart, width="stretch", theme=None)
-
-        corner_cards_col, referee_col = st.columns(2, gap="large")
-        with corner_cards_col:
-            st.markdown('<div class="section-kicker">CALCI D’ANGOLO</div>', unsafe_allow_html=True)
-            st.metric("Media match stimata", f'{result["markets"]["corners"]["mean"]:.2f}', "Corner Casa + Ospite")
-            st.caption("Modello Poisson; il dato non è condizionato al segno finale.")
-        with referee_col:
-            st.markdown('<div class="section-kicker">CARTELLINI (PUNTI)</div>', unsafe_allow_html=True)
-            st.metric("Media match stimata", f'{result["markets"]["cards"]["mean"]:.2f}', "Punti cartellini Casa + Ospite")
-            st.caption(f'Regola: {result["model"]["card_rule"]}. Gialli attesi {result["model"]["card_yellow_mean"]:.2f} '
-                       f'(medie squadra e arbitro), rossi attesi {result["model"]["card_red_mean"]:.2f} '
-                       "(quota media dei rossi per giallo); nessuna dipendenza dal risultato.")
-
-        favorite_sign = summary["favorite_sign"]
-        favorite_interval = summary["confidence_intervals_95"][favorite_sign]
-        interval_width = favorite_interval[1] - favorite_interval[0]
-        st.markdown('<div class="section-kicker">LEGGERE L’AFFIDABILITÀ</div>', unsafe_allow_html=True)
-        reliability_cols = st.columns(3)
-        reliability_cols[0].metric("Esito favorito · Wilson 95%", f'{favorite_interval[0]:.2f}% – {favorite_interval[1]:.2f}%')
-        reliability_cols[1].metric("Ampiezza intervallo", f'{interval_width:.2f} punti percentuali')
-        reliability_cols[2].metric("Campioni Monte Carlo", f'{result["model"]["simulation_count"]:,}'.replace(",", "."))
-        st.warning(
-            "Questi intervalli descrivono soltanto l’errore di campionamento simulato. "
-            "Non misurano se lambda, mu o le probabilità siano predittivamente corrette. "
-            "La calibrazione richiede molte partite storiche non usate per tarare il modello."
-        )
-        with st.expander("Input effettivamente letti dal motore"):
-            input_rows = []
-            for team_label, team_data in (("Casa", result["input"]["home"]), ("Ospite", result["input"]["away"])):
-                for key, value in team_data.items():
-                    input_rows.append({"Soggetto": team_label, "Parametro": key, "Valore usato": str(value)})
-            input_rows.extend([
-                {"Soggetto": "Arbitro", "Parametro": "Gialli medi / partita", "Valore usato": str(result["input"]["referee_yellow_avg"])},
-                {"Soggetto": "Arbitro", "Parametro": "Falli medi / partita", "Valore usato": str(result["input"]["referee_fouls_avg"])},
-            ])
-            st.dataframe(pd.DataFrame(input_rows), hide_index=True, width="stretch")
-        st.caption(summary["reliability"]["warning"])
-    with tabs[6]:
-        _cards_section("1X2 e doppia chance 1° tempo", result["markets"]["first_half_1x2"], {}, {key: f"{key} 1T" for key in ("1", "X", "2")}, financial_rows)
-        _cards_section("Doppia chance 1° tempo", result["markets"]["first_half_double_chance"], {}, {key: f"{key} 1T" for key in ("1X", "X2", "12")}, financial_rows)
-        _cards_section("1X2 e doppia chance 2° tempo", result["markets"]["second_half_1x2"], {}, {key: f"{key} 2T" for key in ("1", "X", "2")}, financial_rows)
-        _cards_section("Doppia chance 2° tempo", result["markets"]["second_half_double_chance"], {}, {key: f"{key} 2T" for key in ("1X", "X2", "12")}, financial_rows)
-        _cards_section("Draw No Bet", result["markets"]["draw_no_bet"], {"Casa": "Casa DNB", "Ospite": "Ospite DNB"}, {"Casa": "Casa DNB", "Ospite": "Ospite DNB"}, financial_rows)
-        _cards_section("Over / Under 1° tempo", result["markets"]["first_half_over_under"], {}, {key: f"{key.replace('_', ' ')} gol 1T" for key in result["markets"]["first_half_over_under"]}, financial_rows)
-        _cards_section("Goal / No Goal 1° tempo", result["markets"]["first_half_goal_no_goal"], {"Goal": "Entrambe segnano 1° tempo", "No_Goal": "No Goal 1° tempo"}, {"Goal": "Goal 1T", "No_Goal": "No Goal 1T"}, financial_rows)
-    with tabs[7]:
-        _cards_section("Goal squadra", result["markets"]["team_scoring"], {"Casa segna": "Casa segna", "Casa non segna": "Casa non segna", "Ospite segna": "Ospite segna", "Ospite non segna": "Ospite non segna"}, {}, financial_rows)
-        _cards_section("Goal squadra · Over / Under", result["markets"]["team_goals"], {key: key for key in result["markets"]["team_goals"]}, {key: key for key in result["markets"]["team_goals"]}, financial_rows)
-        _cards_section("Somma gol esatta", result["markets"]["goal_sums"], {key: f"Somma gol {key}" for key in result["markets"]["goal_sums"]}, {key: f"Somma gol {key}" for key in result["markets"]["goal_sums"]}, financial_rows)
-        _cards_section("BTTS nei tempi", result["markets"]["both_teams"], {key: key for key in result["markets"]["both_teams"]}, {}, financial_rows)
-    with tabs[8]:
-        st.caption("Catalogo centrale: le card sono generate dalle definizioni condivise da parser, motore e dashboard.")
-        for group in MARKET_GROUPS:
-            _catalog_cards_section(group, result, financial_rows)
-    with tabs[9]:
-        render_style(result["input"]["home"]["name"], result["input"]["away"]["name"])
-
-    st.subheader("Scenario condizionato al segno")
-    st.caption(
-        "Probabilità dei mercati osservate solo nelle simulazioni con il segno selezionato. "
-        "Le probabilità base e l’analisi delle quote restano incondizionate."
-    )
-    most_likely_sign = max(
-        result["markets"]["1x2"],
-        key=lambda key: result["markets"]["1x2"][key]["percentage"],
-    )
-    scenario_col, group_col = st.columns(2)
-    with scenario_col:
-        scenario_sign = st.selectbox(
-            "Esito finale ipotizzato",
-            ("1", "X", "2"),
-            index=("1", "X", "2").index(most_likely_sign),
-            format_func=lambda sign: {"1": "1 · Vittoria Casa", "X": "X · Pareggio", "2": "2 · Vittoria Ospite"}[sign],
-            key="conditional_scenario_sign",
-        )
-    with group_col:
-        scenario_group = st.selectbox(
-            "Gruppo mercati",
-            ("Tutti", *MARKET_GROUPS, "Altri"),
-            key="conditional_scenario_group",
-        )
-    scenario = result["conditional_scenarios"][scenario_sign]
-    st.metric(
-        f"Campioni con segno {scenario_sign}",
-        f'{scenario["sample_count"]:,} · {scenario["sample_share_pct"]:.2f}%'.replace(",", "."),
-    )
-    if scenario["sample_count"] == 0:
-        st.warning("Nessun campione ha prodotto questo segno: aumenta il numero di simulazioni per stimarlo.")
-    else:
-        scenario_rows = []
-        for market, probability in scenario["markets"].items():
-            definition = definition_for_event(market)
-            group = definition.group if definition else "Altri"
-            if scenario_group != "Tutti" and group != scenario_group:
-                continue
-            scenario_rows.append({
-                "Mercato": definition.label if definition else market,
-                "Probabilità condizionata": probability,
-                "Gruppo": group.replace("_", " ").title(),
-            })
-        scenario_frame = pd.DataFrame(scenario_rows).sort_values(
-            "Probabilità condizionata", ascending=False, na_position="last"
-        )
-        st.dataframe(scenario_frame, hide_index=True, width="stretch")
-
-    st.subheader("Schedina mista")
-    st.write(result["smart_combo"]["message"])
-    recommendation = result["smart_combo"].get("recommendation")
-    if recommendation:
-        combo_interval = recommendation["confidence_interval_95"]
-        combo_label = " + ".join(recommendation["legs"])
-        st.markdown(
-            f"""
-            <div class="score-card">
-              <div class="eyebrow">Schedina mista · 2 leg</div>
-              <div class="confidence">Stabilità campionaria {recommendation["reliability_pct"]:.2f}% · Wilson 95% [{combo_interval[0]:.2f}%, {combo_interval[1]:.2f}%]</div>
-              <div class="market">{combo_label}</div>
-              <div class="prob">{recommendation["simulated_probability_pct"]:.2f}%</div>
-              <div class="meta">Quota combinata {recommendation["combined_odds"]:.3f} · EV {recommendation["ev_pct"]:+.2f}% · Quarter-Kelly {recommendation["recommended_stake_pct"]:.2f}% bankroll</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        st.dataframe(pd.DataFrame([recommendation]), width="stretch")
-    else:
-        st.info(result["smart_combo"]["message"])
-
-    st.subheader("Value bet e rischio")
-    value_bets = result["financial"].get("value_bets", [])
-    if value_bets:
-        best_value = result["financial"]["best_value"]
-        st.success(
-            f"Consigliato per il Profitto: {best_value['market']} · "
-            f"EV {best_value['ev_pct']:+.2f}% · Quarter-Kelly "
-            f"{best_value['recommended_stake_pct']:.2f}% del bankroll"
-        )
-        value_frame = pd.DataFrame(value_bets)
-        st.dataframe(
-            value_frame.style.apply(
-                lambda row: ["background-color: rgba(244,201,93,.35)" if row.get("suspicious_value") else "" for _ in row],
-                axis=1,
-            ),
-            width="stretch",
-        )
-        if value_frame.get("suspicious_value", pd.Series(dtype=bool)).any():
-            st.warning("Righe in giallo: valore sospetto, verifica i dati. Modello e mercato divergono di oltre 10 punti.")
-        st.caption(
-            "Mostrate solo quote con EV positivo, ordinate dal valore atteso più alto. "
-            "La quota equa dei mercati binari è 1 / probabilità simulata; per il DNB il calcolo include il push."
-        )
-    else:
-        st.info("Nessuna Value Bet a EV positivo tra le quote inserite.")
-    with st.expander("Audit completo delle quote"):
-        if result["financial"]["markets"]:
-            st.dataframe(pd.DataFrame(result["financial"]["markets"]), width="stretch")
-        else:
-            st.info("Nessuna quota valida inserita.")
-    st.caption(result["financial"]["risk_note"])
-
-    render_exact_scores(result)
-
-    if st.session_state.get("result_config") is not None:
-        claude_result, claude_note = render_claude(result, st.session_state["result_config"], text)
-        render_registry(result, st.session_state["result_config"], claude_result, claude_note)
-
-    st.subheader("Sintesi statistica del modello")
-    st.write(result["statistical_report"])
-    st.subheader("Lettura guidata dei risultati")
-    question = st.selectbox(
-        "Seleziona una domanda",
-        ("Qual è l'esito più frequente?", "Il modello vede una partita da Over 2.5?", "Qual è il rischio principale?"),
-    )
-    if question == "Qual è l'esito più frequente?":
-        one_x_two = result["markets"]["1x2"]
-        best = max(one_x_two, key=lambda key: one_x_two[key]["percentage"])
-        st.info(f"Il mercato più frequente è {best} con {one_x_two[best]['percentage']:.2f}% sui campioni.")
-    elif question == "Il modello vede una partita da Over 2.5?":
-        over = result["markets"]["over_under"]["Over_2.5"]["percentage"]
-        st.info(f"Over 2.5: {over:.2f}%. La risposta è descrittiva; non equivale a una raccomandazione.")
-    else:
-        st.info(
-            f"Il rischio principale è l'incertezza del campione: l'indice campionario è "
-            f"{result['summary']['reliability']['index_pct']:.2f}% e non valuta la qualità degli input."
-        )
-
-    with st.expander("Audit del calcolo"):
-        st.json({"model": model, "input": result["input"], "confidence_intervals_95": summary["confidence_intervals_95"]})
+        if st.session_state.get("result_config") is not None:
+            render_registry(result, st.session_state["result_config"], claude_result, claude_note)
+else:
+    for tab in tabs[:6]:
+        with tab:
+            st.info("Esegui la simulazione per vedere le schede di questa partita.")
+with tabs[6]:
+    render_performance()

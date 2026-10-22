@@ -9,6 +9,7 @@ import altair as alt
 import pandas as pd
 import streamlit as st
 
+from dashboard import GLOSSARY
 from performance import (
     MIN_SELECTIONS, RegistryError, bankroll, calibration_table, clv_by_market, collect_results, component_comparison,
     edge_verdicts, fill_from_results, read_registry, scores_over_time, updated_workbook,
@@ -73,7 +74,7 @@ def _fill_section(registry, original: bytes, signature: str) -> pd.DataFrame:
 
 
 def render_performance() -> None:
-    st.title("Prestazioni")
+    st.subheader("Prestazioni")
     st.caption("Carica il tuo Registro_Previsioni.xlsx: si leggono solo le colonne A–S del foglio Registro "
                "(le colonne grigie calcolate sono ignorate e ricalcolate qui).")
     upload = st.file_uploader("File Excel del registro", type=["xlsx"], key="performance_upload")
@@ -120,7 +121,7 @@ def render_performance() -> None:
         st.dataframe(subset, hide_index=True, width="stretch")
         st.caption("Sulla diagonale = tarato. Sotto la diagonale le probabilità sono troppo alte, sopra troppo basse.")
 
-    st.subheader("Brier e log-loss nel tempo")
+    st.subheader("Brier e log-loss nel tempo", help=GLOSSARY["Brier"])
     period = st.radio("Periodo", ["Mese", "Settimana"], horizontal=True, key="performance_period")
     scores = scores_over_time(frame, "M" if period == "Mese" else "W")
     if not scores.empty:
@@ -130,7 +131,7 @@ def render_performance() -> None:
             width="stretch")
         st.dataframe(scores.round(4), hide_index=True, width="stretch")
 
-    st.subheader("CLV medio per mercato")
+    st.subheader("CLV medio per mercato", help=GLOSSARY["CLV"])
     clv = clv_by_market(frame)
     if clv.empty:
         st.info("Nessuna riga con quota presa e quota di chiusura.")

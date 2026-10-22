@@ -63,7 +63,7 @@ def score_table(distribution: Mapping[str, float]) -> pd.DataFrame:
     rows, cumulative = [], 0.0
     for score, percentage in sorted(distribution.items(), key=lambda item: -item[1]):
         cumulative += percentage
-        rows.append({"Risultato": score, "Probabilità %": round(percentage, 2), "Cumulata %": round(min(cumulative, 100.0), 2),
+        rows.append({"Risultato": score, "Probabilità %": round(percentage, 1), "Cumulata %": round(min(cumulative, 100.0), 1),
                      "Quota equa": round(100.0 / percentage, 2) if percentage > 0 else None})
     return pd.DataFrame(rows, columns=["Risultato", "Probabilità %", "Cumulata %", "Quota equa"])
 
