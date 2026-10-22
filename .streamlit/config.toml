@@ -1,0 +1,6 @@
+# Colore primario verde campo per i due temi (tab attiva, pulsanti, focus); la scelta chiaro/scuro resta all'utente.
+[theme.light]
+primaryColor = "#1d6b3c"
+
+[theme.dark]
+primaryColor = "#23824a"

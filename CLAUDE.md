@@ -87,6 +87,12 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   correlazione esatte per i mercati che dipendono dal solo punteggio finale),
   interfaccia in `ui_exact.py`. Verifica storica con
   `python -m tools.baseline --risultati-esatti` (sezione `risultati_esatti`).
+- Dashboard: schede in `dashboard.py` (solo presentazione, nessun calcolo;
+  HTML statico senza JavaScript con `esc` su ogni testo esterno; token colore
+  chiaro/scuro, contrasto testo ≥ 4,5:1 verificato in `test_dashboard.py`).
+  Tab in `streamlit_app.py`: Panoramica · Gol · Corner e cartellini · Risultati
+  esatti · Claude · Registro · Prestazioni. Screenshot con
+  `python -m tools.screenshots` in `docs/screenshot/`.
 - Profili di stile in `datasources/style.py` (z-score per campionato, cache
   SQLite); archetipi in `config/style_archetypes.json`, rigenerati con
   `python -m tools.style`.
@@ -118,7 +124,8 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   profili di stile (E), avversari simili (F, attiva solo la correzione
   cartellini), Claude via copia e incolla (G), registro Excel e pagina
   Prestazioni (H), allineamento ai 19 mercati del Riepilogo (H2), punti
-  cartellini con la regola Eurobet (H3), risultati esatti e gruppi (I).
+  cartellini con la regola Eurobet (H3), risultati esatti e gruppi (I),
+  dashboard a tema calcio (J).
 - Test: `python -m pytest -q` (solo fixture salvate, nessuna rete); 2 `xfail`
   noti (PSG-Barcellona, Napoli-Bodø, input stimati).
 

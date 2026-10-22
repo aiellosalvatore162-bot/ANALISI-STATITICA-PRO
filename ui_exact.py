@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import streamlit as st
 
+from dashboard import heatmap
+
 from exact_scores import (
     UNCERTAINTY_NOTE, coherence, coherence_summary, correlation, group_probability, group_selection, group_value,
     minimum_group, score_table,
@@ -30,13 +32,15 @@ def _historical_note() -> str | None:
             f"{section['risultato_piu_probabile']['prevista']:.1%}, realizzato {section['risultato_piu_probabile']['reale']:.1%}.")
 
 
-def render_exact_scores(result: dict) -> None:
+def render_exact_scores(result: dict) -> tuple[list[str], list[str]]:
+    """Mostra la sezione e restituisce (gruppo minimo, il mio gruppo) per la mappa di calore."""
     st.subheader("Risultati esatti")
     distribution = result["exact_scores"]["finale"]
     st.warning(UNCERTAINTY_NOTE)
     note = _historical_note()
     if note:
         st.caption(note)
+    heat = st.empty()  # mappa di calore, disegnata a fine sezione quando i gruppi sono noti
     table = score_table(distribution)
     st.caption(f"{result['model']['simulation_count']:,} simulazioni · {len(table)} risultati diversi. "
                "Quota equa = 1 / probabilità.".replace(",", "."))
@@ -45,40 +49,43 @@ def render_exact_scores(result: dict) -> None:
         with st.expander(f"Tutti i {len(table)} risultati"):
             st.dataframe(table, hide_index=True, width="stretch")
 
-    st.markdown("**Gruppo minimo**")
+    st.markdown("**Gruppo minimo**", help="Il minor numero di risultati, dai più probabili, che insieme raggiunge la copertura scelta.")
     coverage = st.slider("Copertura desiderata %", 40, 90, 70, 5, key="exact_coverage")
     chosen, probability = minimum_group(distribution, coverage / 100.0)
     columns = st.columns(3)
     columns[0].metric("Risultati necessari", len(chosen))
     columns[1].metric("Probabilità del gruppo", f"{probability:.1%}")
-    columns[2].metric("Quota equa del gruppo", f"{1 / probability:.2f}" if probability else "—")
+    columns[2].metric("Quota equa del gruppo", f"{1 / probability:.2f}" if probability else "—", help="1 / probabilità: la quota senza margine.")
     st.caption("Gruppo: " + group_selection(chosen).replace("/", ", "))
 
     st.markdown("**Il mio gruppo**")
-    picked = st.multiselect("Risultati del gruppo", list(table["Risultato"]), key="exact_group_scores",
+    picked = st.multiselect("Risultati del gruppo", list(table["Risultato"]), key="exact_group_scores", placeholder="Scegli i risultati",
                             help="Es. 1-0, 2-0, 2-1, 1-1: vince se il risultato finale è uno di questi.")
     offered = st.number_input("Quota offerta (es. Eurobet) per questa combinazione", min_value=0.0, value=0.0, step=0.05,
                               format="%.2f", key="exact_group_odds", help="0 = nessuna quota.")
     if not picked:
         st.session_state.pop("exact_group", None)
-        return
+        heat.html(heatmap(result, chosen, []))
+        return chosen, []
     selection = group_selection(picked)
     probability = group_probability(distribution, picked)
     value = group_value(probability, offered or None)
     columns = st.columns(3)
-    columns[0].metric("Probabilità del gruppo", f"{probability:.2%}")
+    columns[0].metric("Probabilità del gruppo", f"{probability:.1%}")
     columns[1].metric("Quota equa", f"{value['fair_odds']:.2f}" if value["fair_odds"] else "—")
-    columns[2].metric("Valore atteso (EV)", f"{value['ev']:+.1%}" if value["ev"] is not None else "—")
+    columns[2].metric("Valore atteso (EV)", f"{value['ev']:+.1%}" if value["ev"] is not None else "—",
+                      help="Guadagno medio per 1 € puntato alla quota offerta. Negativo = non conviene.")
     if value["ev"] is not None and value["ev"] < 0:
         st.error(f"EV negativo: alla quota {offered:.2f} il gruppo vale meno di quanto rischi (quota equa {value['fair_odds']:.2f}).")
     elif value["ev"] is not None:
         st.success("EV positivo sul modello: ricorda l'incertezza alta dei risultati esatti prima di giocarlo.")
     spread = [(label, result["exact_scores"].get(component)) for label, component in
               (("solo modello", "modello"), ("solo mercato", "mercato"))]
-    shown = [f"{label} {group_probability(values, picked):.2%}" for label, values in spread if values]
+    shown = [f"{label} {group_probability(values, picked):.1%}" for label, values in spread if values]
     if shown:
         st.caption("Stessa probabilità con le singole componenti: " + " · ".join(shown) + ". Più sono lontane, più è incerta.")
     st.session_state["exact_group"] = {"selection": selection, "odds": offered if offered > 1.0 else None}
+    heat.html(heatmap(result, chosen, picked))
 
     st.markdown("**Coerenza con gli altri mercati**")
     table = coherence(distribution, picked)
@@ -87,7 +94,8 @@ def render_exact_scores(result: dict) -> None:
 
     st.markdown("**In schedina con altri mercati**")
     finale = result["components"]["finale"]
-    legs = st.multiselect("Altri mercati che vuoi combinare con il gruppo", sorted(finale), key="exact_group_legs")
+    legs = st.multiselect("Altri mercati che vuoi combinare con il gruppo", sorted(finale), key="exact_group_legs",
+                          placeholder="Scegli i mercati")
     if legs:
         joint = correlation(distribution, picked, legs, finale)
         st.dataframe(joint, hide_index=True, width="stretch")
@@ -97,3 +105,4 @@ def render_exact_scores(result: dict) -> None:
                        "probabilità resta quella del solo gruppo: una quota combinata calcolata come prodotto la "
                        "sopravvaluta, e molti bookmaker non accettano combinazioni correlate.")
         st.caption("Probabilità congiunta sul campione simulato, non il prodotto delle probabilità (come nel Combo Builder).")
+    return chosen, picked

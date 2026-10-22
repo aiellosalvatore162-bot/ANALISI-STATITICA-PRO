@@ -468,7 +468,7 @@ def render_registry(result: dict, config, claude: dict | None = None, claude_not
     from datetime import datetime
 
     from prediction_log import (
-        DEFAULT_SELECTIONS, TYPES, PredictionLog, SaveInfo, market_of, model_version, prediction_rows, to_excel,
+        DEFAULT_SELECTIONS, PROBABILITY_COLUMNS, TYPES, PredictionLog, SaveInfo, market_of, model_version, prediction_rows, to_excel,
     )
 
     st.subheader("Registro delle previsioni")
@@ -494,7 +494,7 @@ def render_registry(result: dict, config, claude: dict | None = None, claude_not
                                         help="Con il nome del campionato (es. Serie A) la pagina Prestazioni trova più in fretta gli esiti.")
     kind = columns[3].radio("Tipo", TYPES, index=1, horizontal=True, key="registry_kind")
     selections = st.multiselect(
-        "Selezioni da registrare", available, default=played or [key for key in DEFAULT_SELECTIONS if key in available],
+        "Selezioni da registrare", available, placeholder="Scegli le selezioni", default=played or [key for key in DEFAULT_SELECTIONS if key in available],
         format_func=lambda key: f"{market_of(key)} · {key}", key=f"registry_selections_{id(result)}_{(group or {}).get('selection', '')}",
         help="Solo i mercati della tabella del Riepilogo (1X2, Doppia chance, DNB, Over/Under 1.5-2.5-3.5, "
              "Goal/NoGoal, Multigol totale/casa/ospite, 1X2 primo tempo, Over 0.5/1.5 1T, Corner, Cartellini, Combo, "
@@ -506,7 +506,9 @@ def render_registry(result: dict, config, claude: dict | None = None, claude_not
     edited = st.data_editor(
         pd.DataFrame(rows), hide_index=True, width="stretch", key=f"registry_editor_{id(result)}",
         disabled=[column for column in rows[0] if column not in ("Quota_presa", "Puntata", "Tipo", "Note")],
-        column_config={"Tipo": st.column_config.SelectboxColumn("Tipo", options=list(TYPES))},
+        column_config={"Tipo": st.column_config.SelectboxColumn("Tipo", options=list(TYPES)),
+                       **{column: st.column_config.NumberColumn(column, format="percent") for column in PROBABILITY_COLUMNS},
+                       "Quota_presa": st.column_config.NumberColumn("Quota_presa", format="%.2f")},
     )
     session = st.session_state.setdefault("session_id", uuid.uuid4().hex[:12])
     log = PredictionLog(source_cache())
@@ -518,7 +520,8 @@ def render_registry(result: dict, config, claude: dict | None = None, claude_not
     saved = log.rows(session)
     if saved:
         st.markdown(f"**Righe di questa sessione: {len(saved)}**")
-        st.dataframe(pd.DataFrame(saved), hide_index=True, width="stretch")
+        st.dataframe(pd.DataFrame(saved), hide_index=True, width="stretch",
+                     column_config={column: st.column_config.NumberColumn(column, format="percent") for column in PROBABILITY_COLUMNS})
         st.download_button("Scarica registro Excel", to_excel(saved), file_name=f"registro_{date.today():%Y%m%d}.xlsx",
                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key="registry_download",
                            help="Solo colonne A–S: copia le righe e incollale nel foglio Registro sotto l'ultima riga piena.")

@@ -1,2 +1,3 @@
 -r requirements.txt
 pytest>=8.0
+playwright>=1.40  # solo per python -m tools.screenshots (poi: python -m playwright install chromium)
