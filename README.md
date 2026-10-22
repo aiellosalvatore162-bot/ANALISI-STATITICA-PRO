@@ -184,6 +184,25 @@ In **Crea partita**, **Prepara estrazione dati per Claude** genera le istruzioni
 per trasformare il testo copiato da un sito nel blocco del parser; il blocco
 restituito si incolla nel campo apposito e passa dal controllo di plausibilità.
 
+## Risultati esatti e gruppi
+
+Dopo la simulazione, la sezione **Risultati esatti** mostra i risultati dello
+stesso campione (es. 100.000 run) ordinati per probabilità con la cumulata e la
+quota equa; il **gruppo minimo** è il minor numero di risultati che raggiunge la
+copertura scelta (40-90%). In **Il mio gruppo** scegli i risultati e la quota
+offerta: probabilità, quota equa, EV (avviso se negativo) e la stessa
+probabilità con solo modello e solo mercato. La **coerenza** dice quanta
+probabilità del gruppo cade in 1X2, doppia chance, Over/Under e Goal (es. «tutto
+1X, tutto Under 3.5»); **In schedina** calcola la probabilità congiunta con gli
+altri mercati e segnala quelli che contengono già il gruppo (ridondanti) o sono
+incompatibili. I mercati di primo tempo, corner e cartellini non si possono
+combinare dai soli risultati esatti.
+
+Il risultato esatto è il mercato meno stabile: l'app lo ricorda sempre. La
+verifica storica (`python -m tools.baseline --risultati-esatti`, sezione
+`risultati_esatti` della configurazione e `docs/BASELINE.md`) misura log-loss,
+calibrazione dei singoli risultati e copertura reale del gruppo minimo.
+
 ## Registro delle previsioni e pagina Prestazioni
 
 Dopo una simulazione, la sezione **Registro delle previsioni** salva una riga per
@@ -196,11 +215,12 @@ Puntata, Tipo, Versione_modello, Quota_chiusura, Esito, Note`.
   sole quote, `Prob_modello` il solo modello, `Prob_stile` la simulazione con lo
   scenario tattico attivo, `Prob_Claude` quella con le correzioni di Claude;
   `Prob_finale` è l'ultima disponibile.
-- `Mercato` usa sempre i 19 nomi della tabella «per mercato» del Riepilogo:
+- `Mercato` usa sempre i 20 nomi della tabella «per mercato» del Riepilogo:
   1X2, Doppia chance, DNB, Over 1.5, Under 1.5, Over 2.5, Under 2.5, Over 3.5,
   Under 3.5, Goal/NoGoal, Multigol (totale), Multigol casa, Multigol ospite,
   Primo tempo (1X2 del primo tempo), Over 0.5 1T, Over 1.5 1T, Corner,
-  Cartellini, Combo. Le linee senza nome (es. Over 4.5, Goal 1T) non sono
+  Cartellini, Combo, Risultati esatti (Selezione = gruppo, es. «1-0/2-0/2-1»,
+  vinta se il risultato finale è uno di quelli). Le linee senza nome (es. Over 4.5, Goal 1T) non sono
   registrabili. Per il DNB la probabilità è condizionata al non rimborso; con il
   pareggio la riga resta senza Esito (annotata «rimborsata») ed è esclusa dalle
   misure.
