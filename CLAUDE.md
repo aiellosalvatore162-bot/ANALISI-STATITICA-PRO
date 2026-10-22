@@ -21,6 +21,7 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
    `xfail` per input stimati.
 3. **Registro delle previsioni** (probabilità stimata, quota, risultato) per
    misurare la calibrazione e il confronto con la quota di chiusura (CLV).
+   Fatto nella fase H in versione Excel (vedi «Stato del progetto»).
 
 ## Modalità di lavoro
 
@@ -83,8 +84,37 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   `scenario_tattico` della configurazione).
 - Integrazione con Claude solo via copia e incolla (`claude_bridge.py`): niente
   SDK anthropic né chiavi API. Le correzioni incollate sui gol si applicano dopo
-  l'ancoraggio al mercato (`MatchConfig.claude`). Registro minimo delle
-  previsioni in `prediction_log.py` (colonna `Prob_Claude`), da estendere nella
-  fase H.
+  l'ancoraggio al mercato (`MatchConfig.claude`).
+- Registro delle previsioni unico in `prediction_log.py`: colonne A–S del file
+  dell'utente `tests/fixtures/Registro_Previsioni.xlsx` (nomi e ordine esatti),
+  probabilità in decimali, nomi mercato fissi (`MARKETS`, come il foglio
+  Riepilogo), `ID` = data|partita|mercato|selezione come chiave (niente
+  doppioni). Misure della pagina Prestazioni in `performance.py` (legge solo
+  A–S, ricalcola le colonne grigie), interfaccia in `ui_performance.py`. Gli
+  esiti si ricavano con le definizioni degli eventi del motore
+  (`engine._event_catalog`); la compilazione automatica non sovrascrive mai
+  valori presenti nel file e scrive fonte e data in `Note`.
 - Le fonti remote devono degradare con un avviso (come `historical.py` ricade
   al 100% manuale), mai bloccare la simulazione manuale.
+
+## Stato del progetto (22/10/2026, dopo la fase H)
+
+- Fasi completate e unite a `main`: modello gol log-lineare (1), ancoraggio al
+  mercato (2), mercati secondari (C2), livello dati (D), football-data.org,
+  profili di stile (E), avversari simili (F, attiva solo la correzione
+  cartellini), Claude via copia e incolla (G), registro Excel e pagina
+  Prestazioni (H).
+- Test: `python -m pytest -q` (solo fixture salvate, nessuna rete); 2 `xfail`
+  noti (PSG-Barcellona, Napoli-Bodø, input stimati).
+
+## Prossimi passi
+
+1. Usare il registro per qualche settimana: con almeno 100 selezioni con esito
+   per mercato il giudizio della pagina Prestazioni diventa significativo.
+2. Quote di chiusura per i mercati senza colonne in football-data.co.uk
+   (Goal/NoGoal, Multigol, corner, cartellini, primo tempo): servono una fonte
+   gratuita o l'inserimento a mano.
+3. Esiti delle coppe (Champions League) da football-data.org quando la chiave è
+   configurata (oggi solo i campionati di football-data.co.uk).
+4. Se il confronto delle componenti mostra che stile o Claude non migliorano il
+   Brier rispetto a modello/mercato, disattivarli con le opzioni esistenti.
