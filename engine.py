@@ -1203,6 +1203,14 @@ def _events_for_scores(
     return events
 
 
+def _score_percentages(goals_home: np.ndarray, goals_away: np.ndarray) -> dict[str, float]:
+    """Exact-score distribution of one sample, «casa-ospite» -> percentage, most likely first."""
+    pairs, counts = np.unique(np.column_stack((goals_home, goals_away)), axis=0, return_counts=True)
+    order = np.argsort(-counts, kind="stable")
+    total = float(len(goals_home))
+    return {f"{int(pairs[index][0])}-{int(pairs[index][1])}": round(float(counts[index]) / total * 100.0, 4) for index in order}
+
+
 def _event_percentages(events: Mapping[str, np.ndarray]) -> dict[str, float]:
     return {key: round(float(mask.mean()) * 100.0, 2) for key, mask in events.items()}
 
@@ -1259,16 +1267,18 @@ def simulate_match(config: MatchConfig) -> dict[str, Any]:
 
     events = _events_for_scores(config, (goals_home, goals_away, first_home, first_away), counts)
     components = {"finale": _event_percentages(events), "modello": None, "mercato": None}
+    exact_scores = {"finale": _score_percentages(goals_home, goals_away), "modello": None, "mercato": None}
     if anchoring["active"]:
         for name, rates in (
             ("modello", (anchoring["model_lambda"], anchoring["model_mu"])),
             ("mercato", (anchoring["market_lambda"], anchoring["market_mu"])),
         ):
-            components[name] = _event_percentages(
-                _events_for_scores(config, _sample_scores(config, *rates), counts)
-            )
+            component_scores = _sample_scores(config, *rates)
+            components[name] = _event_percentages(_events_for_scores(config, component_scores, counts))
+            exact_scores[name] = _score_percentages(*component_scores[:2])
     else:
         components["modello"] = components["finale"]
+        exact_scores["modello"] = exact_scores["finale"]
     markets = {
         "1x2": {key: _market(events[key]) for key in ("1", "X", "2")},
         "double_chance": {key: _market(events[key]) for key in ("1X", "X2", "12")},
@@ -1374,6 +1384,7 @@ def simulate_match(config: MatchConfig) -> dict[str, Any]:
     }
     result["market_anchoring"] = anchoring
     result["components"] = components
+    result["exact_scores"] = exact_scores
     result["financial"] = financial_analysis(
         events, getattr(config, "odds", None), components,
         config.market_anchor.suspicious_gap_pct, config.market_anchor.no_value_markets,
