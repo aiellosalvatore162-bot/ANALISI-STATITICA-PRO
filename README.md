@@ -177,12 +177,43 @@ La risposta incollata viene letta da `claude_bridge.py`: limiti gol e corner
 fonte viene ignorata; la media gialli dell'arbitro (con fonte e numero di
 partite) sostituisce quella del blocco con lo stesso shrinkage della fase D. Le
 correzioni sui gol si applicano dopo l'ancoraggio al mercato. Un interruttore
-le applica e mostra il confronto prima/dopo; **Salva nel registro** scrive le
-probabilità prima e dopo (colonna `Prob_Claude`) in `prediction_log.py`.
+le applica e mostra il confronto prima/dopo; la probabilità con le correzioni
+finisce nella colonna `Prob_Claude` del registro delle previsioni.
 
 In **Crea partita**, **Prepara estrazione dati per Claude** genera le istruzioni
 per trasformare il testo copiato da un sito nel blocco del parser; il blocco
 restituito si incolla nel campo apposito e passa dal controllo di plausibilità.
+
+## Registro delle previsioni e pagina Prestazioni
+
+Dopo una simulazione, la sezione **Registro delle previsioni** salva una riga per
+selezione con le colonne A–S del file `Registro_Previsioni.xlsx` (modello in
+`tests/fixtures/`): `ID, Data, Ora, Competizione, Partita, Mercato, Selezione,
+Prob_finale, Prob_mercato, Prob_modello, Prob_stile, Prob_Claude, Quota_presa,
+Puntata, Tipo, Versione_modello, Quota_chiusura, Esito, Note`.
+
+- Probabilità in decimali (0,62 = 62%). `Prob_mercato` è la simulazione con le
+  sole quote, `Prob_modello` il solo modello, `Prob_stile` la simulazione con lo
+  scenario tattico attivo, `Prob_Claude` quella con le correzioni di Claude;
+  `Prob_finale` è l'ultima disponibile.
+- `Mercato` usa sempre i nomi della tabella «per mercato» del Riepilogo: 1X2,
+  Over 1.5, Over 2.5, Under 2.5, Goal/NoGoal, Multigol, Primo tempo, Corner,
+  Cartellini, Combo. Le altre linee (es. Over 3.5, DNB) non sono registrabili.
+- `ID` = data + partita + mercato + selezione: salvare di nuovo la stessa
+  selezione aggiorna la riga. **Scarica registro Excel** dà le righe della
+  sessione, pronte da incollare nel foglio Registro.
+
+La pagina **Prestazioni** (barra laterale) legge il tuo file (solo colonne A–S,
+le colonne grigie si ricalcolano) e mostra: giudizio per mercato (vantaggio
+dimostrato con almeno 100 selezioni con esito e CLV medio positivo),
+calibrazione per fasce, Brier e log-loss nel tempo, CLV medio per mercato, ROI e
+saldo separati per Reale e A carta, confronto delle componenti (mercato,
+modello, stile, Claude) sulle stesse selezioni. **Cerca esiti e quote di
+chiusura** compila solo le celle vuote da football-data.co.uk (esiti di tutti i
+mercati registrabili; quote medie di chiusura per 1X2 e Over/Under 2.5), annota
+fonte e data in `Note` e permette di scaricare il file aggiornato con formule e
+fogli intatti. Coppe (Champions League) e campionati non coperti restano da
+compilare a mano.
 
 ## Input
 

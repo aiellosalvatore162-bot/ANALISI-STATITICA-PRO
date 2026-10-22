@@ -1,6 +1,7 @@
 """Test dell'integrazione con Claude via copia e incolla (risposte di esempio salvate)."""
 
 from dataclasses import replace
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -12,7 +13,7 @@ from claude_bridge import (
 from datasources.builder import plausibility_warnings
 from datasources.cache import SourceCache
 from parser import parse_match_input
-from prediction_log import PredictionLog, registry_rows
+from prediction_log import PredictionLog, SaveInfo, prediction_rows
 from test_parser import VALID
 
 SAMPLES = Path(__file__).resolve().parent / "tests" / "fixtures" / "claude"
@@ -127,12 +128,14 @@ def test_registry_stores_probabilities_before_and_after_claude(tmp_path):
     config = _config(odds={"1": 1.9, "X": 3.5, "2": 4.2})
     before = engine.simulate_match(config)
     after = engine.simulate_match(replace(config, claude=engine.ClaudeAdjustment(goals_home=0.9)))
-    rows = registry_rows(before, after, odds=config.odds, confidence="media")
-    one = next(row for row in rows if row["Mercato"] == "1")
-    assert one["Prob_Claude"] < one["Prob_modello"] and one["Quota"] == 1.9
+    info = SaveInfo(date(2026, 10, 25), "20:45", "Serie A", "A carta", "test")
+    rows = prediction_rows(before, ["1", "X", "2"], info, claude=after, odds=config.odds)
+    one = next(row for row in rows if row["Selezione"] == "1")
+    assert one["Prob_Claude"] < one["Prob_modello"] and one["Quota_presa"] == 1.9
+    assert one["Prob_finale"] == one["Prob_Claude"]
     log = PredictionLog(SourceCache(tmp_path / "c.sqlite", opener=lambda *args: b""))
-    log.add(rows, "sessione-1")
-    log.add(registry_rows(before, None), "sessione-2")
+    log.save(rows, "sessione-1")
+    log.save(prediction_rows(before, ["Over 2.5 gol"], info), "sessione-2")
     stored = log.rows("sessione-1")
     assert len(stored) == len(rows) and stored[0]["Prob_Claude"] is not None
     assert all(row["Prob_Claude"] is None for row in log.rows("sessione-2"))
