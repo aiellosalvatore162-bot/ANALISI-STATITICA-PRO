@@ -630,6 +630,7 @@ def _catalog_cards_section(group: str, result: dict, financial_rows: dict) -> No
 
 def _overview_tab(result: dict, financial_rows: dict) -> None:
     model, summary = result["model"], result["summary"]
+    st.html(dashboard.in_brief(result))
     st.html(dashboard.scoreboard(result))
     st.html(dashboard.legend())
     st.html(dashboard.grid([dashboard.outcome_card(result), dashboard.goals_card(result), dashboard.value_card(result)]))

@@ -186,7 +186,9 @@ restituito si incolla nel campo apposito e passa dal controllo di plausibilità.
 
 ## Dashboard
 
-Dopo la simulazione i risultati sono in sette tab: **Panoramica** (tabellone con
+Dopo la simulazione i risultati sono in sette tab: **Panoramica** («In breve»: 3-4
+frasi dai numeri già calcolati su ritmo gol, equilibrio, corner e cartellini
+rispetto alle linee più giocate 9.5 e 4.5, giocate più solide; tabellone con
 gol attesi, risultato più probabile e confidenza; barra 1X2; gol; semaforo del
 valore; «Le giocate più solide di questa partita»), **Gol** (Over/Under,
 gol per squadra, Multigol, primo tempo come barre con la linea del 50%),

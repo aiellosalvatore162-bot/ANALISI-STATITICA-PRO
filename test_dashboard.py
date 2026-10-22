@@ -90,3 +90,33 @@ def test_team_badges_use_colors_and_initials():
     assert dashboard.team_colors("Inter")[0] == "#0068a8"
     assert dashboard.team_colors("Squadra Sconosciuta") == dashboard.team_colors("Squadra Sconosciuta")
     assert 'title="Inter"' in dashboard.badge("Inter")
+
+
+def test_in_brief_uses_only_computed_numbers(result):
+    sentences = dashboard.brief_sentences(result)
+    assert 3 <= len(sentences) <= 4
+    model, finale = result["model"], result["components"]["finale"]
+    assert f'{model["lambda"] + model["mu"]:.1f} gol' in sentences[0]
+    assert dashboard.pct(finale["Over 9.5 corner"]) in sentences[2] and dashboard.pct(finale["Over 4.5 cartellini"]) in sentences[2]
+    picks = dashboard.solid_picks(result, limit=2)
+    assert all(pick["market"] in sentences[3] for pick in picks)
+    assert dashboard._side(60) == "sopra la linea" and dashboard._side(40) == "sotto la linea" and dashboard._side(50) == "vicini alla linea"
+    html = dashboard.in_brief(result)
+    assert html.count("<li>") == len(sentences) and "In breve" in html
+
+
+def test_in_brief_balanced_match_and_escaping(result):
+    markets = {**result["markets"], "1x2": {"1": {"percentage": 36.0}, "X": {"percentage": 30.0}, "2": {"percentage": 34.0}}}
+    hostile = {**result, "markets": markets, "input": {**result["input"], "home": {**result["input"]["home"], "name": "<b>X</b>"}}}
+    assert dashboard.brief_sentences(hostile)[1].startswith("Partita equilibrata")
+    assert "<b>X</b>" not in dashboard.in_brief(hostile)
+
+
+def test_missing_values_are_shown_as_dash():
+    import numpy as np
+    import pandas as pd
+
+    frame = pd.DataFrame({"a": [1.5, np.nan], "b": [None, "testo"], "c": [0.2025, 0.0]})
+    shown = dashboard.missing_as_dash(frame)
+    assert shown.loc[1, "a"] == "—" and shown.loc[0, "b"] == "—" and shown.loc[1, "b"] == "testo"
+    assert shown.loc[0, "a"] == "1.5" and shown.loc[0, "c"] == "0.2025"

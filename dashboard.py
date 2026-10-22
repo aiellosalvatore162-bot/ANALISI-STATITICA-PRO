@@ -184,6 +184,9 @@ abbr.term {{ text-decoration: underline dotted; text-underline-offset: 3px; curs
 .light .what {{ font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }}
 .light .verdict {{ grid-column: 2; font-weight: 700; font-size: .9rem; }}
 .light.green .verdict {{ color: var(--good-ink); }} .light.red .verdict {{ color: var(--bad-ink); }} .light.grey .verdict {{ color: var(--ink-2); }}
+.brief {{ margin-bottom: 14px; border-left: 5px solid var(--pitch-2); }}
+.brief-list {{ margin: 8px 0 0 1.1rem; padding: 0; display: grid; gap: 6px; }}
+.brief-list li {{ color: var(--ink); font-size: 1.02rem; line-height: 1.45; }}
 .legend {{ display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: .86rem; color: var(--ink-2); margin: 4px 0 12px; }}
 .legend span {{ display: inline-flex; align-items: center; gap: 6px; }}
 .legend i {{ width: 14px; height: 14px; border-radius: 3px; display: inline-block; }}
@@ -577,3 +580,72 @@ def heatmap(result: Mapping, minimum: Iterable[str] = (), mine: Iterable[str] = 
 def hero() -> str:
     return ('<header class="hero"><div class="kicker">Simulpro · Match Lab</div><h1>Simulatore partite</h1>'
             '<p>Inserisci la partita, premi «Esegui simulazione» e leggi le schede: ogni numero ha accanto cosa significa.</p></header>')
+
+
+def missing_as_dash(frame):
+    """Tabella per la visualizzazione: «—» al posto di None/NaN, numeri senza zeri inutili."""
+    import pandas as pd
+
+    def cell(value):
+        if value is None or (not isinstance(value, str) and pd.isna(value)):
+            return "—"
+        if isinstance(value, float):
+            return f"{value:g}" if abs(value) >= 1e-4 or value == 0 else f"{value:.2e}"
+        return value
+
+    return frame.astype(object).map(cell)
+
+
+# --- In breve ---------------------------------------------------------------------------------
+# Frasi solo dai numeri già calcolati. Riferimento per «sopra/sotto» = la linea più giocata del mercato
+# (2.5 gol, 9.5 corner, 4.5 punti cartellino): sopra se l'Over supera il 55%, sotto se resta sotto il 45%.
+REFERENCE_LINES = {"gol": ("Over 2.5 gol", 2.5), "corner": ("Over 9.5 corner", 9.5), "cartellini": ("Over 4.5 cartellini", 4.5)}
+
+
+def _side(over_pct: float) -> str:
+    return "sopra la linea" if over_pct >= 55 else "sotto la linea" if over_pct <= 45 else "vicini alla linea"
+
+
+def brief_sentences(result: Mapping) -> list[str]:
+    home, away = team_names(result)
+    finale = result["components"]["finale"]
+    model = result["model"]
+    one, draw, two = (result["markets"]["1x2"][key]["percentage"] for key in ("1", "X", "2"))
+    sentences = []
+
+    total = float(model["lambda"]) + float(model["mu"])
+    over = finale[REFERENCE_LINES["gol"][0]]
+    pace = "alto" if over >= 58 else "basso" if over <= 42 else "nella media"
+    sentences.append(f"Ritmo gol {pace}: attesi {total:.1f} gol in tutto ({home} {float(model['lambda']):.1f}, "
+                     f"{away} {float(model['mu']):.1f}); almeno 3 gol in circa {out_of_ten(over)} partite su 10.")
+
+    favorite, favorite_pct = max((("1", one), ("X", draw), ("2", two)), key=lambda item: item[1])
+    if abs(one - two) < 8:
+        sentences.append(f"Partita equilibrata: {home} {pct(one)}, pareggio {pct(draw)}, {away} {pct(two)}.")
+    elif favorite == "X":
+        sentences.append(f"Il pareggio è l'esito più probabile ({pct(draw)}), ma nessun risultato domina.")
+    else:
+        team = home if favorite == "1" else away
+        strength = "netta favorita" if favorite_pct >= 60 else "favorita" if favorite_pct >= 45 else "leggermente avanti"
+        sentences.append(f"{team} {strength}: vince in circa {out_of_ten(favorite_pct)} partite su 10 ({pct(favorite_pct)}).")
+
+    corners = result["markets"]["corners"]["mean"]
+    corner_over = finale[REFERENCE_LINES["corner"][0]]
+    cards = result["markets"]["cards"]["mean"]
+    card_over = finale[REFERENCE_LINES["cartellini"][0]]
+    sentences.append(f"Corner {_side(corner_over)} classica di 9.5 (attesi {corners:.1f}, Over 9.5 al {pct(corner_over)}); "
+                     f"cartellini {_side(card_over)} di 4.5 punti (attesi {cards:.1f}, Over 4.5 al {pct(card_over)}).")
+
+    picks = solid_picks(result, limit=2)
+    if picks:
+        names = " e ".join(f"{pick['market']} ({pct(pick['probability'])})" for pick in picks)
+        sentences.append(f"Giocate più solide: {names}. Solide non vuol dire convenienti: guarda il semaforo del valore.")
+    else:
+        sentences.append("Nessuna giocata tra il 55% e l'85%: partita difficile da leggere.")
+    return sentences
+
+
+def in_brief(result: Mapping) -> str:
+    items = "".join(f"<li>{esc(sentence)}</li>" for sentence in brief_sentences(result))
+    return (f'<section class="card brief"><div class="head">{ICONS["ball"]}<span>In breve</span></div>'
+            f'<ul class="brief-list">{items}</ul></section>')
