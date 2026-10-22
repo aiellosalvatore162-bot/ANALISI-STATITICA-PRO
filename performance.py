@@ -19,6 +19,7 @@ from typing import Any, Callable, Iterable
 import numpy as np
 import pandas as pd
 
+from engine import SECOND_YELLOW_EXCLUDED_LEAGUES
 from prediction_log import COLUMNS, MARKETS, PROBABILITY_COLUMNS, PUSH_SELECTIONS, selection_id
 
 MIN_SELECTIONS = 100
@@ -323,17 +324,18 @@ def _needs(selection: str) -> list[str]:
     if "corner" in selection:
         needed += ["home_corners", "away_corners"]
     if "cartellini" in selection:
-        needed += ["home_yellows", "away_yellows"]
+        needed += ["home_yellows", "away_yellows", "home_reds", "away_reds"]
     return needed
 
 
-def settle(selection: str, result: pd.Series | dict) -> int | None:
+def settle(selection: str, result: pd.Series | dict, card_rule=None) -> int | None:
     """Esito (1/0) di una selezione dal risultato reale, con le stesse definizioni degli eventi del motore.
 
-    I cartellini sono i gialli, come nella taratura del modello. ``None`` se
-    mancano i dati necessari o la selezione non è riconosciuta.
+    I cartellini sono punti con la regola della configurazione (``engine.CardRule``,
+    default Eurobet: giallo 1, rosso 2). ``None`` se mancano i dati necessari o
+    la selezione non è riconosciuta.
     """
-    from engine import _event_catalog, _team_multigol_ranges
+    from engine import DEFAULT_CARD_RULE, _event_catalog, _team_multigol_ranges, card_points
 
     legs = selection.split(" + ")
     needed = {column for leg in legs for column in _needs(leg)}
@@ -344,6 +346,12 @@ def settle(selection: str, result: pd.Series | dict) -> int | None:
             return None
         values[column] = np.array([int(value)])
     zero = np.array([0])
+    if "home_reds" in values:
+        rule = card_rule or DEFAULT_CARD_RULE
+        if rule.double_yellow_extra:
+            return None  # i dati non distinguono i rossi da doppia ammonizione
+        values["home_yellows"] = card_points(values["home_yellows"], values["home_reds"], rule)
+        values["away_yellows"] = card_points(values["away_yellows"], values["away_reds"], rule)
     first_home, first_away = values.get("home_ht_goals", zero), values.get("away_ht_goals", zero)
     events = _event_catalog(
         values["home_goals"], values["away_goals"], first_home, first_away,
@@ -414,8 +422,10 @@ def fill_from_results(frame: pd.DataFrame, results: pd.DataFrame, *, source: str
             if outcome is not None:
                 added["Esito"] = float(outcome)
                 report.outcomes += 1
-                if "cartellini" in row["Selezione"]:
-                    details.append("esito sui soli gialli (rossi esclusi)")
+                if ("cartellini" in row["Selezione"] and match.get("league") in SECOND_YELLOW_EXCLUDED_LEAGUES
+                        and match["home_reds"] + match["away_reds"] > 0):
+                    details.append("cartellini: dati inglesi/scozzesi senza il primo giallo della doppia ammonizione, "
+                                   "un'eventuale doppia ammonizione conta 2 invece di 3")
         if need_closing and pd.notna(match.get(closing_column)) and float(match[closing_column]) > 1.0:
             added["Quota_chiusura"] = float(match[closing_column])
             report.closings += 1
