@@ -66,9 +66,13 @@ def show_provenance(rows: list[dict], warnings: list[str]) -> None:
         st.dataframe(frame.style.apply(_highlight, axis=1), hide_index=True, width="stretch")
 
 
-def use_in_simulator(block: str) -> None:
-    """Porta il blocco nel copia-incolla; la modalità cambia al giro successivo, prima del selettore."""
+def use_in_simulator(block: str, *, match_date: date | None = None, competition: str | None = None) -> None:
+    """Porta il blocco nel copia-incolla; la modalità cambia al giro successivo, prima del selettore.
+
+    Data e competizione restano in sessione come valori proposti per il registro delle previsioni.
+    """
     st.session_state["input_text"] = block
+    st.session_state["match_meta"] = {"date": match_date, "competition": competition or ""}
     st.session_state["input_touched"] = True
     st.session_state["pending_input_mode"] = "Copia-incolla"
     st.rerun()
@@ -77,7 +81,7 @@ def use_in_simulator(block: str) -> None:
 def _use_block(sheet: MatchSheet) -> None:
     st.session_state["auto_sheet_rows"] = provenance_rows(sheet)
     st.session_state["auto_sheet_warnings"] = sheet.warnings
-    use_in_simulator(render_block(sheet))
+    use_in_simulator(render_block(sheet), match_date=sheet.match_date, competition=sheet.competition)
 
 
 def render_automatic() -> None:
@@ -187,7 +191,7 @@ def render_create() -> None:
         actions = st.columns(2)
         if actions[0].button("Usa nel simulatore", key="create_use", width="stretch"):
             st.session_state.pop("auto_sheet_rows", None)
-            use_in_simulator(block)
+            use_in_simulator(block, match_date=match_date, competition=competition)
         if actions[1].button("Salva partita (inserita manualmente)", key="create_save", width="stretch",
                              disabled=not (home and away)):
             match_id = source_cache().save_custom_match(home, away, block, competition=competition,
@@ -201,7 +205,9 @@ def render_create() -> None:
         chosen = st.selectbox("Riapri una partita salvata", list(labels), format_func=labels.__getitem__, key="create_saved")
         if st.button("Carica nel simulatore", key="create_load"):
             st.session_state.pop("auto_sheet_rows", None)
-            use_in_simulator(next(match["block"] for match in saved if match["id"] == chosen))
+            match = next(match for match in saved if match["id"] == chosen)
+            use_in_simulator(match["block"], match_date=date.fromisoformat(match["match_date"]) if match["match_date"] else None,
+                             competition=match.get("competition"))
 
 
 # --- Stile ---------------------------------------------------------------------------------
@@ -375,14 +381,16 @@ def render_tactical(home: str | None, away: str | None):
 COPY_HINT = "Per copiare usa il pulsante «Copia» in alto a destra del riquadro (compare passando sopra al testo)."
 
 
-def render_claude(result: dict, config, block: str) -> None:
-    """Prepara il testo per Claude, legge la risposta incollata e confronta prima/dopo le correzioni."""
-    import uuid
+def render_claude(result: dict, config, block: str) -> tuple[dict | None, str]:
+    """Prepara il testo per Claude, legge la risposta incollata e confronta prima/dopo le correzioni.
+
+    Restituisce la simulazione con le correzioni applicate (o ``None``) e una nota per il registro.
+    """
     from dataclasses import replace
 
     from claude_bridge import ResponseError, analysis_prompt, changes_table, parse_response
     from engine import simulate_match
-    from prediction_log import LOGGED_MARKETS, PredictionLog, registry_rows
+    from prediction_log import DEFAULT_SELECTIONS
 
     st.subheader("Analisi con Claude (copia e incolla)")
     st.caption("Nessuna API: copi il testo in Claude (con la ricerca web attiva), poi incolli qui la risposta.")
@@ -395,12 +403,12 @@ def render_claude(result: dict, config, block: str) -> None:
         st.code(prompt, language="text")
     answer = st.text_area("Incolla risposta di Claude", key="claude_answer", height=180)
     if not answer.strip():
-        return
+        return None, ""
     try:
         response = parse_response(answer)
     except ResponseError as exc:
         st.error(str(exc))
-        return
+        return None, ""
     if response.preamble:
         st.markdown(f"**Commento di Claude:** {response.preamble}")
     if response.comment or response.confidence:
@@ -412,7 +420,7 @@ def render_claude(result: dict, config, block: str) -> None:
     referee = response.referee_yellow(config.referee_yellow_avg)
     if adjustment is None and referee is None:
         st.info("Nessuna correzione applicabile (mancano fonti o valori validi).")
-        return
+        return None, ""
     if referee is not None:
         st.caption(f"Gialli medi dell'arbitro: {config.referee_yellow_avg:.2f} → {referee:.2f} "
                    "(media di Claude avvicinata alla media corrente con peso 10 partite).")
@@ -430,18 +438,79 @@ def render_claude(result: dict, config, block: str) -> None:
         st.dataframe(pd.DataFrame([
             {"Mercato": market, "Simulatore %": before_final.get(market), "Con Claude %": after_final.get(market),
              "Differenza (punti)": round(after_final.get(market, 0) - before_final.get(market, 0), 2)}
-            for market in LOGGED_MARKETS if market in before_final
+            for market in DEFAULT_SELECTIONS if market in before_final
         ]), hide_index=True, width="stretch")
         st.caption(f"Gol attesi finali: λ {result['model']['lambda']:.3f} → {after['model']['lambda']:.3f}, "
                    f"μ {result['model']['mu']:.3f} → {after['model']['mu']:.3f} (correzioni dopo l'ancoraggio al mercato).")
+    note = f"confidenza Claude {response.confidence}" if response.confidence else ""
+    return after, note
+
+
+# --- Registro delle previsioni -------------------------------------------------------------------
+
+def _base_result(result: dict, config) -> dict:
+    """Simulazione senza scenario tattico, per separare la colonna Prob_stile da Prob_modello."""
+    from dataclasses import replace
+
+    from engine import TacticalSwitches, simulate_match
+
+    signature = (id(result), config.tactical, config.tactical_switches)
+    if st.session_state.get("registry_base_signature") != signature:
+        st.session_state["registry_base"] = simulate_match(replace(config, tactical_switches=TacticalSwitches()))
+        st.session_state["registry_base_signature"] = signature
+    return st.session_state["registry_base"]
+
+
+def render_registry(result: dict, config, claude: dict | None = None, claude_note: str = "") -> None:
+    """Salva le selezioni scelte nel registro di sessione e scarica il file Excel (colonne A–S)."""
+    import uuid
+    from dataclasses import asdict
+    from datetime import datetime
+
+    from prediction_log import (
+        DEFAULT_SELECTIONS, TYPES, PredictionLog, SaveInfo, market_of, model_version, prediction_rows, to_excel,
+    )
+
+    st.subheader("Registro delle previsioni")
+    st.caption("Una riga per selezione, con le colonne A–S del tuo file Registro_Previsioni.xlsx. "
+               "Quota_chiusura ed Esito restano vuote: le compili a mano o dalla pagina «Prestazioni».")
+    styled = result if config.tactical is not None and any(asdict(config.tactical_switches).values()) else None
+    base = _base_result(result, config) if styled is not None else result
+    available = [key for key in result["components"]["finale"] if market_of(key) is not None]
+    played = [key for key in (config.odds or {}) if key in available]
+    meta = st.session_state.get("match_meta") or {}
+    now = datetime.now()
+    columns = st.columns(4)
+    day = columns[0].date_input("Data partita", value=meta.get("date") or now.date(), key="registry_date")
+    time = columns[1].text_input("Ora", value=now.strftime("%H:%M"), key="registry_time")
+    competition = columns[2].text_input("Competizione", value=meta.get("competition") or "", key="registry_competition",
+                                        help="Con il nome del campionato (es. Serie A) la pagina Prestazioni trova più in fretta gli esiti.")
+    kind = columns[3].radio("Tipo", TYPES, index=1, horizontal=True, key="registry_kind")
+    selections = st.multiselect(
+        "Selezioni da registrare", available, default=played or [key for key in DEFAULT_SELECTIONS if key in available],
+        format_func=lambda key: f"{market_of(key)} · {key}", key=f"registry_selections_{id(result)}",
+        help="Solo i mercati della tabella del Riepilogo: 1X2, Over 1.5, Over 2.5, Under 2.5, Goal/NoGoal, "
+             "Multigol, Primo tempo, Corner, Cartellini, Combo.")
+    if not selections:
+        return
+    info = SaveInfo(day, time.strip(), competition.strip(), kind, model_version(config, claude=claude is not None), claude_note)
+    rows = prediction_rows(base, selections, info, styled=styled, claude=claude, odds=config.odds)
+    edited = st.data_editor(
+        pd.DataFrame(rows), hide_index=True, width="stretch", key=f"registry_editor_{id(result)}",
+        disabled=[column for column in rows[0] if column not in ("Quota_presa", "Puntata", "Tipo", "Note")],
+        column_config={"Tipo": st.column_config.SelectboxColumn("Tipo", options=list(TYPES))},
+    )
     session = st.session_state.setdefault("session_id", uuid.uuid4().hex[:12])
     log = PredictionLog(source_cache())
-    if st.button("Salva nel registro", key="claude_log"):
-        rows = registry_rows(result, after, odds=config.odds, confidence=response.confidence,
-                             note="correzioni di Claude applicate" if after is not None else "correzioni non applicate")
-        log.add(rows, session)
-        st.success(f"Salvate {len(rows)} righe nel registro (colonna Prob_Claude).")
+    if st.button("Salva nel registro", key="registry_save"):
+        records = [{key: None if pd.isna(value) else value for key, value in row.items()}
+                   for row in edited.to_dict("records")]
+        new, updated = log.save(records, session)
+        st.success(f"Registro: {new} righe nuove" + (f", {updated} aggiornate (stesso ID: niente doppioni)." if updated else "."))
     saved = log.rows(session)
     if saved:
-        with st.expander(f"Registro di questa sessione ({len(saved)} righe)"):
-            st.dataframe(pd.DataFrame(saved).drop(columns=["id", "sessione"]), hide_index=True, width="stretch")
+        st.markdown(f"**Righe di questa sessione: {len(saved)}**")
+        st.dataframe(pd.DataFrame(saved), hide_index=True, width="stretch")
+        st.download_button("Scarica registro Excel", to_excel(saved), file_name=f"registro_{date.today():%Y%m%d}.xlsx",
+                           mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key="registry_download",
+                           help="Solo colonne A–S: copia le righe e incollale nel foglio Registro sotto l'ultima riga piena.")

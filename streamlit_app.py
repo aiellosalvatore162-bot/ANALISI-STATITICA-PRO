@@ -19,7 +19,10 @@ from historical import (
 from market_catalog import MARKET_GROUPS, definition_for_event, definitions_for_group
 from datasources.builder import plausibility_warnings
 from parser import MatchInputError, MatchInput, parse_match_input
-from ui_data import render_automatic, render_claude, render_create, render_style, render_tactical, show_provenance
+from ui_data import (
+    render_automatic, render_claude, render_create, render_registry, render_style, render_tactical, show_provenance,
+)
+from ui_performance import render_performance
 
 
 EXAMPLE = """CASA: Inter
@@ -137,6 +140,9 @@ st.markdown(
     '<span class="brand-status">ON-DEMAND ENGINE</span></div>',
     unsafe_allow_html=True,
 )
+if st.sidebar.radio("Pagina", ["Simulatore", "Prestazioni"], key="page") == "Prestazioni":
+    render_performance()
+    st.stop()
 st.title("Motore on-demand")
 st.caption("Dashboard analitica senza calendario o database: input dichiarato, calcolo riproducibile e quote opzionali.")
 
@@ -1177,7 +1183,8 @@ if result:
     st.caption(result["financial"]["risk_note"])
 
     if st.session_state.get("result_config") is not None:
-        render_claude(result, st.session_state["result_config"], text)
+        claude_result, claude_note = render_claude(result, st.session_state["result_config"], text)
+        render_registry(result, st.session_state["result_config"], claude_result, claude_note)
 
     st.subheader("Sintesi statistica del modello")
     st.write(result["statistical_report"])
