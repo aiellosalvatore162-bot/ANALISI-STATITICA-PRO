@@ -63,7 +63,7 @@ TEAM_ALIASES: tuple[tuple[str, ...], ...] = (
     ("Slovan Bratislava", "SlovanBratislava"),
     ("PSV Eindhoven", "PSV"),
     ("Porto", "FC Porto"),
-    ("Sporting CP", "Sporting", "Sporting Lisbona", "Sporting Clube de Portugal"),
+    ("Sporting CP", "Sporting", "Sporting Lisbona", "Sporting Lisbon", "Sporting Clube de Portugal"),
 )
 
 _STOP_TOKENS = {"fc", "ac", "as", "ssc", "cf", "afc", "sc", "sv", "vfb", "vfl", "fsv", "tsg", "rc", "ud", "cd",
