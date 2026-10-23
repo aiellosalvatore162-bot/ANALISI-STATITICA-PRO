@@ -417,6 +417,12 @@ def _sources_comment(fields: dict[str, FieldValue], labels) -> str:
     return "# Fonti: " + " · ".join(parts)
 
 
+def odds_labels(odds: dict) -> list[tuple[str, str]]:
+    """Etichette del blocco: prima i mercati principali, poi le altre quote come «Quota <mercato>»."""
+    main = [(key, label) for key, label in ODDS_FIELDS if key in odds]
+    return main + [(key, f"Quota {key}") for key in odds if key not in dict(ODDS_FIELDS)]
+
+
 def render_block(sheet: MatchSheet) -> str:
     """Blocco nel formato del parser; i campi mancanti sono omessi e annotati nel commento."""
     lines = [f"# Scheda compilata da {sheet.origin} per la partita del {_date(sheet.match_date)}"
@@ -433,10 +439,12 @@ def render_block(sheet: MatchSheet) -> str:
         parts.append(f"Falli medi {referee['fouls'].value:.1f}")
     lines += [f"ARBITRO: {' | '.join(parts)}", _sources_comment(referee, (("yellow", "Gialli medi"), ("fouls", "Falli medi")))]
     if sheet.odds:
-        quotes = [f"{label}: {sheet.odds[key].value:.2f}" for key, label in ODDS_FIELDS if key in sheet.odds]
-        source = next(iter(sheet.odds.values()))
-        lines += ["", "QUOTE_MERCATI_PRINCIPALI:", " | ".join(quotes),
-                  f"# Fonti: quote {source.source} (agg. {_date(source.updated)})"]
+        quotes = [f"{label}: {sheet.odds[key].value:.2f}" for key, label in odds_labels(sheet.odds)]
+        sources: dict[str, list[str]] = {}
+        for key, value in sheet.odds.items():
+            sources.setdefault(f"{value.source} (agg. {_date(value.updated)})", []).append(key)
+        comment = " · ".join(source if len(sources) == 1 else f"{source}: {', '.join(keys)}" for source, keys in sources.items())
+        lines += ["", "QUOTE_MERCATI_PRINCIPALI:", " | ".join(quotes), f"# Fonti: quote {comment}"]
     return "\n".join(lines) + "\n"
 
 
@@ -446,7 +454,7 @@ def provenance_rows(sheet: MatchSheet) -> list[dict]:
     for subject, fields, labels in (
         (sheet.home, sheet.home_fields, TEAM_FIELDS), (sheet.away, sheet.away_fields, TEAM_FIELDS),
         ("Arbitro", sheet.referee_fields, (("yellow", "Gialli medi"), ("fouls", "Falli medi"))),
-        ("Quote", sheet.odds, ODDS_FIELDS),
+        ("Quote", sheet.odds, odds_labels(sheet.odds)),
     ):
         for key, label in labels:
             if key not in fields:
