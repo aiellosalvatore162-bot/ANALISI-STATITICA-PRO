@@ -1,0 +1,42 @@
+[
+ {
+  "id": "c9b6c7048d8dc33dae618f67f462f67a",
+  "sport_key": "soccer_italy_serie_a",
+  "sport_title": "Serie A - Italy",
+  "commence_time": "2026-10-25T11:30:00Z",
+  "home_team": "Inter Milan",
+  "away_team": "Fiorentina"
+ },
+ {
+  "id": "63aa6e3f679ee4c68de5b4bd8d3361bb",
+  "sport_key": "soccer_italy_serie_a",
+  "sport_title": "Serie A - Italy",
+  "commence_time": "2026-10-25T14:00:00Z",
+  "home_team": "Atalanta BC",
+  "away_team": "Frosinone"
+ },
+ {
+  "id": "95cfaecfe96bb7ced1fb6af974a4110b",
+  "sport_key": "soccer_italy_serie_a",
+  "sport_title": "Serie A - Italy",
+  "commence_time": "2026-10-25T14:00:00Z",
+  "home_team": "Genoa",
+  "away_team": "Venezia"
+ },
+ {
+  "id": "63af660d4d0d52f8ac7685172ef939c4",
+  "sport_key": "soccer_italy_serie_a",
+  "sport_title": "Serie A - Italy",
+  "commence_time": "2026-10-25T17:00:00Z",
+  "home_team": "Lecce",
+  "away_team": "Juventus"
+ },
+ {
+  "id": "3564688383b255192409c9deb8e526ed",
+  "sport_key": "soccer_italy_serie_a",
+  "sport_title": "Serie A - Italy",
+  "commence_time": "2026-10-25T19:45:00Z",
+  "home_team": "Udinese",
+  "away_team": "AC Milan"
+ }
+]

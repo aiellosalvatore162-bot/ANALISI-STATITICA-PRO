@@ -1,0 +1,560 @@
+[
+ {
+  "id": "464c74a35c648d4910cc16976ce2f7cd",
+  "sport_key": "soccer_uefa_champs_league",
+  "sport_title": "UEFA Champions League",
+  "commence_time": "2026-10-20T16:45:00Z",
+  "completed": true,
+  "home_team": "Sabah FK",
+  "away_team": "Borussia Dortmund",
+  "scores": [
+   {
+    "name": "Sabah FK",
+    "score": "1"
+   },
+   {
+    "name": "Borussia Dortmund",
+    "score": "2"
+   }
+  ],
+  "last_update": "2026-10-21T23:59:41Z"
+ },
+ {
+  "id": "16e237246e9bef441e69998d1ef9536d",
+  "sport_key": "soccer_uefa_champs_league",
+  "sport_title": "UEFA Champions League",
+  "commence_time": "2026-10-20T16:45:00Z",
+  "completed": true,
+  "home_team": "Fenerbahce",
+  "away_team": "Slavia Praha",
+  "scores": [
+   {
+    "name": "Fenerbahce",
+    "score": "2"
+   },
+   {
+    "name": "Slavia Praha",
+    "score": "2"
+   }
+  ],
+  "last_update": "2026-10-21T23:59:41Z"
+ },
+ {
+  "id": "00625830dd764a06f12f78c0d0a72ff8",
+  "sport_key": "soccer_uefa_champs_league",
+  "sport_title": "UEFA Champions League",
+  "commence_time": "2026-10-20T19:00:00Z",
+  "completed": true,
+  "home_team": "Manchester City",
+  "away_team": "AEK Athens",
+  "scores": [
+   {
+    "name": "Manchester City",
+    "score": "5"
+   },
+   {
+    "name": "AEK Athens",
+    "score": "1"
+   }
+  ],
+  "last_update": "2026-10-21T23:59:41Z"
+ },
+ {
+  "id": "e3b50e57c4cf46191ab068d1e880e595",
+  "sport_key": "soccer_uefa_champs_league",
+  "sport_title": "UEFA Champions League",
+  "commence_time": "2026-10-20T19:00:00Z",
+  "completed": true,
+  "home_team": "AS Roma",
+  "away_team": "\u0160K Slovan Bratislava",
+  "scores": [
+   {
+    "name": "AS Roma",
+    "score": "4"
+   },
+   {
+    "name": "\u0160K Slovan Bratislava",
+    "score": "0"
+   }
+  ],
+  "last_update": "2026-10-21T23:59:41Z"
+ },
+ {
+  "id": "56989e10c299aba1a0fce210bb214775",
+  "sport_key": "soccer_uefa_champs_league",
+  "sport_title": "UEFA Champions League",
+  "commence_time": "2026-10-20T19:00:00Z",
+  "completed": true,
+  "home_team": "VfB Stuttgart",
+  "away_team": "Atl\u00e9tico Madrid",
+  "scores": [
+   {
+    "name": "VfB Stuttgart",
+    "score": "1"
+   },
+   {
+    "name": "Atl\u00e9tico Madrid",
+    "score": "1"
+   }
+  ],
+  "last_update": "2026-10-21T23:59:41Z"
+ },
+ {
+  "id": "46b790335fa98338b7e1ed0b614078fb",
+  "sport_key": "soccer_uefa_champs_league",
+  "sport_title": "UEFA Champions League",
+  "commence_time": "2026-10-20T19:00:00Z",
+  "completed": true,
+  "home_team": "Paris Saint Germain",
+  "away_team": "Barcelona",
+  "scores": [
+   {
+    "name": "Paris Saint Germain",
+    "score": "4"
+   },
+   {
+    "name": "Barcelona",
+    "score": "2"
+   }
+  ],
+  "last_update": "2026-10-21T23:59:41Z"
+ },
+ {
+  "id": "49dba87d5ac664efdf2a64c72db31702",
+  "sport_key": "soccer_uefa_champs_league",
+  "sport_title": "UEFA Champions League",
+  "commence_time": "2026-10-20T19:00:00Z",
+  "completed": true,
+  "home_team": "Napoli",
+  "away_team": "Bod\u00f8/Glimt",
+  "scores": [
+   {
+    "name": "Napoli",
+    "score": "4"
+   },
+   {
+    "name": "Bod\u00f8/Glimt",
+    "score": "3"
+   }
+  ],
+  "last_update": "2026-10-21T23:59:41Z"
+ },
+ {
+  "id": "b9567e9c3df909f8f6f21425b4b38d3f",
+  "sport_key": "soccer_uefa_champs_league",
+  "sport_title": "UEFA Champions League",
+  "commence_time": "2026-10-20T19:00:00Z",
+  "completed": true,
+  "home_team": "Liverpool",
+  "away_team": "Villarreal",
+  "scores": [
+   {
+    "name": "Liverpool",
+    "score": "4"
+   },
+   {
+    "name": "Villarreal",
+    "score": "3"
+   }
+  ],
+  "last_update": "2026-10-21T23:59:41Z"
+ },
+ {
+  "id": "0686ce05e8489734fd66e5ee97fbbfa2",
+  "sport_key": "soccer_uefa_champs_league",
+  "sport_title": "UEFA Champions League",
+  "commence_time": "2026-10-20T19:00:00Z",
+  "completed": true,
+  "home_team": "Porto",
+  "away_team": "PSV Eindhoven",
+  "scores": [
+   {
+    "name": "Porto",
+    "score": "0"
+   },
+   {
+    "name": "PSV Eindhoven",
+    "score": "1"
+   }
+  ],
+  "last_update": "2026-10-21T23:59:41Z"
+ },
+ {
+  "id": "8af9379136075f45b290208b35a706c8",
+  "sport_key": "soccer_uefa_champs_league",
+  "sport_title": "UEFA Champions League",
+  "commence_time": "2026-10-21T16:45:00Z",
+  "completed": true,
+  "home_team": "Como",
+  "away_team": "Manchester United",
+  "scores": [
+   {
+    "name": "Como",
+    "score": "4"
+   },
+   {
+    "name": "Manchester United",
+    "score": "1"
+   }
+  ],
+  "last_update": "2026-10-22T02:27:06Z"
+ },
+ {
+  "id": "015d619d774655965e17ba67a025634e",
+  "sport_key": "soccer_uefa_champs_league",
+  "sport_title": "UEFA Champions League",
+  "commence_time": "2026-10-21T16:45:00Z",
+  "completed": true,
+  "home_team": "Lille",
+  "away_team": "Galatasaray",
+  "scores": [
+   {
+    "name": "Lille",
+    "score": "2"
+   },
+   {
+    "name": "Galatasaray",
+    "score": "4"
+   }
+  ],
+  "last_update": "2026-10-22T02:27:06Z"
+ },
+ {
+  "id": "2ebbccdeea2dab59717d5c3d802c3fed",
+  "sport_key": "soccer_uefa_champs_league",
+  "sport_title": "UEFA Champions League",
+  "commence_time": "2026-10-21T19:00:00Z",
+  "completed": true,
+  "home_team": "Bayern Munich",
+  "away_team": "Arsenal",
+  "scores": [
+   {
+    "name": "Bayern Munich",
+    "score": "2"
+   },
+   {
+    "name": "Arsenal",
+    "score": "2"
+   }
+  ],
+  "last_update": "2026-10-22T02:27:06Z"
+ },
+ {
+  "id": "d3b3e714b6af9e5430e3030ed639e6dd",
+  "sport_key": "soccer_uefa_champs_league",
+  "sport_title": "UEFA Champions League",
+  "commence_time": "2026-10-21T19:00:00Z",
+  "completed": true,
+  "home_team": "Aston Villa",
+  "away_team": "Viking FK",
+  "scores": [
+   {
+    "name": "Aston Villa",
+    "score": "3"
+   },
+   {
+    "name": "Viking FK",
+    "score": "1"
+   }
+  ],
+  "last_update": "2026-10-22T02:27:06Z"
+ },
+ {
+  "id": "d306a78e402e5f505e8644fdf3f75dcd",
+  "sport_key": "soccer_uefa_champs_league",
+  "sport_title": "UEFA Champions League",
+  "commence_time": "2026-10-21T19:00:00Z",
+  "completed": true,
+  "home_team": "Club Brugge",
+  "away_team": "RC Lens",
+  "scores": [
+   {
+    "name": "Club Brugge",
+    "score": "3"
+   },
+   {
+    "name": "RC Lens",
+    "score": "0"
+   }
+  ],
+  "last_update": "2026-10-22T02:27:06Z"
+ },
+ {
+  "id": "f5905225efa837b0dc89b7dcdbb6c625",
+  "sport_key": "soccer_uefa_champs_league",
+  "sport_title": "UEFA Champions League",
+  "commence_time": "2026-10-21T19:00:00Z",
+  "completed": true,
+  "home_team": "Real Betis",
+  "away_team": "Feyenoord",
+  "scores": [
+   {
+    "name": "Real Betis",
+    "score": "1"
+   },
+   {
+    "name": "Feyenoord",
+    "score": "0"
+   }
+  ],
+  "last_update": "2026-10-22T02:27:06Z"
+ },
+ {
+  "id": "a889456204e8ef1b64294efbee8dc3e5",
+  "sport_key": "soccer_uefa_champs_league",
+  "sport_title": "UEFA Champions League",
+  "commence_time": "2026-10-21T19:00:00Z",
+  "completed": true,
+  "home_team": "Inter Milan",
+  "away_team": "Shakhtar Donetsk",
+  "scores": [
+   {
+    "name": "Inter Milan",
+    "score": "1"
+   },
+   {
+    "name": "Shakhtar Donetsk",
+    "score": "0"
+   }
+  ],
+  "last_update": "2026-10-22T02:27:06Z"
+ },
+ {
+  "id": "8fdcaee14b3e8966e09d468a0b17ce18",
+  "sport_key": "soccer_uefa_champs_league",
+  "sport_title": "UEFA Champions League",
+  "commence_time": "2026-10-21T19:00:00Z",
+  "completed": true,
+  "home_team": "Sporting Lisbon",
+  "away_team": "LASK",
+  "scores": [
+   {
+    "name": "Sporting Lisbon",
+    "score": "2"
+   },
+   {
+    "name": "LASK",
+    "score": "3"
+   }
+  ],
+  "last_update": "2026-10-22T02:27:06Z"
+ },
+ {
+  "id": "30f27b8e9719e9ae71c25b4c8aa265f7",
+  "sport_key": "soccer_uefa_champs_league",
+  "sport_title": "UEFA Champions League",
+  "commence_time": "2026-10-21T19:00:00Z",
+  "completed": true,
+  "home_team": "Real Madrid",
+  "away_team": "RB Leipzig",
+  "scores": [
+   {
+    "name": "Real Madrid",
+    "score": "4"
+   },
+   {
+    "name": "RB Leipzig",
+    "score": "1"
+   }
+  ],
+  "last_update": "2026-10-22T02:27:06Z"
+ },
+ {
+  "id": "9b8076d3ffa027df6f6cb3189de46706",
+  "sport_key": "soccer_uefa_champs_league",
+  "sport_title": "UEFA Champions League",
+  "commence_time": "2026-11-03T17:45:00Z",
+  "completed": false,
+  "home_team": "Galatasaray",
+  "away_team": "VfB Stuttgart",
+  "scores": null,
+  "last_update": null
+ },
+ {
+  "id": "55e0f74a61f7d72defa7ea0c83532ea5",
+  "sport_key": "soccer_uefa_champs_league",
+  "sport_title": "UEFA Champions League",
+  "commence_time": "2026-11-03T17:45:00Z",
+  "completed": false,
+  "home_team": "Shakhtar Donetsk",
+  "away_team": "Sporting Lisbon",
+  "scores": null,
+  "last_update": null
+ },
+ {
+  "id": "bc0b6614c9714816038d5a0ff8963144",
+  "sport_key": "soccer_uefa_champs_league",
+  "sport_title": "UEFA Champions League",
+  "commence_time": "2026-11-03T20:00:00Z",
+  "completed": false,
+  "home_team": "Manchester United",
+  "away_team": "AS Roma",
+  "scores": null,
+  "last_update": null
+ },
+ {
+  "id": "bd680c6ad693dae859030f86e1be2769",
+  "sport_key": "soccer_uefa_champs_league",
+  "sport_title": "UEFA Champions League",
+  "commence_time": "2026-11-03T20:00:00Z",
+  "completed": false,
+  "home_team": "Barcelona",
+  "away_team": "Aston Villa",
+  "scores": null,
+  "last_update": null
+ },
+ {
+  "id": "61b42fd619617a7a2a3770c2444e8a40",
+  "sport_key": "soccer_uefa_champs_league",
+  "sport_title": "UEFA Champions League",
+  "commence_time": "2026-11-03T20:00:00Z",
+  "completed": false,
+  "home_team": "Atl\u00e9tico Madrid",
+  "away_team": "Bayern Munich",
+  "scores": null,
+  "last_update": null
+ },
+ {
+  "id": "1a5a84045050d0d7baf1301909d3b465",
+  "sport_key": "soccer_uefa_champs_league",
+  "sport_title": "UEFA Champions League",
+  "commence_time": "2026-11-03T20:00:00Z",
+  "completed": false,
+  "home_team": "Bod\u00f8/Glimt",
+  "away_team": "Lille",
+  "scores": null,
+  "last_update": null
+ },
+ {
+  "id": "f6f3cf01c2b20b7f746b5a06097a0569",
+  "sport_key": "soccer_uefa_champs_league",
+  "sport_title": "UEFA Champions League",
+  "commence_time": "2026-11-03T20:00:00Z",
+  "completed": false,
+  "home_team": "Feyenoord",
+  "away_team": "Inter Milan",
+  "scores": null,
+  "last_update": null
+ },
+ {
+  "id": "adf608a0e9be02eb1d8b0a6f464a12b1",
+  "sport_key": "soccer_uefa_champs_league",
+  "sport_title": "UEFA Champions League",
+  "commence_time": "2026-11-03T20:00:00Z",
+  "completed": false,
+  "home_team": "LASK",
+  "away_team": "\u0160K Slovan Bratislava",
+  "scores": null,
+  "last_update": null
+ },
+ {
+  "id": "a341241606cb5b1b59e425d00be64883",
+  "sport_key": "soccer_uefa_champs_league",
+  "sport_title": "UEFA Champions League",
+  "commence_time": "2026-11-03T20:00:00Z",
+  "completed": false,
+  "home_team": "Villarreal",
+  "away_team": "Paris Saint Germain",
+  "scores": null,
+  "last_update": null
+ },
+ {
+  "id": "f43ef699c987e112e115f7035114854e",
+  "sport_key": "soccer_uefa_champs_league",
+  "sport_title": "UEFA Champions League",
+  "commence_time": "2026-11-04T17:45:00Z",
+  "completed": false,
+  "home_team": "AEK Athens",
+  "away_team": "Real Madrid",
+  "scores": null,
+  "last_update": null
+ },
+ {
+  "id": "e901dbcdd6e2255fb24d84032b9d437a",
+  "sport_key": "soccer_uefa_champs_league",
+  "sport_title": "UEFA Champions League",
+  "commence_time": "2026-11-04T17:45:00Z",
+  "completed": false,
+  "home_team": "Fenerbahce",
+  "away_team": "Liverpool",
+  "scores": null,
+  "last_update": null
+ },
+ {
+  "id": "a5910ae3b314876faea7f5c03b8aeaad",
+  "sport_key": "soccer_uefa_champs_league",
+  "sport_title": "UEFA Champions League",
+  "commence_time": "2026-11-04T20:00:00Z",
+  "completed": false,
+  "home_team": "Slavia Praha",
+  "away_team": "Arsenal",
+  "scores": null,
+  "last_update": null
+ },
+ {
+  "id": "6d386ed81fabf67aa19fbd442c0d8c60",
+  "sport_key": "soccer_uefa_champs_league",
+  "sport_title": "UEFA Champions League",
+  "commence_time": "2026-11-04T20:00:00Z",
+  "completed": false,
+  "home_team": "Borussia Dortmund",
+  "away_team": "Real Betis",
+  "scores": null,
+  "last_update": null
+ },
+ {
+  "id": "449d718632202f0e5997d2e4b7273483",
+  "sport_key": "soccer_uefa_champs_league",
+  "sport_title": "UEFA Champions League",
+  "commence_time": "2026-11-04T20:00:00Z",
+  "completed": false,
+  "home_team": "PSV Eindhoven",
+  "away_team": "Club Brugge",
+  "scores": null,
+  "last_update": null
+ },
+ {
+  "id": "013cecbf40f5b4530342632a80f35b00",
+  "sport_key": "soccer_uefa_champs_league",
+  "sport_title": "UEFA Champions League",
+  "commence_time": "2026-11-04T20:00:00Z",
+  "completed": false,
+  "home_team": "RC Lens",
+  "away_team": "Como",
+  "scores": null,
+  "last_update": null
+ },
+ {
+  "id": "df7d2d81b9e2f3f11c6aeddaee6b7085",
+  "sport_key": "soccer_uefa_champs_league",
+  "sport_title": "UEFA Champions League",
+  "commence_time": "2026-11-04T20:00:00Z",
+  "completed": false,
+  "home_team": "RB Leipzig",
+  "away_team": "Manchester City",
+  "scores": null,
+  "last_update": null
+ },
+ {
+  "id": "ba82ee37f64a66a30d85f8b90082ec2f",
+  "sport_key": "soccer_uefa_champs_league",
+  "sport_title": "UEFA Champions League",
+  "commence_time": "2026-11-04T20:00:00Z",
+  "completed": false,
+  "home_team": "Porto",
+  "away_team": "Napoli",
+  "scores": null,
+  "last_update": null
+ },
+ {
+  "id": "6277e639c064e641265fcb98a0e200b9",
+  "sport_key": "soccer_uefa_champs_league",
+  "sport_title": "UEFA Champions League",
+  "commence_time": "2026-11-04T20:00:00Z",
+  "completed": false,
+  "home_team": "Viking FK",
+  "away_team": "Sabah FK",
+  "scores": null,
+  "last_update": null
+ }
+]

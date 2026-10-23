@@ -1,0 +1,56 @@
+[
+ {
+  "path": "/sports/soccer_italy_serie_a/events/0b4894e9fb123ef3045269f97e339eba/odds",
+  "status": 200,
+  "headers": {
+   "x-requests-remaining": "492",
+   "x-requests-last": "6",
+   "x-requests-used": "8"
+  }
+ },
+ {
+  "path": "/sports",
+  "status": 200,
+  "headers": {
+   "x-requests-remaining": "500",
+   "x-requests-last": "0",
+   "x-requests-used": "0"
+  }
+ },
+ {
+  "path": "/sports/soccer_italy_serie_a/events",
+  "status": 200,
+  "headers": {
+   "x-requests-remaining": "500",
+   "x-requests-last": "0",
+   "x-requests-used": "0"
+  }
+ },
+ {
+  "path": "/sports/soccer_italy_serie_a/events",
+  "status": 200,
+  "headers": {
+   "x-requests-remaining": "500",
+   "x-requests-last": "0",
+   "x-requests-used": "0"
+  }
+ },
+ {
+  "path": "/sports/soccer_italy_serie_a/odds",
+  "status": 200,
+  "headers": {
+   "x-requests-remaining": "498",
+   "x-requests-last": "2",
+   "x-requests-used": "2"
+  }
+ },
+ {
+  "path": "/sports/soccer_uefa_champs_league/scores",
+  "status": 200,
+  "headers": {
+   "x-requests-remaining": "488",
+   "x-requests-last": "2",
+   "x-requests-used": "12"
+  }
+ }
+]
