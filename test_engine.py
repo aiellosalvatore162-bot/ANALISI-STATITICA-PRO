@@ -280,8 +280,10 @@ def test_corner_mean_uses_for_and_opponent_conceded_averages():
     )
 
     result = simulate_match(config)
+    unshrunk = config.__class__(**{**config.__dict__, "count_model": replace(config.count_model, corner_shrink_reference=0.0)})
 
-    assert abs(result["markets"]["corners"]["mean"] - 11.0) < 0.12
+    assert abs(result["markets"]["corners"]["mean"] - sum(engine.corner_signals(config))) < 0.12
+    assert abs(simulate_match(unshrunk)["markets"]["corners"]["mean"] - 11.0) < 0.12
 
 
 def test_zero_card_inputs_do_not_create_artificial_cards():

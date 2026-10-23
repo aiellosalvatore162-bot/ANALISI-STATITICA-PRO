@@ -82,6 +82,15 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   `python -m tools.calibrate --cartellini-punti` e si misurano con
   `python -m tools.baseline --cartellini-punti`. Nei dati inglesi/scozzesi la
   doppia ammonizione vale 2 invece di 3 (`SECOND_YELLOW_EXCLUDED_LEAGUES`).
+- Fase M: totale corner ridotto verso `corner_shrink_reference` (peso
+  `corner_shrink_weight`, ripartizione casa/ospite invariata) e gialli ×
+  exp(`card_balance_intercept` + `card_balance_weight`·|ΔElo|/100), con le
+  dispersioni della binomiale negativa ristimate insieme. Si ritarano con
+  `python -m tools.calibrate --estremi` (dopo `--corner-cartellini` e
+  `--cartellini-punti`; sezione `taratura_estremi`) e si misurano con
+  `python -m tools.baseline --estremi`. Fuori campione = 2019-24 e 2026-27 (i
+  parametri base sono tarati sul 2024-26). Nell'app l'EV sui corner porta
+  l'avviso `CORNER_EV_WARNING` finché non ci sono quote corner (fase N).
 - Risultati esatti: `result["exact_scores"]` (finale, modello, mercato) dallo
   stesso campione; logica dei gruppi in `exact_scores.py` (coerenza e
   correlazione esatte per i mercati che dipendono dal solo punteggio finale),
@@ -117,15 +126,16 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
 - Le fonti remote devono degradare con un avviso (come `historical.py` ricade
   al 100% manuale), mai bloccare la simulazione manuale.
 
-## Stato del progetto (22/10/2026, dopo la fase H)
+## Stato del progetto (23/10/2026, dopo la fase M)
 
 - Fasi completate e unite a `main`: modello gol log-lineare (1), ancoraggio al
   mercato (2), mercati secondari (C2), livello dati (D), football-data.org,
-  profili di stile (E), avversari simili (F, attiva solo la correzione
-  cartellini), Claude via copia e incolla (G), registro Excel e pagina
+  profili di stile (E), avversari simili (F, attive le correzioni cartellini
+  e, dalla fase M, corner), Claude via copia e incolla (G), registro Excel e pagina
   Prestazioni (H), allineamento ai 19 mercati del Riepilogo (H2), punti
   cartellini con la regola Eurobet (H3), risultati esatti e gruppi (I),
-  dashboard a tema calcio (J).
+  dashboard a tema calcio (J), taratura corner e cartellini con shrinkage dei
+  corner ed equilibrio Elo sui cartellini (M).
 - Test: `python -m pytest -q` (solo fixture salvate, nessuna rete); 2 `xfail`
   noti (PSG-Barcellona, Napoli-Bodø, input stimati).
 

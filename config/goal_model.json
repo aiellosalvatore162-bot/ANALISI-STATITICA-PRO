@@ -237,13 +237,17 @@
       "corner_away_intercept": 0.154063,
       "corner_for_weight": 0.42906,
       "corner_against_weight": 0.404986,
-      "corner_dispersion": 51.303222,
+      "corner_dispersion": 53.945424,
       "card_intercept": 0.469869,
       "card_team_weight": 0.304781,
       "card_referee_yellow_weight": 0.24755,
       "card_referee_fouls_weight": 0.047841,
-      "card_dispersion": 12.353724,
-      "card_red_ratio": 0.045451
+      "card_dispersion": 13.498915,
+      "card_red_ratio": 0.045451,
+      "corner_shrink_reference": 9.634992,
+      "corner_shrink_weight": 0.616914,
+      "card_balance_intercept": 0.099107,
+      "card_balance_weight": -0.070199
     },
     "taratura": {
       "data": "2026-10-21",
@@ -317,6 +321,121 @@
         }
       },
       "attiva": true
+    },
+    "taratura_estremi": {
+      "data": "2026-10-23",
+      "dati": "corner, gialli e rossi reali football-data.co.uk; stima sul 2024-26; fuori campione 2019-24 e 2026-27 (i parametri base sono tarati sul 2024-26)",
+      "regola": "ogni componente resta attiva solo se migliora di almeno 0.001 la log-loss media delle linee fuori campione",
+      "dispersione_prima": {
+        "corner": 51.303222,
+        "cartellini": 12.353724
+      },
+      "partite_taratura": 2851,
+      "partite_fuori_campione": 7153,
+      "componenti": {
+        "corner_shrinkage": {
+          "attiva": true,
+          "miglioramento_log_loss_linee": 0.00263,
+          "corner_shrink_reference": 9.634992,
+          "corner_shrink_weight": 0.616914,
+          "corner_dispersion": 53.945424
+        },
+        "cartellini_equilibrio": {
+          "attiva": true,
+          "miglioramento_log_loss_linee": 0.00598,
+          "card_balance_intercept": 0.099107,
+          "card_balance_weight": -0.070199,
+          "card_dispersion": 13.498915
+        },
+        "corner_binomiale_negativa": {
+          "attiva": true,
+          "nll_fuori_campione": 2.62031,
+          "nll_poisson_fuori_campione": 2.62637
+        },
+        "cartellini_binomiale_negativa": {
+          "attiva": true,
+          "nll_fuori_campione": 2.25904,
+          "nll_poisson_fuori_campione": 2.26641
+        }
+      },
+      "metriche_fuori_campione": {
+        "prima": {
+          "corner": {
+            "nll": 2.62352,
+            "nll_poisson": 2.63012,
+            "Over 8.5": {
+              "log_loss": 0.65606,
+              "ece": 0.00841
+            },
+            "Over 9.5": {
+              "log_loss": 0.69057,
+              "ece": 0.03574
+            },
+            "Over 10.5": {
+              "log_loss": 0.66586,
+              "ece": 0.01875
+            },
+            "Over 11.5": {
+              "log_loss": 0.5952,
+              "ece": 0.02619
+            }
+          },
+          "cartellini": {
+            "nll": 2.26787,
+            "nll_poisson": 2.27701,
+            "Over 3.5": {
+              "log_loss": 0.63455,
+              "ece": 0.03524
+            },
+            "Over 4.5": {
+              "log_loss": 0.6629,
+              "ece": 0.02619
+            },
+            "Over 5.5": {
+              "log_loss": 0.59506,
+              "ece": 0.03994
+            }
+          }
+        },
+        "dopo": {
+          "corner": {
+            "nll": 2.62031,
+            "nll_poisson": 2.62637,
+            "Over 8.5": {
+              "log_loss": 0.65437,
+              "ece": 0.01274
+            },
+            "Over 9.5": {
+              "log_loss": 0.68724,
+              "ece": 0.00915
+            },
+            "Over 10.5": {
+              "log_loss": 0.66273,
+              "ece": 0.00758
+            },
+            "Over 11.5": {
+              "log_loss": 0.59282,
+              "ece": 0.00655
+            }
+          },
+          "cartellini": {
+            "nll": 2.25904,
+            "nll_poisson": 2.26641,
+            "Over 3.5": {
+              "log_loss": 0.62635,
+              "ece": 0.02914
+            },
+            "Over 4.5": {
+              "log_loss": 0.65695,
+              "ece": 0.0203
+            },
+            "Over 5.5": {
+              "log_loss": 0.59129,
+              "ece": 0.02165
+            }
+          }
+        }
+      }
     }
   },
   "scenario_tattico": {
@@ -324,7 +443,7 @@
       "goals": false,
       "goals_supremacy": false,
       "first_half": false,
-      "corners": false,
+      "corners": true,
       "cards": true
     },
     "parametri": {
@@ -332,7 +451,7 @@
         "goals": 500.0,
         "goals_supremacy": 500.0,
         "first_half": 200.0,
-        "corners": 500.0,
+        "corners": 200.0,
         "cards": 50.0
       },
       "k": 10,
@@ -340,7 +459,7 @@
       "half_life_days": 365.0
     },
     "validazione": {
-      "data": "2026-10-21",
+      "data": "2026-10-23",
       "copertura": {
         "partite_valutate": 3105,
         "partite_con_simili": 3056,
@@ -391,21 +510,21 @@
           }
         },
         "corners": {
-          "attivo": false,
+          "attivo": true,
           "miglioramenti": {
-            "taratura 2024-25/2025-26 · solo modello · Corner": -6e-05,
-            "taratura 2024-25/2025-26 · ancorato al mercato · Corner": -6e-05,
-            "fuori campione 2026-27 · solo modello · Corner": 0.00082,
-            "fuori campione 2026-27 · ancorato al mercato · Corner": 0.00082
+            "taratura 2024-25/2025-26 · solo modello · Corner": 0.00013,
+            "taratura 2024-25/2025-26 · ancorato al mercato · Corner": 0.00013,
+            "fuori campione 2026-27 · solo modello · Corner": 0.00229,
+            "fuori campione 2026-27 · ancorato al mercato · Corner": 0.00229
           }
         },
         "cards": {
           "attivo": true,
           "miglioramenti": {
-            "taratura 2024-25/2025-26 · solo modello · Cartellini": 0.00448,
-            "taratura 2024-25/2025-26 · ancorato al mercato · Cartellini": 0.00448,
-            "fuori campione 2026-27 · solo modello · Cartellini": 0.00535,
-            "fuori campione 2026-27 · ancorato al mercato · Cartellini": 0.00535
+            "taratura 2024-25/2025-26 · solo modello · Cartellini": 0.00185,
+            "taratura 2024-25/2025-26 · ancorato al mercato · Cartellini": 0.00185,
+            "fuori campione 2026-27 · solo modello · Cartellini": 0.00305,
+            "fuori campione 2026-27 · ancorato al mercato · Cartellini": 0.00305
           }
         }
       },

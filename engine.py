@@ -150,6 +150,12 @@ class CountModelParams:
     + card_referee_yellow_weight·log(gialli arbitro) + card_referee_fouls_weight·log(falli arbitro)``.
     ``*_dispersion`` is the negative-binomial shape (0 = Poisson). With
     ``active=False`` the original averages are used.
+
+    Fase M (``python -m tools.calibrate --estremi``): the corner total is shrunk
+    towards ``corner_shrink_reference`` (``total' = R·(total/R)^corner_shrink_weight``,
+    home/away share unchanged; reference 0 = off) and the yellow mean is
+    multiplied by ``exp(card_balance_intercept + card_balance_weight·|ΔElo|/100)``
+    (both 0 = off).
     """
 
     active: bool = False
@@ -166,6 +172,10 @@ class CountModelParams:
     # Rossi attesi per giallo atteso (Poisson): 0 = solo gialli. Tarato con
     # ``python -m tools.calibrate --cartellini-punti``.
     card_red_ratio: float = 0.0
+    corner_shrink_reference: float = 0.0
+    corner_shrink_weight: float = 1.0
+    card_balance_intercept: float = 0.0
+    card_balance_weight: float = 0.0
 
 
 def load_count_model(path: Path = GOAL_MODEL_PATH) -> CountModelParams:
@@ -1105,6 +1115,11 @@ def corner_signals(config: MatchConfig) -> tuple[float, float]:
                         + params.corner_against_weight * _log(config.away.corners_against))
         away = math.exp(params.corner_away_intercept + params.corner_for_weight * _log(config.away.corners_for)
                         + params.corner_against_weight * _log(config.home.corners_against))
+        total = home + away
+        if params.corner_shrink_reference > 0.0 and total > 0.0:
+            # Team averages are noisy: shrink the total towards the reference, keep the home/away split.
+            shrunk = params.corner_shrink_reference * (total / params.corner_shrink_reference) ** params.corner_shrink_weight
+            home, away = home * shrunk / total, away * shrunk / total
     tactical = _tactical(config, "corners")
     if tactical is not None:
         home, away = home * tactical.corners_home, away * tactical.corners_away
@@ -1119,6 +1134,11 @@ def card_points_mean(config: MatchConfig) -> float:
     share = rule.double_yellow_share or 0.0
     red_points = rule.red_weight + rule.double_yellow_extra * share
     return card_total_mean(config) * (rule.yellow_weight + config.count_model.card_red_ratio * red_points)
+
+
+def card_balance_log_factor(params: CountModelParams, home_elo, away_elo):
+    """Log-correction of the yellow mean for match balance (balanced games are booked more)."""
+    return params.card_balance_intercept + params.card_balance_weight * np.abs(np.asarray(home_elo, float) - np.asarray(away_elo, float)) / 100.0
 
 
 def card_total_mean(config: MatchConfig) -> float:
@@ -1138,6 +1158,7 @@ def card_total_mean(config: MatchConfig) -> float:
             params.card_intercept + params.card_team_weight * math.log(team_cards)
             + params.card_referee_yellow_weight * math.log(config.referee_yellow_avg)
             + params.card_referee_fouls_weight * math.log(config.referee_fouls_avg)
+            + card_balance_log_factor(params, config.home.elo, config.away.elo)
         )
     foul_factor = max(0.0, config.referee_fouls_avg / 24.0)
     referee_severity = max(0.0, config.referee_yellow_avg / 4.5)

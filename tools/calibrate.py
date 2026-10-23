@@ -264,10 +264,16 @@ def count_means(params: engine.CountModelParams, data: pd.DataFrame) -> dict[str
                       + params.corner_against_weight * log("away_corners_against"))
         away = np.exp(params.corner_away_intercept + params.corner_for_weight * log("away_corners_for")
                       + params.corner_against_weight * log("home_corners_against"))
+        if params.corner_shrink_reference > 0:
+            total = home + away
+            factor = params.corner_shrink_reference * (total / params.corner_shrink_reference) ** params.corner_shrink_weight / total
+            home, away = home * factor, away * factor
         team_cards = (data["home_cards_for"] + data["away_cards_for"]).to_numpy(float)
+        balance = (engine.card_balance_log_factor(params, data["home_elo"], data["away_elo"])
+                   if params.card_balance_intercept or params.card_balance_weight else 0.0)
         cards = np.exp(params.card_intercept + params.card_team_weight * np.log(np.maximum(team_cards, 1e-9))
                        + params.card_referee_yellow_weight * np.log(data["referee_yellow_avg"].to_numpy(float))
-                       + params.card_referee_fouls_weight * np.log(data["referee_fouls_avg"].to_numpy(float)))
+                       + params.card_referee_fouls_weight * np.log(data["referee_fouls_avg"].to_numpy(float)) + balance)
     else:
         home = ((data["home_corners_for"] + data["away_corners_against"]) / 2.0).to_numpy(float)
         away = ((data["away_corners_for"] + data["home_corners_against"]) / 2.0).to_numpy(float)
@@ -380,8 +386,9 @@ def calibrate_counts() -> dict:
     previous = json.loads(engine.GOAL_MODEL_PATH.read_text(encoding="utf-8")).get("corner_cartellini", {}) \
         if engine.GOAL_MODEL_PATH.exists() else {}
     section = {
-        # La quota dei rossi è della taratura --cartellini-punti: resta quella salvata.
-        "parametri": asdict(replace(calibrated, active=bool(improves), card_red_ratio=engine.DEFAULT_COUNT_MODEL.card_red_ratio)),
+        # Quota dei rossi (--cartellini-punti) e correzioni della fase M (--estremi): restano quelle salvate.
+        "parametri": asdict(replace(calibrated, active=bool(improves), **{key: getattr(engine.DEFAULT_COUNT_MODEL, key)
+                                                                           for key in ("card_red_ratio", *EXTREME_FIELDS)})),
         "taratura": {
             "data": date.today().isoformat(),
             "dati": "corner e gialli reali football-data.co.uk; input = medie mobili delle 10 gare precedenti; "
@@ -394,8 +401,9 @@ def calibrate_counts() -> dict:
             "regola": "attivo solo se migliora la log-verosimiglianza fuori campione rispetto alle formule originali",
         },
     }
-    if "taratura_punti" in previous:
-        section["taratura_punti"] = previous["taratura_punti"]
+    for key in ("taratura_punti", "taratura_estremi"):
+        if key in previous:
+            section[key] = previous[key]
     _update_config({"corner_cartellini": section})
     return section
 
@@ -496,13 +504,158 @@ def calibrate_card_points(rule: engine.CardRule | None = None) -> dict:
     return section["taratura_punti"]
 
 
+# --- Fase M: previsioni corner meno estreme, cartellini ed equilibrio --------------------
+
+EXTREME_FIELDS = ("corner_shrink_reference", "corner_shrink_weight", "card_balance_intercept", "card_balance_weight")
+EXTREME_CORNER_LINES = (8.5, 9.5, 10.5, 11.5)
+EXTREME_CARD_LINES = (3.5, 4.5, 5.5)
+
+
+def extreme_sets(data: pd.DataFrame) -> dict[str, pd.DataFrame]:
+    """Insiemi fuori campione: i parametri base sono tarati sul 2024-26, quindi 2019-24 e 2026-27 restano fuori."""
+    outside = ~data["season"].isin(dataset.CALIBRATION_SEASONS)
+    return {
+        "2019-24": data[outside & data["season"].isin(dataset.WARMUP_SEASONS)],
+        "2026-27": data[data["season"].isin(dataset.HOLDOUT_SEASONS)],
+        "fuori campione (unione)": data[outside],
+    }
+
+
+def without_extremes(params: engine.CountModelParams) -> engine.CountModelParams:
+    neutral = engine.CountModelParams()
+    return replace(params, **{key: getattr(neutral, key) for key in EXTREME_FIELDS})
+
+
+def extreme_scores(params: engine.CountModelParams, data: pd.DataFrame, rule: engine.CardRule) -> dict[str, dict]:
+    """Log-verosimiglianza negativa, log-loss ed ECE per linea di corner totali e punti cartellini."""
+    from tools.baseline import binary, summarize
+
+    means = count_means(params, data)
+    corners = (data["home_corners"] + data["away_corners"]).to_numpy(int)
+    corner_mean = means["corner_home"] + means["corner_away"]
+    points = observed_points(data, rule)
+    yellow = means["cards"]
+    red = yellow * params.card_red_ratio
+    scores = {
+        "corner": {"nll": float(-np.mean(count_logpmf(corners, corner_mean, params.corner_dispersion))),
+                   "nll_poisson": float(-np.mean(count_logpmf(corners, corner_mean, 0.0)))},
+        "cartellini": {"nll": points_nll(yellow, params.card_dispersion, red, rule, points),
+                       "nll_poisson": points_nll(yellow, 0.0, red, rule, points)},
+    }
+    for threshold in EXTREME_CORNER_LINES:
+        scores["corner"][f"Over {threshold:g}"] = summarize(
+            binary(count_sf(threshold, corner_mean, params.corner_dispersion)), (corners > threshold).astype(int))
+    for threshold in EXTREME_CARD_LINES:
+        scores["cartellini"][f"Over {threshold:g}"] = summarize(
+            binary(points_sf(threshold, yellow, params.card_dispersion, red, rule)), (points > threshold).astype(int))
+    return scores
+
+
+def _mean_line_loss(scores: dict) -> float:
+    return float(np.mean([value["log_loss"] for key, value in scores.items() if key.startswith("Over")]))
+
+
+def calibrate_extremes(rule: engine.CardRule | None = None) -> dict:
+    """Shrinkage del totale corner verso una media e correzione dei gialli per l'equilibrio (|ΔElo|).
+
+    Stima sul 2024-26 (log-verosimiglianza dei corner totali, dei punti cartellini) insieme alla
+    dispersione della binomiale negativa; ogni componente resta attiva solo se migliora la log-loss
+    media delle linee fuori campione. Da rilanciare dopo ``--corner-cartellini`` e ``--cartellini-punti``.
+    """
+    rule = rule or engine.DEFAULT_CARD_RULE
+    data = points_data(baseline.load_usable_features())
+    train = data[data["season"].isin(dataset.CALIBRATION_SEASONS)]
+    outside = extreme_sets(data)["fuori campione (unione)"]
+    saved = json.loads(engine.GOAL_MODEL_PATH.read_text(encoding="utf-8"))["corner_cartellini"]
+    previous = saved.get("taratura_estremi", {}).get("dispersione_prima", {})
+    before = replace(without_extremes(engine.DEFAULT_COUNT_MODEL),
+                     corner_dispersion=previous.get("corner", engine.DEFAULT_COUNT_MODEL.corner_dispersion),
+                     card_dispersion=previous.get("cartellini", engine.DEFAULT_COUNT_MODEL.card_dispersion))
+    corners = (train["home_corners"] + train["away_corners"]).to_numpy(int)
+    points = observed_points(train, rule)
+
+    def corner_params(x) -> engine.CountModelParams:
+        return replace(before, corner_shrink_reference=float(np.exp(x[0])), corner_shrink_weight=float(x[1]),
+                       corner_dispersion=float(np.exp(x[2])))
+
+    def card_params(x) -> engine.CountModelParams:
+        return replace(before, card_balance_intercept=float(x[0]), card_balance_weight=float(x[1]),
+                       card_dispersion=float(np.exp(x[2])))
+
+    def corner_loss(x) -> float:
+        means = count_means(corner_params(x), train)
+        return float(-np.mean(count_logpmf(corners, means["corner_home"] + means["corner_away"], float(np.exp(x[2])))))
+
+    def card_loss(x) -> float:
+        params = card_params(x)
+        yellow = count_means(params, train)["cards"]
+        return points_nll(yellow, params.card_dispersion, yellow * params.card_red_ratio, rule, points)
+
+    bounds = [(math.log(5.0), math.log(15.0)), (0.0, 1.5), (math.log(0.5), math.log(1000.0))]
+    corner_fit = corner_params(minimize(corner_loss, [math.log(9.7), 0.7, math.log(50.0)], method="L-BFGS-B", bounds=bounds).x)
+    bounds = [(-1.0, 1.0), (-0.5, 0.5), (math.log(0.5), math.log(1000.0))]
+    card_fit = card_params(minimize(card_loss, [0.0, 0.0, math.log(12.0)], method="L-BFGS-B", bounds=bounds).x)
+
+    reference = extreme_scores(before, outside, rule)
+    choices, after = {}, before
+    for name, fitted, fields_ in (
+        ("corner_shrinkage", corner_fit, ("corner_shrink_reference", "corner_shrink_weight", "corner_dispersion")),
+        ("cartellini_equilibrio", card_fit, ("card_balance_intercept", "card_balance_weight", "card_dispersion")),
+    ):
+        market = "corner" if name.startswith("corner") else "cartellini"
+        gain = _mean_line_loss(reference[market]) - _mean_line_loss(extreme_scores(fitted, outside, rule)[market])
+        active = gain >= MIN_IMPROVEMENT
+        choices[name] = {"attiva": bool(active), "miglioramento_log_loss_linee": round(gain, 5),
+                         **{key: round(getattr(fitted, key), 6) for key in fields_}}
+        if active:
+            after = replace(after, **{key: round(getattr(fitted, key), 6) for key in fields_})
+    # Binomiale negativa contro Poisson con le medie finali.
+    final = extreme_scores(after, outside, rule)
+    for market, key in (("corner", "corner_dispersion"), ("cartellini", "card_dispersion")):
+        choices[f"{market}_binomiale_negativa"] = {
+            "attiva": bool(final[market]["nll"] < final[market]["nll_poisson"]),
+            "nll_fuori_campione": round(final[market]["nll"], 5),
+            "nll_poisson_fuori_campione": round(final[market]["nll_poisson"], 5),
+        }
+        if not choices[f"{market}_binomiale_negativa"]["attiva"]:
+            after = replace(after, **{key: 0.0})
+    final = extreme_scores(after, outside, rule)
+
+    def summary(scores: dict) -> dict:
+        return {market: {key: (round(value, 5) if isinstance(value, float) else
+                               {name: round(number, 5) for name, number in value.items() if name != "brier"})
+                         for key, value in values.items()} for market, values in scores.items()}
+
+    section = saved
+    for key in (*EXTREME_FIELDS, "corner_dispersion", "card_dispersion"):
+        section["parametri"][key] = getattr(after, key)
+    section["taratura_estremi"] = {
+        "data": date.today().isoformat(),
+        "dati": "corner, gialli e rossi reali football-data.co.uk; stima sul 2024-26; fuori campione 2019-24 e 2026-27 "
+                "(i parametri base sono tarati sul 2024-26)",
+        "regola": "ogni componente resta attiva solo se migliora di almeno "
+                  f"{MIN_IMPROVEMENT} la log-loss media delle linee fuori campione",
+        "dispersione_prima": {"corner": before.corner_dispersion, "cartellini": before.card_dispersion},
+        "partite_taratura": int(len(train)), "partite_fuori_campione": int(len(outside)),
+        "componenti": choices,
+        "metriche_fuori_campione": {"prima": summary(reference), "dopo": summary(final)},
+    }
+    _update_config({"corner_cartellini": section})
+    return section["taratura_estremi"]
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--primo-tempo", action="store_true", help="Tara solo la quota di gol del primo tempo")
     parser.add_argument("--corner-cartellini", action="store_true", help="Tara i modelli di corner e cartellini")
     parser.add_argument("--cartellini-punti", action="store_true",
                         help="Tara rossi e dispersione sui punti cartellini (regola_cartellini della configurazione)")
+    parser.add_argument("--estremi", action="store_true",
+                        help="Shrinkage dei corner verso la media e correzione dei cartellini per l'equilibrio (fase M)")
     args = parser.parse_args()
+    if args.estremi:
+        print(json.dumps(calibrate_extremes(), indent=2, ensure_ascii=False))
+        return
     if args.cartellini_punti:
         print(json.dumps(calibrate_card_points(), indent=2, ensure_ascii=False))
         return

@@ -471,3 +471,136 @@ Calibrazione dei singoli risultati (tutte le celle della matrice):
 | 12%–15% | 163 | 13.30% | 16.56% |
 | 15%–20% | 8 | 15.89% | 37.50% |
 
+## Corner e cartellini: previsioni estreme ed equilibrio (fase M)
+
+Generato il 23/10/2026 con `python -m tools.baseline --estremi`. Parametri stimati sul 2024-26 (`python -m tools.calibrate --estremi`); fuori campione = 2019-24 e 2026-27. Prima: corner = modello log-lineare, dispersione 51.3032; cartellini in punti (giallo 1, rosso 2, doppia ammonizione giallo e rosso), dispersione 12.3537. Dopo: totale corner = 9.63·(totale/9.63)^0.617, dispersione 53.9454; gialli × exp(0.099 -0.070·|ΔElo|/100), dispersione 13.4989. Nessuna quota corner/cartellini in football-data: nessun confronto con il mercato.
+
+### 2019-24 (6899 partite)
+
+Corner totali per fascia di previsione (prima, 8 fasce uguali):
+
+| Fascia prevista | Partite | Previsti prima | Previsti dopo | Reali | Scarto prima | Scarto dopo |
+|---|---|---|---|---|---|---|
+| 7.02–8.81 | 863 | 8.43 | 8.87 | 8.86 | +0.43 | -0.01 |
+| 8.81–9.20 | 862 | 9.02 | 9.25 | 9.20 | +0.18 | -0.05 |
+| 9.20–9.49 | 862 | 9.36 | 9.46 | 9.65 | +0.29 | +0.19 |
+| 9.49–9.75 | 863 | 9.63 | 9.63 | 9.83 | +0.20 | +0.20 |
+| 9.75–10.02 | 862 | 9.89 | 9.79 | 9.77 | -0.12 | -0.02 |
+| 10.02–10.33 | 862 | 10.17 | 9.96 | 10.05 | -0.12 | +0.09 |
+| 10.33–10.75 | 862 | 10.52 | 10.17 | 10.26 | -0.26 | +0.09 |
+| 10.75–13.29 | 863 | 11.20 | 10.57 | 10.67 | -0.53 | +0.10 |
+
+Per equilibrio della partita (|ΔElo| in 5 fasce uguali):
+
+| Scarto Elo (assoluto) | Partite | Corner previsti prima / dopo / reali | Gialli previsti prima / dopo / reali |
+|---|---|---|---|
+| 0–37 | 1380 | 9.82 / 9.74 / 9.80 | 4.16 / 4.54 / 4.54 |
+| 37–78 | 1380 | 9.80 / 9.73 / 9.79 | 4.15 / 4.41 / 4.46 |
+| 78–131 | 1379 | 9.78 / 9.71 / 9.60 | 4.12 / 4.23 / 4.34 |
+| 131–208 | 1380 | 9.75 / 9.70 / 9.77 | 4.08 / 4.01 / 4.11 |
+| 208–523 | 1380 | 9.72 / 9.68 / 9.96 | 4.06 / 3.68 / 3.72 |
+
+Dispersione (rapporto varianza/media dei residui; 1 = Poisson):
+
+| Conteggio | Media reale | Varianza reale | Varianza/media residui (dopo) |
+|---|---|---|---|
+| Corner totali | 9.78 | 11.66 | 1.170 |
+| Gialli totali | 4.23 | 4.91 | 1.060 |
+
+| Mercato | Log-loss prima | Log-loss dopo | ECE prima | ECE dopo |
+|---|---|---|---|---|
+| Corner Over 8.5 | 0.6554 | 0.6536 | 0.0099 | 0.0143 |
+| Corner Over 9.5 | 0.6912 | 0.6876 | 0.0361 | 0.0103 |
+| Corner Over 10.5 | 0.6663 | 0.6629 | 0.0188 | 0.0071 |
+| Corner Over 11.5 | 0.5939 | 0.5915 | 0.0262 | 0.0052 |
+| Corner: log-verosimiglianza negativa (binomiale negativa / Poisson) | 2.6215 / 2.6278 | 2.6182 / 2.6239 | | |
+| Punti cartellini Over 3.5 | 0.6333 | 0.6249 | 0.0381 | 0.0306 |
+| Punti cartellini Over 4.5 | 0.6633 | 0.6575 | 0.0269 | 0.0191 |
+| Punti cartellini Over 5.5 | 0.5957 | 0.5921 | 0.0411 | 0.0222 |
+| Punti cartellini: log-verosimiglianza negativa (binomiale negativa / Poisson) | 2.2704 / 2.2798 | 2.2617 / 2.2693 | | |
+
+### 2026-27 (254 partite)
+
+Corner totali per fascia di previsione (prima, 5 fasce uguali):
+
+| Fascia prevista | Partite | Previsti prima | Previsti dopo | Reali | Scarto prima | Scarto dopo |
+|---|---|---|---|---|---|---|
+| 7.47–8.88 | 51 | 8.53 | 8.94 | 9.12 | +0.59 | +0.18 |
+| 8.88–9.54 | 51 | 9.24 | 9.39 | 9.12 | -0.13 | -0.27 |
+| 9.54–9.96 | 50 | 9.74 | 9.70 | 10.08 | +0.34 | +0.38 |
+| 9.96–10.39 | 51 | 10.18 | 9.97 | 9.41 | -0.77 | -0.56 |
+| 10.39–11.98 | 51 | 10.78 | 10.32 | 10.82 | +0.05 | +0.50 |
+
+Per equilibrio della partita (|ΔElo| in 5 fasce uguali):
+
+| Scarto Elo (assoluto) | Partite | Corner previsti prima / dopo / reali | Gialli previsti prima / dopo / reali |
+|---|---|---|---|
+| 1–40 | 51 | 9.66 / 9.64 / 8.57 | 3.96 / 4.31 / 4.18 |
+| 40–85 | 51 | 9.65 / 9.64 / 9.84 | 3.88 / 4.10 / 4.53 |
+| 85–150 | 50 | 9.73 / 9.69 / 9.48 | 3.84 / 3.92 / 3.60 |
+| 150–224 | 51 | 9.71 / 9.67 / 10.75 | 3.78 / 3.68 / 3.43 |
+| 224–512 | 51 | 9.72 / 9.67 / 9.90 | 3.78 / 3.35 / 3.45 |
+
+Dispersione (rapporto varianza/media dei residui; 1 = Poisson):
+
+| Conteggio | Media reale | Varianza reale | Varianza/media residui (dopo) |
+|---|---|---|---|
+| Corner totali | 9.71 | 12.90 | 1.290 |
+| Gialli totali | 3.84 | 4.25 | 1.032 |
+
+| Mercato | Log-loss prima | Log-loss dopo | ECE prima | ECE dopo |
+|---|---|---|---|---|
+| Corner Over 8.5 | 0.6748 | 0.6765 | 0.0517 | 0.0414 |
+| Corner Over 9.5 | 0.6740 | 0.6769 | 0.0404 | 0.0231 |
+| Corner Over 10.5 | 0.6544 | 0.6589 | 0.0387 | 0.0363 |
+| Corner Over 11.5 | 0.6305 | 0.6297 | 0.0524 | 0.0485 |
+| Corner: log-verosimiglianza negativa (binomiale negativa / Poisson) | 2.6780 / 2.6939 | 2.6777 / 2.6932 | | |
+| Punti cartellini Over 3.5 | 0.6689 | 0.6654 | 0.0501 | 0.0119 |
+| Punti cartellini Over 4.5 | 0.6521 | 0.6431 | 0.0520 | 0.0607 |
+| Punti cartellini Over 5.5 | 0.5777 | 0.5704 | 0.0265 | 0.0224 |
+| Punti cartellini: log-verosimiglianza negativa (binomiale negativa / Poisson) | 2.1994 / 2.2009 | 2.1880 / 2.1875 | | |
+
+### fuori campione (unione) (7153 partite)
+
+Corner totali per fascia di previsione (prima, 8 fasce uguali):
+
+| Fascia prevista | Partite | Previsti prima | Previsti dopo | Reali | Scarto prima | Scarto dopo |
+|---|---|---|---|---|---|---|
+| 7.02–8.80 | 895 | 8.43 | 8.87 | 8.84 | +0.42 | -0.03 |
+| 8.80–9.20 | 894 | 9.02 | 9.25 | 9.23 | +0.21 | -0.02 |
+| 9.20–9.49 | 894 | 9.35 | 9.46 | 9.62 | +0.26 | +0.16 |
+| 9.49–9.75 | 894 | 9.63 | 9.63 | 9.84 | +0.22 | +0.21 |
+| 9.75–10.02 | 894 | 9.88 | 9.79 | 9.76 | -0.12 | -0.03 |
+| 10.02–10.33 | 894 | 10.17 | 9.96 | 10.00 | -0.16 | +0.04 |
+| 10.33–10.74 | 894 | 10.52 | 10.17 | 10.31 | -0.21 | +0.14 |
+| 10.74–13.29 | 894 | 11.19 | 10.56 | 10.65 | -0.54 | +0.08 |
+
+Per equilibrio della partita (|ΔElo| in 5 fasce uguali):
+
+| Scarto Elo (assoluto) | Partite | Corner previsti prima / dopo / reali | Gialli previsti prima / dopo / reali |
+|---|---|---|---|
+| 0–37 | 1431 | 9.81 / 9.74 / 9.76 | 4.16 / 4.53 / 4.52 |
+| 37–79 | 1430 | 9.80 / 9.73 / 9.80 | 4.15 / 4.40 / 4.46 |
+| 79–131 | 1431 | 9.78 / 9.72 / 9.58 | 4.11 / 4.22 / 4.32 |
+| 131–209 | 1430 | 9.75 / 9.70 / 9.80 | 4.07 / 4.00 / 4.09 |
+| 209–523 | 1431 | 9.72 / 9.68 / 9.98 | 4.05 / 3.66 / 3.71 |
+
+Dispersione (rapporto varianza/media dei residui; 1 = Poisson):
+
+| Conteggio | Media reale | Varianza reale | Varianza/media residui (dopo) |
+|---|---|---|---|
+| Corner totali | 9.78 | 11.70 | 1.174 |
+| Gialli totali | 4.22 | 4.89 | 1.059 |
+
+| Mercato | Log-loss prima | Log-loss dopo | ECE prima | ECE dopo |
+|---|---|---|---|---|
+| Corner Over 8.5 | 0.6561 | 0.6544 | 0.0084 | 0.0127 |
+| Corner Over 9.5 | 0.6906 | 0.6872 | 0.0357 | 0.0091 |
+| Corner Over 10.5 | 0.6659 | 0.6627 | 0.0188 | 0.0076 |
+| Corner Over 11.5 | 0.5952 | 0.5928 | 0.0262 | 0.0066 |
+| Corner: log-verosimiglianza negativa (binomiale negativa / Poisson) | 2.6235 / 2.6301 | 2.6203 / 2.6264 | | |
+| Punti cartellini Over 3.5 | 0.6346 | 0.6263 | 0.0352 | 0.0291 |
+| Punti cartellini Over 4.5 | 0.6629 | 0.6569 | 0.0262 | 0.0203 |
+| Punti cartellini Over 5.5 | 0.5951 | 0.5913 | 0.0399 | 0.0217 |
+| Punti cartellini: log-verosimiglianza negativa (binomiale negativa / Poisson) | 2.2679 / 2.2770 | 2.2590 / 2.2664 | | |
+
