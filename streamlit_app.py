@@ -23,11 +23,29 @@ from ui_data import (
     render_automatic, render_claude, render_create, render_registry, render_style, render_tactical, show_provenance,
 )
 from ui_exact import render_exact_scores
+from ui_odds import render_credits, render_odds
 from ui_performance import render_performance
 
 
-# Finché non ci sono quote corner (fase N) l'EV dei corner viene solo dal modello.
+# Senza linee corner quotate l'EV dei corner viene solo dal modello.
 CORNER_EV_WARNING = "EV sui corner: stima del solo modello, non ancorata al mercato"
+
+
+def _corners_anchored(result: dict) -> bool:
+    return bool(result.get("count_anchoring", {}).get("corner", {}).get("active"))
+
+
+def _count_anchoring_note(result: dict) -> None:
+    """Corner e cartellini: media del modello, del mercato e finale, oppure «solo modello»."""
+    for kind, label in (("corner", "Corner totali"), ("cartellini", "Gialli attesi (base dei punti cartellini)")):
+        details = result.get("count_anchoring", {}).get(kind)
+        if not details:
+            continue
+        if details["active"]:
+            st.caption(f"{label}: modello {details['model_mean']:.2f} · mercato {details['market_mean']:.2f} · "
+                       f"finale {details['final_mean']:.2f}. {details['reason']}")
+        else:
+            st.caption(f"{label} {details['model_mean']:.2f}. {details['reason']}")
 EXAMPLE = """CASA: Inter
 Attacco: 1.34 | Difesa: 1.25 | Elo: 1835 | Forma: W-W-D-W-W | xG Fatti: 2.15 | xG Subiti: 0.85 | Corner pro/sub: 5.8/4.2 | Cartellini pro: 1.60
 
@@ -190,6 +208,9 @@ with st.expander("Backtest storico gratuito · modello separato", expanded=False
                         + ". Per queste il modello usa forza media di lega."
                     )
 
+with st.sidebar:
+    render_credits()
+
 if "input_text" not in st.session_state:
     st.session_state["input_text"] = EXAMPLE
 st.session_state.setdefault("input_touched", False)
@@ -202,7 +223,8 @@ with st.container(border=True):
     )
     if "pending_input_mode" in st.session_state:
         st.session_state["input_mode"] = st.session_state.pop("pending_input_mode")
-    input_mode = st.radio("Modalità input", ["Copia-incolla", "Dati automatici", "Crea partita"], horizontal=True, key="input_mode")
+    input_mode = st.radio("Modalità input", ["Copia-incolla", "Dati automatici", "Quote del giorno", "Crea partita"],
+                          horizontal=True, key="input_mode")
 with st.expander("Quali dati inserire per un’analisi affidabile"):
     st.markdown(
         """
@@ -239,6 +261,12 @@ elif input_mode == "Dati automatici":
         st.markdown('<div class="input-card-title">Dati automatici</div>', unsafe_allow_html=True)
         st.markdown('<div class="input-card-subtitle">Scegli competizione e partita, o scrivi le due squadre: il blocco si compila da solo con fonte e data accanto a ogni valore e resta modificabile.</div>', unsafe_allow_html=True)
         render_automatic()
+    text = st.session_state["input_text"]
+elif input_mode == "Quote del giorno":
+    with st.container(border=True):
+        st.markdown('<div class="input-card-title">Quote del giorno (The Odds API)</div>', unsafe_allow_html=True)
+        st.markdown('<div class="input-card-subtitle">Elenco partite gratuito, quote per campionato, mercati aggiuntivi solo per le partite scelte: ogni scarico mostra il costo in crediti e chiede conferma.</div>', unsafe_allow_html=True)
+        render_odds()
     text = st.session_state["input_text"]
 else:
     with st.container(border=True):
@@ -754,7 +782,7 @@ def _value_details(result: dict) -> None:
         st.dataframe(value_frame.style.apply(
             lambda row: ["background-color: rgba(244,201,93,.35)" if row.get("suspicious_value") else "" for _ in row], axis=1,
         ).format(precision=2), width="stretch")
-        if value_frame["market"].str.contains("corner", case=False).any():
+        if value_frame["market"].str.contains("corner", case=False).any() and not _corners_anchored(result):
             st.warning(CORNER_EV_WARNING)
         if value_frame.get("suspicious_value", pd.Series(dtype=bool)).any():
             st.warning("Righe evidenziate: valore sospetto, verifica i dati. Modello e mercato divergono di oltre 10 punti.")
@@ -803,7 +831,9 @@ def _goals_tab(result: dict, financial_rows: dict) -> None:
 
 
 def _counts_tab(result: dict, financial_rows: dict) -> None:
-    st.warning(CORNER_EV_WARNING)
+    if not _corners_anchored(result):
+        st.warning(CORNER_EV_WARNING)
+    _count_anchoring_note(result)
     st.html(dashboard.grid([dashboard.corners_card(result), dashboard.cards_card(result)], wide=True))
     with st.expander("Corner: tutte le schede", expanded=False):
         corner_labels = {key: key.replace("_", " ") for key in result["markets"]["corners"] if key != "mean"}
