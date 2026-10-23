@@ -632,5 +632,13 @@
       "ancorato": 3.0154,
       "frequenze_storiche": 3.2734
     }
+  },
+  "ancoraggio_conteggi": {
+    "parametri": {
+      "active": true,
+      "market_weight": 0.8,
+      "devig_method": "proporzionale"
+    },
+    "nota": "Fase N: peso del mercato 0.8 dichiarato di default, non tarato (nessuna quota storica di corner e cartellini). Media del mercato dalle linee Over/Under x.5 senza margine con la stessa distribuzione della simulazione; finale = mercato^0.8 · modello^0.2. Senza linee quotate: solo modello."
   }
 }
