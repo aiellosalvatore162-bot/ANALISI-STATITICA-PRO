@@ -26,6 +26,8 @@ from ui_exact import render_exact_scores
 from ui_performance import render_performance
 
 
+# Finché non ci sono quote corner (fase N) l'EV dei corner viene solo dal modello.
+CORNER_EV_WARNING = "EV sui corner: stima del solo modello, non ancorata al mercato"
 EXAMPLE = """CASA: Inter
 Attacco: 1.34 | Difesa: 1.25 | Elo: 1835 | Forma: W-W-D-W-W | xG Fatti: 2.15 | xG Subiti: 0.85 | Corner pro/sub: 5.8/4.2 | Cartellini pro: 1.60
 
@@ -752,6 +754,8 @@ def _value_details(result: dict) -> None:
         st.dataframe(value_frame.style.apply(
             lambda row: ["background-color: rgba(244,201,93,.35)" if row.get("suspicious_value") else "" for _ in row], axis=1,
         ).format(precision=2), width="stretch")
+        if value_frame["market"].str.contains("corner", case=False).any():
+            st.warning(CORNER_EV_WARNING)
         if value_frame.get("suspicious_value", pd.Series(dtype=bool)).any():
             st.warning("Righe evidenziate: valore sospetto, verifica i dati. Modello e mercato divergono di oltre 10 punti.")
     else:
@@ -799,6 +803,7 @@ def _goals_tab(result: dict, financial_rows: dict) -> None:
 
 
 def _counts_tab(result: dict, financial_rows: dict) -> None:
+    st.warning(CORNER_EV_WARNING)
     st.html(dashboard.grid([dashboard.corners_card(result), dashboard.cards_card(result)], wide=True))
     with st.expander("Corner: tutte le schede", expanded=False):
         corner_labels = {key: key.replace("_", " ") for key in result["markets"]["corners"] if key != "mean"}
