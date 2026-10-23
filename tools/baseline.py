@@ -719,6 +719,69 @@ def card_points_analysis(features: pd.DataFrame, before: "engine.CountModelParam
     return "\n".join(lines)
 
 
+def extremes_analysis(features: pd.DataFrame, before: "engine.CountModelParams", after: "engine.CountModelParams",
+                      rule: "engine.CardRule") -> str:
+    """Fase M: corner e cartellini per fascia prevista e per equilibrio (|ΔElo|), dispersione, linee prima/dopo."""
+    from tools.calibrate import EXTREME_CARD_LINES, EXTREME_CORNER_LINES, count_means, extreme_scores, extreme_sets, points_data
+
+    data = points_data(features)
+    sets = extreme_sets(data)
+    lines = [
+        "## Corner e cartellini: previsioni estreme ed equilibrio (fase M)", "",
+        f"Generato il {date.today():%d/%m/%Y} con `python -m tools.baseline --estremi`. Parametri stimati sul 2024-26 "
+        "(`python -m tools.calibrate --estremi`); fuori campione = 2019-24 e 2026-27. Prima: corner = modello "
+        f"log-lineare, dispersione {before.corner_dispersion:g}; cartellini in punti ({rule.describe()}), dispersione "
+        f"{before.card_dispersion:g}. Dopo: totale corner = {after.corner_shrink_reference:.2f}·(totale/"
+        f"{after.corner_shrink_reference:.2f})^{after.corner_shrink_weight:.3f}, dispersione {after.corner_dispersion:g}; "
+        f"gialli × exp({after.card_balance_intercept:.3f} {after.card_balance_weight:+.3f}·|ΔElo|/100), dispersione "
+        f"{after.card_dispersion:g}. Nessuna quota corner/cartellini in football-data: nessun confronto con il mercato.", "",
+    ]
+    for name, subset in sets.items():
+        means = {label: count_means(params, subset) for label, params in (("prima", before), ("dopo", after))}
+        frame = pd.DataFrame({
+            "corner_prima": means["prima"]["corner_home"] + means["prima"]["corner_away"],
+            "corner_dopo": means["dopo"]["corner_home"] + means["dopo"]["corner_away"],
+            "corner_reali": (subset["home_corners"] + subset["away_corners"]).to_numpy(float),
+            "gialli_prima": means["prima"]["cards"], "gialli_dopo": means["dopo"]["cards"],
+            "gialli_reali": (subset["home_yellows"] + subset["away_yellows"]).to_numpy(float),
+            "elo": (subset["home_elo"] - subset["away_elo"]).abs().to_numpy(float),
+        })
+        bands = 8 if len(frame) > 1000 else 5
+        lines += [f"### {name} ({len(frame)} partite)", "", f"Corner totali per fascia di previsione (prima, {bands} fasce uguali):", "",
+                  "| Fascia prevista | Partite | Previsti prima | Previsti dopo | Reali | Scarto prima | Scarto dopo |",
+                  "|---|---|---|---|---|---|---|"]
+        for band, group in frame.groupby(pd.qcut(frame["corner_prima"], bands), observed=True):
+            lines.append(f"| {band.left:.2f}–{band.right:.2f} | {len(group)} | {group['corner_prima'].mean():.2f} | "
+                         f"{group['corner_dopo'].mean():.2f} | {group['corner_reali'].mean():.2f} | "
+                         f"{group['corner_reali'].mean() - group['corner_prima'].mean():+.2f} | "
+                         f"{group['corner_reali'].mean() - group['corner_dopo'].mean():+.2f} |")
+        lines += ["", "Per equilibrio della partita (|ΔElo| in 5 fasce uguali):", "",
+                  "| Scarto Elo (assoluto) | Partite | Corner previsti prima / dopo / reali | Gialli previsti prima / dopo / reali |",
+                  "|---|---|---|---|"]
+        for band, group in frame.groupby(pd.qcut(frame["elo"], 5), observed=True):
+            lines.append(f"| {band.left:.0f}–{band.right:.0f} | {len(group)} | {group['corner_prima'].mean():.2f} / "
+                         f"{group['corner_dopo'].mean():.2f} / {group['corner_reali'].mean():.2f} | "
+                         f"{group['gialli_prima'].mean():.2f} / {group['gialli_dopo'].mean():.2f} / {group['gialli_reali'].mean():.2f} |")
+        lines += ["", "Dispersione (rapporto varianza/media dei residui; 1 = Poisson):", "",
+                  "| Conteggio | Media reale | Varianza reale | Varianza/media residui (dopo) |", "|---|---|---|---|"]
+        for label, mean, observed in (("Corner totali", "corner_dopo", "corner_reali"), ("Gialli totali", "gialli_dopo", "gialli_reali")):
+            ratio = float(((frame[observed] - frame[mean]) ** 2).sum() / frame[mean].sum())
+            lines.append(f"| {label} | {frame[observed].mean():.2f} | {frame[observed].var():.2f} | {ratio:.3f} |")
+        scores = {label: extreme_scores(params, subset, rule) for label, params in (("prima", before), ("dopo", after))}
+        lines += ["", "| Mercato | Log-loss prima | Log-loss dopo | ECE prima | ECE dopo |", "|---|---|---|---|---|"]
+        for market, label, thresholds in (("corner", "Corner", EXTREME_CORNER_LINES), ("cartellini", "Punti cartellini", EXTREME_CARD_LINES)):
+            for threshold in thresholds:
+                key = f"Over {threshold:g}"
+                first, second = scores["prima"][market][key], scores["dopo"][market][key]
+                lines.append(f"| {label} {key} | {first['log_loss']:.4f} | {second['log_loss']:.4f} | "
+                             f"{first['ece']:.4f} | {second['ece']:.4f} |")
+            lines.append(f"| {label}: log-verosimiglianza negativa (binomiale negativa / Poisson) | "
+                         f"{scores['prima'][market]['nll']:.4f} / {scores['prima'][market]['nll_poisson']:.4f} | "
+                         f"{scores['dopo'][market]['nll']:.4f} / {scores['dopo'][market]['nll_poisson']:.4f} | | |")
+        lines.append("")
+    return "\n".join(lines)
+
+
 # --- Risultati esatti ----------------------------------------------------------------------
 
 EXACT_COVERAGES = (0.4, 0.5, 0.6, 0.7, 0.8, 0.9)
@@ -838,9 +901,17 @@ def main() -> None:
     parser.add_argument("--risultati-esatti", action="store_true", help="Calibrazione storica dei risultati esatti")
     parser.add_argument("--mercati-secondari", action="store_true", help="Multigol, somma gol e primo tempo prima/dopo")
     parser.add_argument("--analisi-pareggio", action="store_true", help="Confronta Shin e proporzionale per 1, X e 2")
+    parser.add_argument("--estremi", action="store_true", help="Corner per fascia ed equilibrio, cartellini (fase M) prima/dopo")
     parser.add_argument("--output", type=Path, help="File markdown a cui aggiungere la sezione")
     args = parser.parse_args()
-    if args.corner_cartellini:
+    if args.estremi:
+        from tools.calibrate import without_extremes
+
+        tuning = json.loads(engine.GOAL_MODEL_PATH.read_text(encoding="utf-8"))["corner_cartellini"]["taratura_estremi"]
+        before = replace(without_extremes(engine.DEFAULT_COUNT_MODEL), corner_dispersion=tuning["dispersione_prima"]["corner"],
+                         card_dispersion=tuning["dispersione_prima"]["cartellini"])
+        markdown = extremes_analysis(load_usable_features(), before, engine.DEFAULT_COUNT_MODEL, engine.DEFAULT_CARD_RULE)
+    elif args.corner_cartellini:
         markdown = count_analysis(load_usable_features(), engine.CountModelParams(), engine.DEFAULT_COUNT_MODEL)
     elif args.risultati_esatti:
         markdown, summary = exact_score_analysis(load_usable_features())

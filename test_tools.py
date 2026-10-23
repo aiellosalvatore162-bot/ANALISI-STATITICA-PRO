@@ -158,3 +158,13 @@ def test_exact_score_metrics_on_a_known_matrix():
     assert coverage[0.4]["risultati_medi"] == 1 and coverage[0.4]["frequenza_reale"] == 0.5
     assert coverage[0.7]["risultati_medi"] == 2 and coverage[0.9]["risultati_medi"] == 3
     assert coverage[0.9]["frequenza_reale"] == 0.5
+
+
+def test_phase_m_corrections_can_be_switched_off_and_are_neutral_by_default():
+    from tools import calibrate
+
+    neutral = engine.CountModelParams()
+    assert neutral.corner_shrink_reference == 0.0 and neutral.card_balance_weight == 0.0
+    stripped = calibrate.without_extremes(engine.DEFAULT_COUNT_MODEL)
+    assert all(getattr(stripped, key) == getattr(neutral, key) for key in calibrate.EXTREME_FIELDS)
+    assert stripped.corner_dispersion == engine.DEFAULT_COUNT_MODEL.corner_dispersion
