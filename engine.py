@@ -12,7 +12,7 @@ import json
 import math
 from pathlib import Path
 import re
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 import numpy as np
 from scipy.optimize import brentq, minimize
@@ -251,6 +251,31 @@ DEFAULT_CARD_RULE = load_card_rule()
 
 
 @dataclass(frozen=True)
+class CountAnchorParams:
+    """Corner and card means anchored to the quoted Over/Under lines (fase N).
+
+    The market mean is the one whose distribution (same negative binomial and
+    card-point rule as the simulation) best prices the margin-free Over
+    probabilities; final mean = market^market_weight · model^(1 − market_weight).
+    The weight is a declared default, not fitted: there are no historical
+    corner or card odds to tune it on.
+    """
+
+    active: bool = True
+    market_weight: float = 0.8
+    devig_method: str = "proporzionale"
+
+
+def load_count_anchor(path: Path = GOAL_MODEL_PATH) -> CountAnchorParams:
+    if not path.exists():
+        return CountAnchorParams()
+    return CountAnchorParams(**json.loads(path.read_text(encoding="utf-8")).get("ancoraggio_conteggi", {}).get("parametri", {}))
+
+
+DEFAULT_COUNT_ANCHOR = load_count_anchor()
+
+
+@dataclass(frozen=True)
 class TacticalSwitches:
     """Which tactical corrections are applied (validated by ``python -m tools.tactical``)."""
 
@@ -331,6 +356,7 @@ class MatchConfig:
     half_time: HalfTimeParams = DEFAULT_HALF_TIME
     count_model: CountModelParams = DEFAULT_COUNT_MODEL
     card_rule: CardRule = DEFAULT_CARD_RULE
+    count_anchor: CountAnchorParams = DEFAULT_COUNT_ANCHOR
     tactical: TacticalFactors | None = None
     tactical_switches: TacticalSwitches = DEFAULT_TACTICAL_SWITCHES
     claude: ClaudeAdjustment | None = None
@@ -1104,8 +1130,8 @@ def _log(value: float) -> float:
     return math.log(max(float(value), 0.1))
 
 
-def corner_signals(config: MatchConfig) -> tuple[float, float]:
-    """Expected corners per team from own average won and opponent's conceded."""
+def _model_corner_signals(config: MatchConfig) -> tuple[float, float]:
+    """Model corners per team (with the similar-opponents factors), before market and Claude."""
     params = config.count_model
     if not params.active:
         home = (config.home.corners_for + config.away.corners_against) / 2.0
@@ -1123,9 +1149,116 @@ def corner_signals(config: MatchConfig) -> tuple[float, float]:
     tactical = _tactical(config, "corners")
     if tactical is not None:
         home, away = home * tactical.corners_home, away * tactical.corners_away
+    return home, away
+
+
+def corner_signals(config: MatchConfig) -> tuple[float, float]:
+    """Expected corners per team: model, anchored to the corner lines when quoted, then Claude's factor."""
+    home, away = _model_corner_signals(config)
+    anchoring = _anchor_count(config, "corner", home + away)
+    if anchoring["active"] and home + away > 0.0:
+        factor = anchoring["final_mean"] / (home + away)
+        home, away = home * factor, away * factor
     if config.claude is not None:
         home, away = home * config.claude.corners, away * config.claude.corners
     return home, away
+
+
+# --- Corner and card lines of the market ------------------------------------------------
+
+_COUNT_SUFFIX = {"corner": "corner", "cartellini": "cartellini"}
+
+
+def count_market_lines(odds: Mapping[str, float] | None, kind: str, method: str = "proporzionale") -> list[tuple[float, float]]:
+    """Margin-free Over probability of every x.5 line quoted on both sides (``kind``: corner or cartellini)."""
+    lines = []
+    for key, over in (odds or {}).items():
+        match = re.fullmatch(rf"Over (\d+\.5) {_COUNT_SUFFIX[kind]}", key)
+        under = (odds or {}).get(f"Under {match.group(1)} {_COUNT_SUFFIX[kind]}") if match else None
+        try:
+            valid = match is not None and under is not None and float(over) > 1.0 and float(under) > 1.0
+        except (TypeError, ValueError):
+            valid = False
+        if valid:
+            lines.append((float(match.group(1)), float(remove_margin([over, under], method)[0])))
+    return sorted(lines)
+
+
+def _count_sf(threshold: float, mean: float, dispersion: float) -> float:
+    """P(count > threshold): negative binomial (``dispersion`` > 0) or Poisson, as in ``_count_samples``."""
+    from scipy.stats import nbinom, poisson
+
+    if dispersion > 0.0:
+        return float(nbinom.sf(math.floor(threshold), dispersion, dispersion / (dispersion + mean)))
+    return float(poisson.sf(math.floor(threshold), mean))
+
+
+def card_points_sf(threshold: float, yellow_mean: float, count_model: CountModelParams, rule: CardRule) -> float:
+    """P(card points > threshold) with the simulation's distribution: yellows, reds = ratio × yellow mean, rule weights."""
+    from scipy.stats import nbinom, poisson
+
+    dispersion = count_model.card_dispersion if count_model.active else 0.0
+    yellows = np.arange(61)
+    yellow_pmf = (nbinom.pmf(yellows, dispersion, dispersion / (dispersion + yellow_mean)) if dispersion > 0.0
+                  else poisson.pmf(yellows, yellow_mean))
+    red_mean = count_model.card_red_ratio * yellow_mean
+    share = rule.double_yellow_share or 0.0
+    red_points = rule.red_weight + rule.double_yellow_extra * share
+    total = 0.0
+    for reds in range(9):
+        weight = poisson.pmf(reds, red_mean) if red_mean > 0.0 else float(reds == 0)
+        if weight > 0.0:
+            points = rule.yellow_weight * yellows + red_points * reds
+            total += weight * float(yellow_pmf[points > threshold].sum())
+    return total
+
+
+def _implied_mean(lines: list[tuple[float, float]], sf: Callable[[float, float], float], start: float) -> float:
+    """Mean whose distribution best prices the quoted Over probabilities (cross-entropy)."""
+    from scipy.optimize import minimize_scalar
+
+    def loss(log_mean: float) -> float:
+        mean = math.exp(log_mean)
+        total = 0.0
+        for threshold, over in lines:
+            fitted = min(max(sf(threshold, mean), 1e-9), 1.0 - 1e-9)
+            total -= over * math.log(fitted) + (1.0 - over) * math.log(1.0 - fitted)
+        return total
+
+    centre = math.log(max(start, 0.5))
+    return float(math.exp(minimize_scalar(loss, bounds=(centre - 2.0, centre + 2.0), method="bounded").x))
+
+
+def _anchor_count(config: MatchConfig, kind: str, model_mean: float) -> dict[str, Any]:
+    """Model mean (total corners or expected yellows) blended with the mean implied by the quoted lines."""
+    params = config.count_anchor
+    details: dict[str, Any] = {"active": False, "model_mean": model_mean, "final_mean": model_mean,
+                               "market_weight": params.market_weight, "lines": []}
+    lines = count_market_lines(config.odds, kind, params.devig_method) if params.active and model_mean > 0.0 else []
+    if not lines:
+        details["reason"] = ("Ancoraggio di corner e cartellini disattivato nella configurazione." if not params.active
+                             else "Solo modello: nessuna linea Over/Under quotata su entrambi i lati.")
+        return details
+    if kind == "corner":
+        dispersion = config.count_model.corner_dispersion if config.count_model.active else 0.0
+        market = _implied_mean(lines, lambda t, m: _count_sf(t, m, dispersion), model_mean)
+    else:
+        market = _implied_mean(lines, lambda t, m: card_points_sf(t, m, config.count_model, config.card_rule), model_mean)
+    final = market ** params.market_weight * model_mean ** (1.0 - params.market_weight)
+    details.update({
+        "active": True, "market_mean": market, "final_mean": final,
+        "lines": [{"linea": threshold, "over_senza_margine": round(over, 4)} for threshold, over in lines],
+        "reason": f"Media = mercato^{params.market_weight:g} · modello^{1 - params.market_weight:g} "
+                  f"({len(lines)} linee senza margine, metodo {params.devig_method}).",
+    })
+    return details
+
+
+def count_anchoring(config: MatchConfig) -> dict[str, dict[str, Any]]:
+    """Anchoring details for the result: corner totals and expected yellows (card points scale with them)."""
+    home, away = _model_corner_signals(config)
+    return {"corner": _anchor_count(config, "corner", home + away),
+            "cartellini": _anchor_count(config, "cartellini", _model_card_mean(config))}
 
 
 def card_points_mean(config: MatchConfig) -> float:
@@ -1141,8 +1274,8 @@ def card_balance_log_factor(params: CountModelParams, home_elo, away_elo):
     return params.card_balance_intercept + params.card_balance_weight * np.abs(np.asarray(home_elo, float) - np.asarray(away_elo, float)) / 100.0
 
 
-def card_total_mean(config: MatchConfig) -> float:
-    """Expected yellow cards: team propensity adjusted by the referee's observed severity.
+def _model_card_mean(config: MatchConfig) -> float:
+    """Model yellows (with the similar-opponents factor), before market and Claude.
 
     The yellow average is the level factor and the fouls average is the tempo
     factor.
@@ -1150,7 +1283,7 @@ def card_total_mean(config: MatchConfig) -> float:
     team_cards = config.home.cards_for + config.away.cards_for
     params = config.count_model
     tactical = _tactical(config, "cards")
-    factor = (tactical.cards if tactical is not None else 1.0) * (config.claude.cards if config.claude is not None else 1.0)
+    factor = tactical.cards if tactical is not None else 1.0
     if params.active:
         if team_cards <= 0.0 or config.referee_yellow_avg <= 0.0 or config.referee_fouls_avg <= 0.0:
             return 0.0
@@ -1163,6 +1296,12 @@ def card_total_mean(config: MatchConfig) -> float:
     foul_factor = max(0.0, config.referee_fouls_avg / 24.0)
     referee_severity = max(0.0, config.referee_yellow_avg / 4.5)
     return factor * max(0.0, team_cards * referee_severity * foul_factor)
+
+
+def card_total_mean(config: MatchConfig) -> float:
+    """Expected yellow cards: model, anchored to the card lines when quoted, then Claude's factor."""
+    anchoring = _anchor_count(config, "cartellini", _model_card_mean(config))
+    return anchoring["final_mean"] * (config.claude.cards if config.claude is not None else 1.0)
 
 
 def _count_samples(rng: np.random.Generator, mean: float, dispersion: float, size: int) -> np.ndarray:
@@ -1404,6 +1543,7 @@ def simulate_match(config: MatchConfig) -> dict[str, Any]:
         "model_uncertainty": "Non stimata: richiede una distribuzione sui parametri e validazione out-of-sample.",
     }
     result["market_anchoring"] = anchoring
+    result["count_anchoring"] = count_anchoring(config)
     result["components"] = components
     result["exact_scores"] = exact_scores
     result["financial"] = financial_analysis(

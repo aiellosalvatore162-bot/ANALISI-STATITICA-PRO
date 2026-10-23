@@ -95,6 +95,53 @@ qualsiasi, lascia vuoti ed evidenziati quelli mancanti, accetta un blocco
 incollato, controlla la plausibilità (es. xG 25 invece di 2.5, Elo fuori range,
 quote sotto 1.01) e salva la partita nel database come «inserita manualmente».
 
+## Quote del giorno (The Odds API)
+
+Modalità di input «Quote del giorno». Richiede `ODDS_API_KEY` in
+`.streamlit/secrets.toml` (mai nel codice); senza chiave la sezione si
+disattiva con un avviso e il resto dell'app funziona come prima. Piano
+gratuito: 500 crediti al mese. Costi dalla documentazione ufficiale v4:
+
+| Chiamata | Costo in crediti |
+|---|---|
+| Elenco sport (`/sports`) | 0 |
+| Elenco partite (`/sports/{sport}/events`) | 0 |
+| Quote per campionato (`/sports/{sport}/odds`) | mercati × regioni (h2h + totals, regione eu = 2) |
+| Quote per evento (`/events/{id}/odds`) | mercati *restituiti* × regioni (fino a 6 con i mercati predefiniti) |
+| Punteggi (`/scores`) | 1, oppure 2 con `daysFrom` (partite concluse fino a 3 giorni prima) |
+
+Le risposte vuote non costano. I passaggi sono cinque:
+1. elenco partite gratuito per le competizioni scelte;
+2. quote 1X2 e Over/Under per campionato;
+3. mercati aggiuntivi (Goal/No Goal, linee gol, corner, cartellini, primo
+   tempo) solo per un massimo di 10 partite, scelte a mano o proposte dal
+   sistema (più disaccordo tra bookmaker sull'1X2);
+4. compilazione del blocco;
+5. quote di chiusura facoltative.
+
+Quota di riferimento: Pinnacle se quota tutti gli esiti della linea, altrimenti
+la mediana dei bookmaker; ogni quota mostra i bookmaker e le loro quote.
+Accanto si possono scrivere le quote Eurobet, per il confronto o per usarle nel
+blocco.
+
+Ogni scarico che costa crediti mostra prima il costo massimo e chiede una
+conferma. Le risposte restano in cache per 30 minuti, e un budget giornaliero
+(`config/odds_api.json`) blocca le chiamate oltre il limite. Il contatore dei
+crediti nella barra laterale legge l'intestazione `x-requests-remaining`.
+
+Ogni scarico per campionato salva un'istantanea delle quote. Nella pagina
+Prestazioni, «Esiti da The Odds API» scarica i punteggi finali (anche delle
+coppe) e compila gli esiti dei mercati decisi dai gol a fine partita; come
+quote di chiusura usa l'ultima istantanea prima del calcio d'inizio.
+
+Giornata tipo con i valori predefiniti:
+- top 5 e 3 coppe europee: 8 × 2 = 16 crediti;
+- 10 partite mirate: fino a 60 crediti;
+- punteggi del giorno dopo: 8 × 2 = 16 crediti.
+
+In tutto fino a 92 crediti al giorno. Con 500 crediti al mese conviene
+limitare le partite mirate (3 partite = 18 crediti, giornata ≈ 50).
+
 ## Profili di stile
 
 La scheda **Stile** dei risultati mostra il radar delle due squadre
@@ -440,6 +487,18 @@ Il pareggio (`X`) non viene mai segnalato come `VALORE` (`no_value_markets` in
 reso in perdita perché Poisson + Dixon-Coles non riproduce esattamente la X
 quotata. L'EV resta visibile nell'audit. Il confronto per esito tra Shin e
 metodo proporzionale si rigenera con `python -m tools.baseline --analisi-pareggio`.
+
+### Corner e cartellini ancorati al mercato
+
+Con le linee Over/Under x.5 quotate su entrambi i lati, la media di mercato è
+quella che, con la stessa distribuzione della simulazione (binomiale negativa
+per i corner, punti cartellini per i cartellini), riprezza le probabilità senza
+margine. La media finale è mercato^0,8 · modello^0,2. Il peso 0,8 è un valore
+predefinito dichiarato in `ancoraggio_conteggi` di `config/goal_model.json`,
+non tarato: mancano quote storiche di corner e cartellini. Senza linee quotate
+l'app indica «solo modello» e mantiene l'avviso sull'EV dei corner. La regola
+di conteggio dei cartellini del bookmaker che fornisce le linee (di solito
+Pinnacle) può essere diversa da quella Eurobet.
 
 ### Punti cartellini (regola del bookmaker)
 

@@ -1,0 +1,21 @@
+{
+  "regione": "eu",
+  "budget_giornaliero": 40,
+  "cache_minuti": 30,
+  "max_partite_mirate": 10,
+  "mercati_campionato": ["h2h", "totals"],
+  "mercati_evento": ["btts", "alternate_totals", "alternate_totals_corners", "alternate_totals_cards", "h2h_h1", "totals_h1"],
+  "riferimento": "pinnacle",
+  "competizioni_predefinite": [
+    "soccer_italy_serie_a", "soccer_epl", "soccer_spain_la_liga", "soccer_germany_bundesliga", "soccer_france_ligue_one",
+    "soccer_uefa_champs_league", "soccer_uefa_europa_league", "soccer_uefa_europa_conference_league"
+  ],
+  "costi": {
+    "fonte": "documentazione ufficiale v4 (the-odds-api.com/liveapi/guides/v4), letta il 23/10/2026",
+    "elenco_sport": "gratuito",
+    "elenco_eventi": "gratuito",
+    "quote_campionato": "mercati × regioni (gratuito se non ci sono partite)",
+    "quote_evento": "mercati restituiti × regioni (gratuito se vuoto)",
+    "punteggi": "1 senza daysFrom, 2 con daysFrom (partite concluse fino a 3 giorni prima)"
+  }
+}

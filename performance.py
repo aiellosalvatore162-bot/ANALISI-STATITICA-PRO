@@ -410,7 +410,7 @@ def fill_from_results(frame: pd.DataFrame, results: pd.DataFrame, *, source: str
     for position, row in filled.iterrows():
         need_outcome = pd.isna(row["Esito"]) and "rimborsata" not in row["Note"]
         closing_column = CLOSING_COLUMNS.get(row["Selezione"])
-        need_closing = pd.isna(row["Quota_chiusura"]) and closing_column is not None
+        need_closing = pd.isna(row["Quota_chiusura"]) and (closing_column is not None or "closing_odds" in results)
         if not (need_outcome or need_closing):
             continue
         match = find_result(results, row["Partita"], row["Data"])
@@ -433,19 +433,34 @@ def fill_from_results(frame: pd.DataFrame, results: pd.DataFrame, *, source: str
                         and match["home_reds"] + match["away_reds"] > 0):
                     details.append("cartellini: dati inglesi/scozzesi senza il primo giallo della doppia ammonizione, "
                                    "un'eventuale doppia ammonizione conta 2 invece di 3")
-        if need_closing and pd.notna(match.get(closing_column)) and float(match[closing_column]) > 1.0:
-            added["Quota_chiusura"] = float(match[closing_column])
+        closing = _closing_price(match, row["Selezione"], closing_column) if need_closing else None
+        if closing is not None:
+            added["Quota_chiusura"] = closing
             report.closings += 1
         if not (added or details):
             continue
-        what = " e ".join({"Esito": "esito", "Quota_chiusura": "quota di chiusura media"}[key] for key in added) or "risultato"
-        note = "; ".join(details + [f"{what} da {source}"]) + f" ({match['date']:%d/%m/%Y} {int(match['home_goals'])}-{int(match['away_goals'])}), compilato il {today:%d/%m/%Y}"
+        parts = [f"esito da {source}"] if "Esito" in added else []
+        if "Quota_chiusura" in added:
+            snapshot = match.get("closing_source") if isinstance(match.get("closing_odds"), dict) else None
+            parts.append(f"quota di chiusura da {snapshot}" if snapshot else f"quota di chiusura media da {source}")
+        what = " e ".join(parts) or f"risultato da {source}"
+        note = "; ".join(details + [what]) + f" ({match['date']:%d/%m/%Y} {int(match['home_goals'])}-{int(match['away_goals'])}), compilato il {today:%d/%m/%Y}"
         added["Note"] = f"{row['Note']}; {note}" if row["Note"] else note
         for column, value in added.items():
             filled.at[position, column] = value
         report.changes.append({"_riga": row["_riga"], "ID": row["ID"], **added})
     report.not_found = sorted(set(report.not_found))
     return report
+
+
+def _closing_price(match, selection: str, column: str | None) -> float | None:
+    """Quota di chiusura: colonna media di football-data.co.uk o istantanea The Odds API (``closing_odds``)."""
+    if column is not None and pd.notna(match.get(column)) and float(match[column]) > 1.0:
+        return float(match[column])
+    quotes = match.get("closing_odds")
+    if isinstance(quotes, dict) and quotes.get(selection) and float(quotes[selection]) > 1.0:
+        return float(quotes[selection])
+    return None
 
 
 def seasons_and_leagues(frame: pd.DataFrame, competitions: dict[str, dict]) -> tuple[list[int], list[str], list[str]]:

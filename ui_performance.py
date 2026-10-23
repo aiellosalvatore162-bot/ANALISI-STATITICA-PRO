@@ -55,6 +55,8 @@ def _fill_section(registry, original: bytes, signature: str) -> pd.DataFrame:
             st.session_state["performance_fill"] = report
             st.session_state["performance_fill_signature"] = signature
             st.session_state["performance_fill_warnings"] = warnings + list(dict.fromkeys(st.session_state["performance_source_warnings"]))
+    if open_rows and report is None:
+        report = _odds_api_fill(frame, signature)
     if report is None:
         return frame
     for warning in st.session_state.get("performance_fill_warnings", []):
@@ -71,6 +73,46 @@ def _fill_section(registry, original: bytes, signature: str) -> pd.DataFrame:
     if report.not_found:
         st.caption("Partite non trovate (data, nomi o competizione non coperta): " + ", ".join(report.not_found))
     return report.frame
+
+
+def _odds_api_fill(frame: pd.DataFrame, signature: str):
+    """Esiti dei mercati gol (anche coppe) dai punteggi di The Odds API e chiusure dalle istantanee salvate."""
+    from datasources.oddsapi import results_from_scores, scores_plan
+    from ui_odds import _confirmed, _run, odds_client
+
+    api = odds_client()
+    if not api.configured:
+        return None
+    plan = scores_plan(frame, date.today(), api.settings.get("competizioni_predefinite", []))
+    if not plan["rows"]:
+        return None
+    with st.expander("Esiti da The Odds API (partite degli ultimi 3 giorni, anche coppe)", expanded=False):
+        st.caption(f"{plan['rows']} righe senza esito negli ultimi 3 giorni; punteggi di {len(plan['sports'])} competizioni "
+                   f"(daysFrom={plan['days_from']}, 2 crediti ciascuna). Solo risultato finale: si compilano i mercati "
+                   "decisi dai gol a fine partita; primo tempo, corner e cartellini restano a football-data.co.uk o a mano. "
+                   "Le quote di chiusura vengono dalle istantanee già salvate (gratis).")
+        if plan["too_old"]:
+            st.caption(f"{plan['too_old']} righe più vecchie di 3 giorni: fuori dalla finestra dell'endpoint dei punteggi.")
+        cost, cached = 0, 0
+        for sport in plan["sports"]:
+            if api.is_cached(f"/sports/{sport}/scores", {"daysFrom": plan["days_from"], "dateFormat": "iso"}):
+                cached += 1
+            else:
+                cost += 2
+        if not (_confirmed(cost, cached, "performance_scores_confirm")
+                and st.button("Scarica i punteggi", key="performance_scores_button")):
+            return None
+        payloads = []
+        for sport in plan["sports"]:
+            result = _run(lambda: api.scores(sport, plan["days_from"]), sport)
+            if result is not None:
+                payloads.append(result.payload)
+        results = results_from_scores(payloads, api.closing_snapshots(), api.settings.get("riferimento"))
+    report = fill_from_results(frame, results, source="The Odds API (punteggi)")
+    st.session_state["performance_fill"] = report
+    st.session_state["performance_fill_signature"] = signature
+    st.session_state["performance_fill_warnings"] = []
+    return report
 
 
 def render_performance() -> None:

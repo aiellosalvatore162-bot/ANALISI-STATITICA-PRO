@@ -91,6 +91,15 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   `python -m tools.baseline --estremi`. Fuori campione = 2019-24 e 2026-27 (i
   parametri base sono tarati sul 2024-26). Nell'app l'EV sui corner porta
   l'avviso `CORNER_EV_WARNING` finché non ci sono quote corner (fase N).
+- Fase N: The Odds API in `datasources/oddsapi.py` (cache 30 minuti, crediti
+  da `x-requests-remaining` nella tabella `odds_api_usage`, budget giornaliero,
+  istantanee `odds_snapshots` per le quote di chiusura), interfaccia in
+  `ui_odds.py`, impostazioni e costi in `config/odds_api.json`. Chiave solo in
+  `st.secrets["ODDS_API_KEY"]`, mai negli URL in cache, nei messaggi o nei test.
+  Test con risposte registrate in `tests/fixtures/oddsapi/`. Corner e cartellini
+  ancorati alle linee Over/Under quotate (`engine.CountAnchorParams`, sezione
+  `ancoraggio_conteggi`, peso 0.8 dichiarato, non tarato); l'ancoraggio sta
+  prima del fattore Claude.
 - Risultati esatti: `result["exact_scores"]` (finale, modello, mercato) dallo
   stesso campione; logica dei gruppi in `exact_scores.py` (coerenza e
   correlazione esatte per i mercati che dipendono dal solo punteggio finale),
@@ -126,7 +135,7 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
 - Le fonti remote devono degradare con un avviso (come `historical.py` ricade
   al 100% manuale), mai bloccare la simulazione manuale.
 
-## Stato del progetto (23/10/2026, dopo la fase M)
+## Stato del progetto (23/10/2026, dopo la fase N)
 
 - Fasi completate e unite a `main`: modello gol log-lineare (1), ancoraggio al
   mercato (2), mercati secondari (C2), livello dati (D), football-data.org,
@@ -135,7 +144,8 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   Prestazioni (H), allineamento ai 19 mercati del Riepilogo (H2), punti
   cartellini con la regola Eurobet (H3), risultati esatti e gruppi (I),
   dashboard a tema calcio (J), taratura corner e cartellini con shrinkage dei
-  corner ed equilibrio Elo sui cartellini (M).
+  corner ed equilibrio Elo sui cartellini (M), quote automatiche The Odds API
+  con ancoraggio di corner e cartellini (N).
 - Test: `python -m pytest -q` (solo fixture salvate, nessuna rete); 2 `xfail`
   noti (PSG-Barcellona, Napoli-Bodø, input stimati).
 
@@ -143,10 +153,9 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
 
 1. Usare il registro per qualche settimana: con almeno 100 selezioni con esito
    per mercato il giudizio della pagina Prestazioni diventa significativo.
-2. Quote di chiusura per i mercati senza colonne in football-data.co.uk
-   (Goal/NoGoal, Multigol, corner, cartellini, primo tempo): servono una fonte
-   gratuita o l'inserimento a mano.
-3. Esiti delle coppe (Champions League) da football-data.org quando la chiave è
-   configurata (oggi solo i campionati di football-data.co.uk).
+2. Quote di chiusura per Multigol e per i mercati senza istantanea (The Odds
+   API salva solo le quote per campionato scaricate prima del via).
+3. Esiti di corner, cartellini e primo tempo delle coppe: i punteggi di The
+   Odds API danno solo il risultato finale.
 4. Se il confronto delle componenti mostra che stile o Claude non migliorano il
    Brier rispetto a modello/mercato, disattivarli con le opzioni esistenti.

@@ -1,0 +1,750 @@
+{
+ "id": "0b4894e9fb123ef3045269f97e339eba",
+ "sport_key": "soccer_italy_serie_a",
+ "sport_title": "Serie A - Italy",
+ "commence_time": "2026-10-24T16:00:00Z",
+ "home_team": "Napoli",
+ "away_team": "AS Roma",
+ "bookmakers": [
+  {
+   "key": "pinnacle",
+   "title": "Pinnacle",
+   "markets": [
+    {
+     "key": "alternate_totals",
+     "last_update": "2026-10-23T13:35:24Z",
+     "outcomes": [
+      {
+       "name": "Over",
+       "price": 1.92,
+       "point": 2.5
+      },
+      {
+       "name": "Over",
+       "price": 1.27,
+       "point": 1.5
+      },
+      {
+       "name": "Over",
+       "price": 1.33,
+       "point": 1.75
+      },
+      {
+       "name": "Over",
+       "price": 1.43,
+       "point": 2.0
+      },
+      {
+       "name": "Over",
+       "price": 1.67,
+       "point": 2.25
+      },
+      {
+       "name": "Over",
+       "price": 2.16,
+       "point": 2.75
+      },
+      {
+       "name": "Over",
+       "price": 2.59,
+       "point": 3.0
+      },
+      {
+       "name": "Over",
+       "price": 2.92,
+       "point": 3.25
+      },
+      {
+       "name": "Over",
+       "price": 3.26,
+       "point": 3.5
+      },
+      {
+       "name": "Under",
+       "price": 1.97,
+       "point": 2.5
+      },
+      {
+       "name": "Under",
+       "price": 3.92,
+       "point": 1.5
+      },
+      {
+       "name": "Under",
+       "price": 3.45,
+       "point": 1.75
+      },
+      {
+       "name": "Under",
+       "price": 2.99,
+       "point": 2.0
+      },
+      {
+       "name": "Under",
+       "price": 2.3,
+       "point": 2.25
+      },
+      {
+       "name": "Under",
+       "price": 1.75,
+       "point": 2.75
+      },
+      {
+       "name": "Under",
+       "price": 1.54,
+       "point": 3.0
+      },
+      {
+       "name": "Under",
+       "price": 1.43,
+       "point": 3.25
+      },
+      {
+       "name": "Under",
+       "price": 1.36,
+       "point": 3.5
+      }
+     ]
+    },
+    {
+     "key": "alternate_totals_cards",
+     "last_update": "2026-10-23T13:34:48Z",
+     "outcomes": [
+      {
+       "name": "Over",
+       "price": 1.86,
+       "point": 4.0
+      },
+      {
+       "name": "Over",
+       "price": 1.31,
+       "point": 3.0
+      },
+      {
+       "name": "Over",
+       "price": 1.56,
+       "point": 3.5
+      },
+      {
+       "name": "Over",
+       "price": 2.29,
+       "point": 4.5
+      },
+      {
+       "name": "Over",
+       "price": 3.04,
+       "point": 5.0
+      },
+      {
+       "name": "Under",
+       "price": 1.94,
+       "point": 4.0
+      },
+      {
+       "name": "Under",
+       "price": 3.27,
+       "point": 3.0
+      },
+      {
+       "name": "Under",
+       "price": 2.38,
+       "point": 3.5
+      },
+      {
+       "name": "Under",
+       "price": 1.6,
+       "point": 4.5
+      },
+      {
+       "name": "Under",
+       "price": 1.35,
+       "point": 5.0
+      }
+     ]
+    },
+    {
+     "key": "alternate_totals_corners",
+     "last_update": "2026-10-23T13:34:48Z",
+     "outcomes": [
+      {
+       "name": "Over",
+       "price": 1.95,
+       "point": 9.0
+      },
+      {
+       "name": "Over",
+       "price": 1.5,
+       "point": 8.0
+      },
+      {
+       "name": "Over",
+       "price": 1.72,
+       "point": 8.5
+      },
+      {
+       "name": "Over",
+       "price": 2.19,
+       "point": 9.5
+      },
+      {
+       "name": "Over",
+       "price": 2.53,
+       "point": 10.0
+      },
+      {
+       "name": "Under",
+       "price": 1.88,
+       "point": 9.0
+      },
+      {
+       "name": "Under",
+       "price": 2.51,
+       "point": 8.0
+      },
+      {
+       "name": "Under",
+       "price": 2.1,
+       "point": 8.5
+      },
+      {
+       "name": "Under",
+       "price": 1.67,
+       "point": 9.5
+      },
+      {
+       "name": "Under",
+       "price": 1.5,
+       "point": 10.0
+      }
+     ]
+    },
+    {
+     "key": "btts",
+     "last_update": "2026-10-23T13:34:48Z",
+     "outcomes": [
+      {
+       "name": "Yes",
+       "price": 1.68
+      },
+      {
+       "name": "No",
+       "price": 2.24
+      }
+     ]
+    },
+    {
+     "key": "h2h_h1",
+     "last_update": "2026-10-23T13:34:48Z",
+     "outcomes": [
+      {
+       "name": "AS Roma",
+       "price": 3.23
+      },
+      {
+       "name": "Napoli",
+       "price": 3.4
+      },
+      {
+       "name": "Draw",
+       "price": 2.3
+      }
+     ]
+    },
+    {
+     "key": "totals_h1",
+     "last_update": "2026-10-23T13:34:48Z",
+     "outcomes": [
+      {
+       "name": "Over",
+       "price": 1.81,
+       "point": 1.0
+      },
+      {
+       "name": "Under",
+       "price": 2.03,
+       "point": 1.0
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "key": "onexbet",
+   "title": "1xBet",
+   "markets": [
+    {
+     "key": "btts",
+     "last_update": "2026-10-23T13:35:23Z",
+     "outcomes": [
+      {
+       "name": "Yes",
+       "price": 1.66
+      },
+      {
+       "name": "No",
+       "price": 2.12
+      }
+     ]
+    },
+    {
+     "key": "alternate_totals",
+     "last_update": "2026-10-23T13:26:34Z",
+     "outcomes": [
+      {
+       "name": "Over",
+       "price": 1.0,
+       "point": 0.5
+      },
+      {
+       "name": "Over",
+       "price": 1.03,
+       "point": 1.0
+      },
+      {
+       "name": "Over",
+       "price": 1.27,
+       "point": 1.5
+      },
+      {
+       "name": "Over",
+       "price": 1.44,
+       "point": 2.0
+      },
+      {
+       "name": "Over",
+       "price": 1.94,
+       "point": 2.5
+      },
+      {
+       "name": "Over",
+       "price": 2.55,
+       "point": 3.0
+      },
+      {
+       "name": "Over",
+       "price": 3.17,
+       "point": 3.5
+      },
+      {
+       "name": "Over",
+       "price": 5.33,
+       "point": 4.0
+      },
+      {
+       "name": "Over",
+       "price": 6.08,
+       "point": 4.5
+      },
+      {
+       "name": "Over",
+       "price": 7.7,
+       "point": 5.0
+      },
+      {
+       "name": "Over",
+       "price": 8.55,
+       "point": 5.5
+      },
+      {
+       "name": "Over",
+       "price": 9.8,
+       "point": 6.5
+      },
+      {
+       "name": "Over",
+       "price": 11.6,
+       "point": 7.5
+      },
+      {
+       "name": "Under",
+       "price": 11.6,
+       "point": 0.5
+      },
+      {
+       "name": "Under",
+       "price": 9.4,
+       "point": 1.0
+      },
+      {
+       "name": "Under",
+       "price": 3.67,
+       "point": 1.5
+      },
+      {
+       "name": "Under",
+       "price": 2.87,
+       "point": 2.0
+      },
+      {
+       "name": "Under",
+       "price": 2.0,
+       "point": 2.5
+      },
+      {
+       "name": "Under",
+       "price": 1.55,
+       "point": 3.0
+      },
+      {
+       "name": "Under",
+       "price": 1.36,
+       "point": 3.5
+      },
+      {
+       "name": "Under",
+       "price": 1.15,
+       "point": 4.0
+      },
+      {
+       "name": "Under",
+       "price": 1.11,
+       "point": 4.5
+      },
+      {
+       "name": "Under",
+       "price": 1.06,
+       "point": 5.0
+      },
+      {
+       "name": "Under",
+       "price": 1.04,
+       "point": 5.5
+      },
+      {
+       "name": "Under",
+       "price": 1.02,
+       "point": 6.5
+      },
+      {
+       "name": "Under",
+       "price": 1.0,
+       "point": 7.5
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "key": "williamhill",
+   "title": "William Hill",
+   "markets": [
+    {
+     "key": "btts",
+     "last_update": "2026-10-23T13:35:21Z",
+     "outcomes": [
+      {
+       "name": "Yes",
+       "price": 1.67
+      },
+      {
+       "name": "No",
+       "price": 2.15
+      }
+     ]
+    },
+    {
+     "key": "alternate_totals",
+     "last_update": "2026-10-23T13:35:21Z",
+     "outcomes": [
+      {
+       "name": "Over",
+       "price": 1.25,
+       "point": 1.5
+      },
+      {
+       "name": "Over",
+       "price": 1.85,
+       "point": 2.5
+      },
+      {
+       "name": "Under",
+       "price": 3.6,
+       "point": 1.5
+      },
+      {
+       "name": "Under",
+       "price": 1.91,
+       "point": 2.5
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "key": "matchbook",
+   "title": "Matchbook",
+   "markets": [
+    {
+     "key": "btts",
+     "last_update": "2026-10-23T13:35:22Z",
+     "outcomes": [
+      {
+       "name": "Yes",
+       "price": 1.73
+      },
+      {
+       "name": "No",
+       "price": 2.32
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "key": "codere_it",
+   "title": "Codere (IT)",
+   "markets": [
+    {
+     "key": "alternate_totals",
+     "last_update": "2026-10-23T13:34:57Z",
+     "outcomes": [
+      {
+       "name": "Over",
+       "price": 1.04,
+       "point": 0.5
+      },
+      {
+       "name": "Over",
+       "price": 1.25,
+       "point": 1.5
+      },
+      {
+       "name": "Over",
+       "price": 1.82,
+       "point": 2.5
+      },
+      {
+       "name": "Over",
+       "price": 2.95,
+       "point": 3.5
+      },
+      {
+       "name": "Over",
+       "price": 5.2,
+       "point": 4.5
+      },
+      {
+       "name": "Over",
+       "price": 8.4,
+       "point": 5.5
+      },
+      {
+       "name": "Under",
+       "price": 7.6,
+       "point": 0.5
+      },
+      {
+       "name": "Under",
+       "price": 3.45,
+       "point": 1.5
+      },
+      {
+       "name": "Under",
+       "price": 1.85,
+       "point": 2.5
+      },
+      {
+       "name": "Under",
+       "price": 1.33,
+       "point": 3.5
+      },
+      {
+       "name": "Under",
+       "price": 1.11,
+       "point": 4.5
+      },
+      {
+       "name": "Under",
+       "price": 1.03,
+       "point": 5.5
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "key": "gtbets",
+   "title": "GTbets",
+   "markets": [
+    {
+     "key": "h2h_h1",
+     "last_update": "2026-10-23T13:34:35Z",
+     "outcomes": [
+      {
+       "name": "AS Roma",
+       "price": 3.13
+      },
+      {
+       "name": "Napoli",
+       "price": 3.37
+      },
+      {
+       "name": "Draw",
+       "price": 2.2
+      }
+     ]
+    },
+    {
+     "key": "totals_h1",
+     "last_update": "2026-10-23T13:34:35Z",
+     "outcomes": [
+      {
+       "name": "Over",
+       "price": 2.64,
+       "point": 1.5
+      },
+      {
+       "name": "Under",
+       "price": 1.45,
+       "point": 1.5
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "key": "betonlineag",
+   "title": "BetOnline.ag",
+   "markets": [
+    {
+     "key": "alternate_totals",
+     "last_update": "2026-10-23T13:34:36Z",
+     "outcomes": [
+      {
+       "name": "Over",
+       "price": 2.13,
+       "point": 2.75
+      },
+      {
+       "name": "Under",
+       "price": 1.71,
+       "point": 2.75
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "key": "coolbet",
+   "title": "Coolbet",
+   "markets": [
+    {
+     "key": "alternate_totals",
+     "last_update": "2026-10-23T13:34:59Z",
+     "outcomes": [
+      {
+       "name": "Over",
+       "price": 1.9,
+       "point": 2.5
+      },
+      {
+       "name": "Over",
+       "price": 1.07,
+       "point": 0.5
+      },
+      {
+       "name": "Over",
+       "price": 2.56,
+       "point": 3.0
+      },
+      {
+       "name": "Over",
+       "price": 1.44,
+       "point": 2.0
+      },
+      {
+       "name": "Over",
+       "price": 6.5,
+       "point": 4.5
+      },
+      {
+       "name": "Over",
+       "price": 13.5,
+       "point": 5.5
+      },
+      {
+       "name": "Over",
+       "price": 5.6,
+       "point": 4.0
+      },
+      {
+       "name": "Over",
+       "price": 12.5,
+       "point": 5.0
+      },
+      {
+       "name": "Over",
+       "price": 1.08,
+       "point": 1.0
+      },
+      {
+       "name": "Over",
+       "price": 3.25,
+       "point": 3.5
+      },
+      {
+       "name": "Over",
+       "price": 1.3,
+       "point": 1.5
+      },
+      {
+       "name": "Under",
+       "price": 1.99,
+       "point": 2.5
+      },
+      {
+       "name": "Under",
+       "price": 11.0,
+       "point": 0.5
+      },
+      {
+       "name": "Under",
+       "price": 1.56,
+       "point": 3.0
+      },
+      {
+       "name": "Under",
+       "price": 2.95,
+       "point": 2.0
+      },
+      {
+       "name": "Under",
+       "price": 1.14,
+       "point": 4.5
+      },
+      {
+       "name": "Under",
+       "price": 1.05,
+       "point": 5.5
+      },
+      {
+       "name": "Under",
+       "price": 1.17,
+       "point": 4.0
+      },
+      {
+       "name": "Under",
+       "price": 1.05,
+       "point": 5.0
+      },
+      {
+       "name": "Under",
+       "price": 9.7,
+       "point": 1.0
+      },
+      {
+       "name": "Under",
+       "price": 1.39,
+       "point": 3.5
+      },
+      {
+       "name": "Under",
+       "price": 3.85,
+       "point": 1.5
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}
