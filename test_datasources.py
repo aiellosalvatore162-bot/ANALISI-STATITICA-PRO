@@ -1,5 +1,7 @@
 """Test del livello dati con risposte di esempio salvate: nessuna chiamata di rete."""
 
+from dataclasses import replace
+import math
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
@@ -322,6 +324,48 @@ def test_vectorized_count_model_matches_the_engine():
     home, away = engine.corner_signals(config)
     assert means["corner_home"][0] == pytest.approx(home) and means["corner_away"][0] == pytest.approx(away)
     assert means["cards"][0] == pytest.approx(engine.card_total_mean(config))
+
+
+def test_vectorized_count_model_with_phase_m_corrections_matches_the_engine():
+    params = engine.CountModelParams(active=True, corner_home_intercept=0.4, corner_away_intercept=0.15,
+                                     corner_for_weight=0.43, corner_against_weight=0.4, card_intercept=0.47,
+                                     card_team_weight=0.3, card_referee_yellow_weight=0.25, card_referee_fouls_weight=0.05,
+                                     corner_shrink_reference=9.6, corner_shrink_weight=0.6,
+                                     card_balance_intercept=0.1, card_balance_weight=-0.07)
+    data = pd.DataFrame({"home_corners_for": [7.0], "home_corners_against": [3.0], "away_corners_for": [6.0],
+                         "away_corners_against": [5.5], "home_cards_for": [1.8], "away_cards_for": [2.2],
+                         "referee_yellow_avg": [4.4], "referee_fouls_avg": [23.0], "home_elo": [1850.0], "away_elo": [1600.0]})
+    means = calibrate.count_means(params, data)
+    team = lambda cf, ca, cards, elo: engine.TeamParams("t", 1, 1, elo, "W", 1.4, 1.4, cf, ca, cards)
+    config = engine.MatchConfig(team(7.0, 3.0, 1.8, 1850.0), team(6.0, 5.5, 2.2, 1600.0), 4.4, 23.0, count_model=params)
+    home, away = engine.corner_signals(config)
+    assert means["corner_home"][0] == pytest.approx(home) and means["corner_away"][0] == pytest.approx(away)
+    assert means["cards"][0] == pytest.approx(engine.card_total_mean(config))
+
+
+def test_corner_shrinkage_pulls_the_total_towards_the_reference_and_keeps_the_split():
+    base = engine.CountModelParams(active=True, corner_for_weight=0.43, corner_against_weight=0.4)
+    shrunk = replace(base, corner_shrink_reference=9.6, corner_shrink_weight=0.6)
+    for corners_for in (8.0, 3.0):  # partita da molti corner, poi da pochi
+        team = engine.TeamParams("t", 1, 1, 1500, "W", 1.4, 1.4, corners_for, corners_for, 2.0)
+        raw_home, raw_away = engine.corner_signals(engine.MatchConfig(team, team, 4.0, 22.0, count_model=base))
+        home, away = engine.corner_signals(engine.MatchConfig(team, team, 4.0, 22.0, count_model=shrunk))
+        raw, total = raw_home + raw_away, home + away
+        assert abs(total - 9.6) < abs(raw - 9.6)
+        assert total == pytest.approx(9.6 * (raw / 9.6) ** 0.6)
+        assert home / total == pytest.approx(raw_home / raw)
+
+
+def test_card_balance_raises_yellows_in_balanced_matches_only_when_set():
+    params = engine.CountModelParams(active=True, card_intercept=0.47, card_team_weight=0.3,
+                                     card_referee_yellow_weight=0.25, card_referee_fouls_weight=0.05)
+    team = lambda elo: engine.TeamParams("t", 1, 1, elo, "W", 1.4, 1.4, 5, 5, 2.0)
+    def mean(p, home_elo, away_elo):
+        return engine.card_total_mean(engine.MatchConfig(team(home_elo), team(away_elo), 4.4, 23.0, count_model=p))
+    assert mean(params, 1900, 1500) == pytest.approx(mean(params, 1700, 1700))
+    balanced = replace(params, card_balance_intercept=0.1, card_balance_weight=-0.07)
+    assert mean(balanced, 1700, 1700) == pytest.approx(mean(params, 1700, 1700) * math.exp(0.1))
+    assert mean(balanced, 1500, 1900) == pytest.approx(mean(params, 1500, 1900) * math.exp(0.1 - 0.07 * 4))
 
 
 def test_negative_binomial_samples_keep_the_mean_and_add_variance():
