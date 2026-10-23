@@ -358,7 +358,13 @@ Il motore:
    e di squadra;
 6. calcola un unico totale per corner e cartellini, poi ripartisce ciascun
    totale tra Casa e Ospite senza alterare le soglie del match; i cartellini
-   sono punti del bookmaker (vedi «Punti cartellini»);
+   sono punti del bookmaker (vedi «Punti cartellini»). Il totale corner è
+   avvicinato alla media storica (le medie per squadra esagerano le partite
+   «da pochi» e «da molti» corner) e i gialli attesi crescono nelle partite
+   equilibrate (piccola differenza di Elo); entrambi tarati con
+   `python -m tools.calibrate --estremi` e misurati con
+   `python -m tools.baseline --estremi`. L'EV sui corner è una stima del solo
+   modello, non ancorata al mercato: l'app lo segnala con un avviso;
 7. mostra score modale, intervalli Wilson e il ledger dei contributi;
 8. espone per ogni mercato l'intervallo Wilson 95% e l'affidabilità campionaria;
 9. calcola EV e Kelly frazionato (Quarter-Kelly, 25% del Kelly pieno) per le
