@@ -133,7 +133,7 @@ def render_sidebar() -> None:
         columns[0].button(("▶ " if record["id"] == current else "") + label, key=f"memory_open_{record['id']}",
                           on_click=_reopen, args=(record["id"],), width="stretch",
                           help="Riapre la partita con blocco, quote, Eurobet e Claude già compilati e la risimula.")
-        columns[1].button("✕", key=f"memory_delete_{record['id']}", on_click=_forget, args=(record["id"],),
+        columns[1].button("", icon=":material/close:", key=f"memory_delete_{record['id']}", on_click=_forget, args=(record["id"],),
                           help="Elimina la partita dall'elenco (le righe del registro restano).")
     render_download("memory_download")
     upload = st.file_uploader("Riprendi da file", type=["xlsx"], key="memory_upload",
