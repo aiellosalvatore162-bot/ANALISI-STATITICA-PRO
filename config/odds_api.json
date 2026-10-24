@@ -1,14 +1,40 @@
 {
   "regione": "eu",
-  "budget_giornaliero": 40,
+  "budget_mensile": 500,
+  "giorni_di_gioco_mese": 15,
+  "soglia_avviso": 0.8,
+  "soglia_conferma": 0.95,
   "cache_minuti": 30,
   "max_partite_mirate": 10,
-  "mercati_campionato": ["h2h", "totals"],
-  "mercati_evento": ["btts", "alternate_totals", "alternate_totals_corners", "alternate_totals_cards", "h2h_h1", "totals_h1"],
+  "mercati_campionato": [
+    "h2h",
+    "totals"
+  ],
+  "profilo_mirato": "risparmio",
+  "profili_mercati_evento": {
+    "risparmio": [
+      "alternate_totals_corners",
+      "alternate_totals_cards"
+    ],
+    "completo": [
+      "btts",
+      "alternate_totals",
+      "alternate_totals_corners",
+      "alternate_totals_cards",
+      "h2h_h1",
+      "totals_h1"
+    ]
+  },
   "riferimento": "pinnacle",
   "competizioni_predefinite": [
-    "soccer_italy_serie_a", "soccer_epl", "soccer_spain_la_liga", "soccer_germany_bundesliga", "soccer_france_ligue_one",
-    "soccer_uefa_champs_league", "soccer_uefa_europa_league", "soccer_uefa_europa_conference_league"
+    "soccer_italy_serie_a",
+    "soccer_epl",
+    "soccer_spain_la_liga",
+    "soccer_germany_bundesliga",
+    "soccer_france_ligue_one",
+    "soccer_uefa_champs_league",
+    "soccer_uefa_europa_league",
+    "soccer_uefa_europa_conference_league"
   ],
   "costi": {
     "fonte": "documentazione ufficiale v4 (the-odds-api.com/liveapi/guides/v4), letta il 23/10/2026",

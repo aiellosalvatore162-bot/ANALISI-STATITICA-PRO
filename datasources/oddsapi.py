@@ -9,7 +9,8 @@ La chiave si legge solo da ``st.secrets["ODDS_API_KEY"]`` o dall'ambiente e non
 entra mai negli URL salvati in cache, nei messaggi o nei log. Ogni risposta
 passa dalla cache SQLite (30 minuti di default); i crediti rimasti arrivano
 dall'intestazione ``x-requests-remaining`` e restano registrati nella tabella
-``odds_api_usage``. Ogni download di quote per campionato è salvato anche in
+``odds_api_usage``. Il budget è mensile (``budget_mensile``): avviso
+all'80%, conferma esplicita oltre il 95%, blocco oltre il 100%. Ogni download di quote per campionato è salvato anche in
 ``odds_snapshots``: l'ultima istantanea prima del calcio d'inizio fa da quota
 di chiusura per il registro.
 """
@@ -18,7 +19,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date, datetime, time as dtime, timedelta, timezone
+import calendar
 import json
+import math
 import os
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping
@@ -86,7 +89,11 @@ class OddsApiError(RuntimeError):
 
 
 class BudgetExceeded(OddsApiError):
-    """Il download supererebbe il budget giornaliero di crediti."""
+    """Il download supererebbe il budget mensile di crediti o i crediti rimasti."""
+
+
+class BudgetConfirmationRequired(BudgetExceeded):
+    """Il download porterebbe la spesa del mese oltre la soglia di conferma (95%): serve ``allow_high=True``."""
 
 
 def load_settings(path: Path = SETTINGS_PATH) -> dict:
@@ -137,7 +144,7 @@ class ApiResult:
 
 
 class OddsApi:
-    """Client con cache, registro dei crediti e controllo del budget giornaliero.
+    """Client con cache, registro dei crediti e controllo del budget mensile.
 
     ``opener`` e ``now`` sono iniettabili: i test usano risposte registrate.
     """
@@ -204,31 +211,80 @@ class OddsApi:
                                 number("x-requests-remaining")))
         return cost
 
-    def spent_today(self) -> int:
-        start = datetime.combine(self.now().astimezone().date(), dtime.min).astimezone(timezone.utc)
+    def _spent_since(self, start: datetime) -> int:
         with self.cache._connect() as connection:
             rows = connection.execute("SELECT at, cost FROM odds_api_usage").fetchall()
         return int(sum(cost for at, cost in rows if datetime.fromisoformat(at) >= start))
 
+    def spent_today(self) -> int:
+        return self._spent_since(datetime.combine(self.now().astimezone().date(), dtime.min).astimezone(timezone.utc))
+
+    def spent_month(self) -> int:
+        """Crediti spesi dal primo giorno del mese (ora locale), dal registro delle chiamate."""
+        first = self.now().astimezone().date().replace(day=1)
+        return self._spent_since(datetime.combine(first, dtime.min).astimezone(timezone.utc))
+
     def usage(self) -> dict[str, Any]:
-        """Crediti rimasti e usati (ultima intestazione ricevuta), spesi oggi e budget giornaliero."""
+        """Crediti dell'API (ultima intestazione ricevuta) e stato del budget mensile.
+
+        ``left`` = crediti ancora spendibili nel mese: il minimo tra budget meno spesa del mese e crediti rimasti
+        dell'API. ``suggested_today`` = ``left`` diviso i giorni di gioco stimati da qui a fine mese
+        (``giorni_di_gioco_mese`` in proporzione ai giorni rimanenti, almeno 1).
+        """
         with self.cache._connect() as connection:
             row = connection.execute("SELECT at, used, remaining FROM odds_api_usage WHERE remaining IS NOT NULL "
                                      "ORDER BY id DESC LIMIT 1").fetchone()
+        remaining = row[2] if row else None
+        budget = int(self.settings.get("budget_mensile", 500))
+        spent = self.spent_month()
+        left = max(0, budget - spent)
+        if remaining is not None:
+            left = min(left, int(remaining))
+        today = self.now().astimezone().date()
+        month_days = calendar.monthrange(today.year, today.month)[1]
+        days_left = month_days - today.day + 1
+        play_days = max(1, math.ceil(float(self.settings.get("giorni_di_gioco_mese", 15)) * days_left / month_days))
         return {
-            "remaining": row[2] if row else None, "used": row[1] if row else None,
+            "remaining": remaining, "used": row[1] if row else None,
             "updated": datetime.fromisoformat(row[0]) if row else None,
-            "spent_today": self.spent_today(), "budget": int(self.settings.get("budget_giornaliero", 40)),
+            "spent_today": self.spent_today(), "spent_month": spent, "budget": budget, "left": left,
+            "days_left": days_left, "play_days_left": play_days, "suggested_today": left // play_days,
+            "share": spent / budget if budget > 0 else 1.0,
         }
 
-    def check_budget(self, cost: int) -> None:
+    def budget_level(self, cost: int, usage: Mapping[str, Any] | None = None) -> str:
+        """Stato del budget mensile dopo un download da ``cost`` crediti.
+
+        ``ok``; ``avviso`` dall'80% (``soglia_avviso``); ``conferma`` oltre il 95% (``soglia_conferma``), il
+        download parte solo con una conferma esplicita; ``blocco`` oltre il budget o i crediti rimasti.
+        """
+        usage = usage or self.usage()
+        budget = usage["budget"]
+        after = usage["spent_month"] + max(cost, 0)
+        if cost > 0 and (after > budget or (usage["remaining"] is not None and cost > usage["remaining"])):
+            return "blocco"
+        if budget <= 0:
+            return "blocco" if cost > 0 else "ok"
+        if cost > 0 and after > float(self.settings.get("soglia_conferma", 0.95)) * budget:
+            return "conferma"
+        if after >= float(self.settings.get("soglia_avviso", 0.8)) * budget:
+            return "avviso"
+        return "ok"
+
+    def check_budget(self, cost: int, *, allow_high: bool = False) -> None:
         usage = self.usage()
-        if cost > 0 and usage["spent_today"] + cost > usage["budget"]:
+        level = self.budget_level(cost, usage)
+        if level == "blocco":
+            if usage["remaining"] is not None and cost > usage["remaining"]:
+                raise BudgetExceeded(f"Crediti insufficienti: ne restano {usage['remaining']}, il download ne costa fino a {cost}.")
             raise BudgetExceeded(
-                f"Budget giornaliero superato: oggi spesi {usage['spent_today']} crediti, questo download ne costa fino a "
-                f"{cost}, budget {usage['budget']} (config/odds_api.json, «budget_giornaliero»).")
-        if cost > 0 and usage["remaining"] is not None and cost > usage["remaining"]:
-            raise BudgetExceeded(f"Crediti insufficienti: ne restano {usage['remaining']}, il download ne costa fino a {cost}.")
+                f"Budget mensile superato: questo mese spesi {usage['spent_month']} crediti, questo download ne costa fino "
+                f"a {cost}, budget {usage['budget']} (config/odds_api.json, «budget_mensile»).")
+        if level == "conferma" and not allow_high:
+            raise BudgetConfirmationRequired(
+                f"Con questo download ({cost} crediti) la spesa del mese supera il "
+                f"{float(self.settings.get('soglia_conferma', 0.95)):.0%} del budget ({usage['spent_month']} + {cost} su "
+                f"{usage['budget']}): serve una conferma esplicita.")
 
     # --- Chiamate ---------------------------------------------------------------------
 
@@ -244,14 +300,14 @@ class OddsApi:
         return cached is not None and self.now() - cached[1] <= (max_age or self.max_age)
 
     def _get(self, path: str, params: Mapping[str, Any], *, estimate: int, max_age: timedelta | None = None,
-             force: bool = False) -> ApiResult:
+             force: bool = False, allow_high: bool = False) -> ApiResult:
         url = self.cache_url(path, params)
         cached = self.cache.cached(url)
         if cached is not None and not force and self.now() - cached[1] <= (max_age or self.max_age):
             return ApiResult(json.loads(cached[0]), cached[1], from_cache=True)
         if not self.key:
             raise OddsApiError("The Odds API non configurata: manca ODDS_API_KEY in .streamlit/secrets.toml.")
-        self.check_budget(estimate)
+        self.check_budget(estimate, allow_high=allow_high)
         try:
             status, body, headers = self.opener(f"{BASE_URL}{path}", {**{k: str(v) for k, v in params.items()},
                                                                       "apiKey": self.key}, self.timeout)
@@ -295,16 +351,29 @@ class OddsApi:
         params = self.league_params(markets)
         return len(params["markets"].split(",")) * len(params["regions"].split(","))
 
-    def league_odds(self, sport: str, markets: Iterable[str] | None = None, *, force: bool = False) -> ApiResult:
+    def league_odds(self, sport: str, markets: Iterable[str] | None = None, *, force: bool = False,
+                    allow_high: bool = False) -> ApiResult:
         """Quote di tutte le partite in programma del campionato: costo mercati × regioni."""
         params = self.league_params(markets)
-        result = self._get(f"/sports/{sport}/odds", params, estimate=self.league_cost(markets), force=force)
+        result = self._get(f"/sports/{sport}/odds", params, estimate=self.league_cost(markets), force=force,
+                           allow_high=allow_high)
         if not result.from_cache:
             self._snapshot(sport, result.payload, result.fetched_at)
         return result
 
+    @property
+    def profiles(self) -> dict[str, list[str]]:
+        """Profili dei mercati per evento: ``risparmio`` (corner e cartellini) e ``completo``."""
+        return {name: list(markets) for name, markets in self.settings.get("profili_mercati_evento", {}).items()}
+
+    def profile_markets(self, profile: str | None = None) -> list[str]:
+        profile = profile or str(self.settings.get("profilo_mirato", "risparmio"))
+        if profile not in self.profiles:
+            raise ValueError(f"Profilo mercati «{profile}» assente in config/odds_api.json (profili: {', '.join(self.profiles)}).")
+        return self.profiles[profile]
+
     def event_params(self, markets: Iterable[str] | None = None) -> dict[str, str]:
-        markets = list(markets or self.settings.get("mercati_evento", []))
+        markets = list(markets or self.profile_markets())
         return {"regions": self.region, "markets": ",".join(markets), "oddsFormat": "decimal", "dateFormat": "iso"}
 
     def event_cost(self, markets: Iterable[str] | None = None) -> int:
@@ -312,15 +381,37 @@ class OddsApi:
         params = self.event_params(markets)
         return len(params["markets"].split(",")) * len(params["regions"].split(","))
 
-    def event_odds(self, sport: str, event_id: str, markets: Iterable[str] | None = None) -> ApiResult:
+    def event_odds(self, sport: str, event_id: str, markets: Iterable[str] | None = None, *,
+                   allow_high: bool = False) -> ApiResult:
         return self._get(f"/sports/{sport}/events/{event_id}/odds", self.event_params(markets),
-                         estimate=self.event_cost(markets))
+                         estimate=self.event_cost(markets), allow_high=allow_high)
 
-    def scores(self, sport: str, days_from: int = 1) -> ApiResult:
+    def scores_params(self, days_from: int = 1) -> dict[str, Any]:
+        return {"daysFrom": int(min(max(days_from, 1), 3)), "dateFormat": "iso"}
+
+    def scores(self, sport: str, days_from: int = 1, *, allow_high: bool = False) -> ApiResult:
         """Partite concluse negli ultimi ``days_from`` giorni (1-3): costo 2."""
-        days_from = int(min(max(days_from, 1), 3))
-        return self._get(f"/sports/{sport}/scores", {"daysFrom": days_from, "dateFormat": "iso"}, estimate=2,
-                         max_age=timedelta(hours=1))
+        return self._get(f"/sports/{sport}/scores", self.scores_params(days_from), estimate=2,
+                         max_age=timedelta(hours=1), allow_high=allow_high)
+
+    def sports_with_matches(self, sports: Iterable[str], day: date) -> tuple[pd.DataFrame, list[str], list[str]]:
+        """Partite del giorno dall'elenco eventi (gratuito), competizioni che ne hanno almeno una e avvisi.
+
+        Si chiama prima di ogni scarico per campionato: le quote si scaricano solo per queste competizioni.
+        Le competizioni il cui elenco non è disponibile sono escluse e segnalate negli avvisi.
+        """
+        frames, warnings = [], []
+        for sport in sports:
+            try:
+                result = self.events(sport, day)
+            except OddsApiError as exc:
+                warnings.append(f"{competition_label(sport)}: {exc}")
+                continue
+            warnings.extend(result.warnings)
+            frames.append(events_frame(result.payload, sport))
+        frames = [frame for frame in frames if not frame.empty]
+        events = pd.concat(frames, ignore_index=True) if frames else events_frame([])
+        return events, sorted(events["sport"].unique()), warnings
 
     # --- Istantanee per le quote di chiusura -------------------------------------------
 
@@ -526,6 +617,35 @@ def planned_cost(api: OddsApi, calls: Iterable[tuple[str, Mapping[str, Any], int
     return total, cached
 
 
+def day_cost(api: OddsApi, sports: Iterable[str], targeted: Iterable[tuple[str, str]] | int,
+             markets: Iterable[str] | None = None) -> dict[str, Any]:
+    """Costo previsto di una giornata: quote per campionato, mercati mirati e punteggi del giorno dopo.
+
+    ``sports`` sono le sole competizioni con partite nel giorno (``OddsApi.sports_with_matches``), ``targeted``
+    le coppie (competizione, ID evento) delle partite mirate, oppure solo il loro numero quando non sono
+    ancora scelte (stima senza controllo della cache). Le risposte già in cache non costano; i mercati
+    mirati sono un massimo (si pagano solo quelli restituiti); i punteggi sono la stima per il giorno dopo
+    (2 crediti per competizione, se ci saranno giocate nel registro).
+    """
+    sports = sorted(set(sports))
+    markets = list(markets or api.profile_markets())
+    if isinstance(targeted, int):
+        count, targeted = targeted, []
+    else:
+        targeted = list(targeted)
+        count = len(targeted)
+    league, league_cached = planned_cost(api, [(f"/sports/{sport}/odds", api.league_params(), api.league_cost())
+                                               for sport in sports])
+    event, event_cached = planned_cost(api, [(f"/sports/{sport}/events/{event_id}/odds", api.event_params(markets),
+                                              api.event_cost(markets)) for sport, event_id in targeted])
+    if not targeted:
+        event = count * api.event_cost(markets)
+    scores = 2 * len(sports)
+    return {"competitions": sports, "targeted": count, "markets": markets, "league": league,
+            "event": event, "per_event": api.event_cost(markets), "cached": league_cached + event_cached,
+            "today": league + event, "scores": scores, "total": league + event + scores}
+
+
 def quote_rows(quotes: Mapping[str, Quote], eurobet: Mapping[str, float] | None = None) -> pd.DataFrame:
     """Tabella delle quote: riferimento, bookmaker di ogni quota ed eventuale quota Eurobet a confronto."""
     eurobet = eurobet or {}
@@ -557,31 +677,40 @@ def sheet_odds(quotes: Mapping[str, Quote], fetched_at: datetime | None,
     return fields
 
 
-def scores_plan(frame: pd.DataFrame, today: date, defaults: Iterable[str]) -> dict[str, Any]:
-    """Competizioni e ``daysFrom`` per le righe del registro senza esito giocate negli ultimi 3 giorni.
+def scores_plan(frame: pd.DataFrame, today: date, snapshots: pd.DataFrame | None = None) -> dict[str, Any]:
+    """Competizioni e ``daysFrom`` per le giocate del registro senza esito degli ultimi 3 giorni.
 
-    La competizione si riconosce dall'etichetta italiana o dalla chiave dell'API; righe senza competizione
-    riconosciuta usano le competizioni predefinite. Le partite più vecchie di 3 giorni non sono coperte.
+    Si scaricano i punteggi solo delle competizioni con giocate nel registro. La competizione si riconosce
+    dall'etichetta italiana o dalla chiave dell'API; se la colonna non basta, dalla partita nelle istantanee
+    delle quote già salvate (stesse squadre, data vicina). Le righe non riconosciute restano escluse
+    (``unknown``) invece di scaricare tutte le competizioni. Le partite più vecchie di 3 giorni non sono coperte.
     """
+    from performance import find_result
+
     open_rows = frame[frame["Esito"].isna() & ~frame["Note"].fillna("").str.contains("rimborsata")]
     days = [(today - day).days for day in open_rows["Data"] if day is not None]
     recent = open_rows[[day is not None and 0 <= (today - day).days <= 3 for day in open_rows["Data"]]]
     by_label = {label.lower(): key for key, label in COMPETITIONS.items()} | {key: key for key in COMPETITIONS}
-    sports, unknown = set(), False
-    for value in recent["Competizione"]:
-        key = by_label.get(str(value).strip().lower())
+    known = pd.DataFrame(columns=["date", "home_team", "away_team", "sport"])
+    if snapshots is not None and not snapshots.empty:
+        known = snapshots.assign(date=pd.to_datetime(snapshots["commence_time"], utc=True).dt.tz_convert(None).dt.normalize())
+    sports, unknown = set(), []
+    for row in recent.itertuples():
+        key = by_label.get(str(getattr(row, "Competizione", "") or "").strip().lower())
+        if key is None and "Partita" in recent.columns:
+            match = find_result(known, row.Partita, row.Data, before=1, after=1)
+            key = None if match is None else match["sport"]
         if key:
             sports.add(key)
         else:
-            unknown = True
-    if unknown:
-        sports.update(defaults)
+            unknown.append(str(getattr(row, "Partita", "")))
     recent_days = [day for day in days if 0 <= day <= 3]
     return {
         "sports": sorted(sports),
         "days_from": max(1, min(3, max(recent_days) + 1 if recent_days else 1)),
         "too_old": sum(1 for day in days if day > 3),
         "rows": len(recent),
+        "unknown": sorted(set(unknown)),
     }
 
 
