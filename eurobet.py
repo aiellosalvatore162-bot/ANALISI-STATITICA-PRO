@@ -254,6 +254,7 @@ class EurobetQuote:
     status: str
     combo_builder: bool = False
     anchor: str | None = None   # chiave Over/Under usata solo per l'ancoraggio (corner, cartellini)
+    block: int = 0              # occorrenza della sezione: la stessa sezione può arrivare da due pagine
 
 
 @dataclass
@@ -298,7 +299,7 @@ class EurobetPaste:
             for quote in self.quotes:
                 if quote.section == title:
                     family = _family(quote.selection) if spec.margin == "famiglie" else ""
-                    groups.setdefault((quote.line, family), []).append(quote)
+                    groups.setdefault((quote.block, quote.line, family), []).append(quote)
             # Solo gruppi completi: con una selezione sospesa il margine non si può calcolare.
             values = [sum(1.0 / quote.price for quote in group) - 1.0 for group in groups.values()
                       if len(group) >= 2 and all(quote.price for quote in group)]
@@ -339,6 +340,7 @@ def parse_eurobet(text: str) -> EurobetPaste:
     pending: str | None = None        # etichetta in attesa della sua quota
     fresh = False                     # subito dopo il titolo: qui può comparire «Combo Builder»
     last_was_quote = False
+    block = 0
 
     def record(label: str, price: float | None) -> None:
         normalized = _norm(label)
@@ -361,7 +363,7 @@ def parse_eurobet(text: str) -> EurobetPaste:
                 status = DUPLICATE
             else:
                 seen[market] = price
-        paste.quotes.append(EurobetQuote(title or "", label, param, price, market, status, combo, anchor))
+        paste.quotes.append(EurobetQuote(title or "", label, param, price, market, status, combo, anchor, block))
 
     def flush() -> None:
         nonlocal pending
@@ -370,9 +372,10 @@ def parse_eurobet(text: str) -> EurobetPaste:
             pending = None
 
     def start(line: str) -> None:
-        nonlocal spec, title, param, fresh
+        nonlocal spec, title, param, fresh, block
         flush()
         spec, title, param, fresh = _spec_for(line), line, None, True
+        block += 1
         if spec is None:
             paste.unknown_sections.append(line)
         paste.combo_sections.setdefault(line, False)
@@ -507,3 +510,10 @@ def skip_event_markets(paste: EurobetPaste | None, markets: Iterable[str]) -> li
 
 def format_margin(value: float) -> str:
     return f"{value * 100:.1f}%".replace(".", ",")
+
+
+def combo_allowed(legs: Iterable[str], combinable: Iterable[str]) -> bool:
+    """Una multipla combinata (Combo Builder, fase S) usa solo mercati marcati «Combo Builder» nella pagina Eurobet."""
+    allowed = set(combinable)
+    legs = list(legs)
+    return bool(legs) and all(leg in allowed for leg in legs)
