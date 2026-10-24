@@ -58,18 +58,20 @@ def _clean(value: Any) -> Any:
 def make_record(result: Mapping[str, Any], *, block: str, odds: Mapping[str, float], day: Any, competition: str = "",
                 eurobet_text: str = "", warnings: Iterable[str] = (), claude_answer: str = "",
                 claude_applied: bool = False, claude_result: Mapping[str, Any] | None = None,
-                simulations: int | None = None, seed: int | None = None, saved_at: datetime | None = None) -> dict:
+                simulations: int | None = None, seed: int | None = None, saved_at: datetime | None = None,
+                flags: Iterable[str] = ()) -> dict:
     """Voce della memoria: dati per riaprire la partita e riassunto delle probabilità (in %)."""
     home, away = result["input"]["home"]["name"], result["input"]["away"]["name"]
     final = result["components"]["finale"]
     financial = {row["market"]: row for row in result["financial"]["markets"]}
-    flags = [str(warning) for warning in warnings]
-    flags += [f"valore sospetto su {market}" for market, row in financial.items() if row.get("suspicious_value")]
+    notes = [str(warning) for warning in warnings]
+    notes += [f"valore sospetto su {market}" for market, row in financial.items() if row.get("suspicious_value")]
     record = {
         "id": match_id(day, home, away), "date": day, "competition": competition or "", "home": home, "away": away,
         "block": block, "odds": {key: float(value) for key, value in odds.items() if value and float(value) > 1.0},
         "eurobet_text": eurobet_text or "", "claude_answer": claude_answer or "", "claude_applied": bool(claude_applied),
-        "warnings": flags, "simulations": simulations, "seed": seed,
+        "flags": list(flags),
+        "warnings": notes, "simulations": simulations, "seed": seed,
         "saved_at": (saved_at or datetime.now()).isoformat(timespec="seconds"),
         "summary": {
             "lambda": result["model"]["lambda"], "mu": result["model"]["mu"],

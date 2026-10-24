@@ -416,8 +416,13 @@ def render_claude(result: dict, config, block: str) -> tuple[dict | None, str]:
     st.dataframe(pd.DataFrame(changes_table(response)), hide_index=True, width="stretch")
     for warning in response.warnings:
         st.warning(warning)
+    from today import combined_adjustment
+
     adjustment = response.adjustment()
     referee = response.referee_yellow(config.referee_yellow_avg)
+    flags = st.session_state.get("result_flags") or []
+    if flags:
+        st.caption(f"Le correzioni si sommano alle segnalazioni da osservatore: {', '.join(flags)}.")
     if adjustment is None and referee is None:
         st.info("Nessuna correzione applicabile (mancano fonti o valori validi).")
         return None, ""
@@ -429,7 +434,7 @@ def render_claude(result: dict, config, block: str) -> tuple[dict | None, str]:
     if apply:
         signature = (answer, id(result))
         if st.session_state.get("claude_signature") != signature:
-            adjusted = replace(config, claude=adjustment,
+            adjusted = replace(config, claude=combined_adjustment(flags, response),
                                referee_yellow_avg=referee if referee is not None else config.referee_yellow_avg)
             st.session_state["claude_result"] = simulate_match(adjusted)
             st.session_state["claude_signature"] = signature

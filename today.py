@@ -45,6 +45,7 @@ class Analysis:
     result: dict | None = None
     flags: tuple[str, ...] = ()
     claude: ClaudeResponse | None = None
+    claude_text: str = ""                      # blocco di Claude della partita, nel formato della scheda
     skipped: str | None = None                 # motivo per cui la partita è saltata
     warnings: list[str] = field(default_factory=list)
     sources: list[dict] = field(default_factory=list)
@@ -272,27 +273,32 @@ def multi_analysis_prompt(analyses: Sequence[Analysis], selected: Iterable[int],
     ])
 
 
-def parse_multi_response(text: str, ids: Mapping[str, int]) -> tuple[dict[int, ClaudeResponse], list[str]]:
-    """Blocchi «CORREZIONI_CLAUDE: P1» … della risposta: indice dell'analisi -> correzioni, più gli avvisi."""
+def split_multi_response(text: str, ids: Mapping[str, int]) -> tuple[dict[int, str], list[str]]:
+    """Blocco di ogni partita nel formato a partita singola («CORREZIONI_CLAUDE:» senza ID), più gli avvisi."""
     found = list(_MULTI_HEADER.finditer(text))
     if not found:
         raise ResponseError(f"Nella risposta non ci sono blocchi «{HEADER} P1»: chiedi a Claude di usare gli ID.")
-    responses, warnings = {}, []
+    texts, warnings = {}, []
     for position, header in enumerate(found):
         match_id = header.group(1).upper()
         end = found[position + 1].start() if position + 1 < len(found) else len(text)
-        body = text[header.end():end]
         if match_id not in ids:
             warnings.append(f"Blocco {match_id}: ID non presente nel testo inviato, ignorato.")
             continue
-        if ids[match_id] in responses:
+        if ids[match_id] in texts:
             warnings.append(f"Blocco {match_id} ripetuto: uso solo il primo.")
             continue
-        responses[ids[match_id]] = parse_response(f"{HEADER}\n{body}")
-    missing = sorted(set(ids) - {match_id for match_id, index in ids.items() if index in responses})
+        texts[ids[match_id]] = f"{HEADER}\n{text[header.end():end].strip()}"
+    missing = sorted(match_id for match_id, index in ids.items() if index not in texts)
     if missing:
         warnings.append("Partite senza blocco nella risposta: " + ", ".join(missing) + ".")
-    return responses, warnings
+    return texts, warnings
+
+
+def parse_multi_response(text: str, ids: Mapping[str, int]) -> tuple[dict[int, ClaudeResponse], list[str]]:
+    """Blocchi «CORREZIONI_CLAUDE: P1» … della risposta: indice dell'analisi -> correzioni, più gli avvisi."""
+    texts, warnings = split_multi_response(text, ids)
+    return {index: parse_response(block) for index, block in texts.items()}, warnings
 
 
 # --- Verifica esiti con Claude (corner e cartellini delle coppe) ------------------------------------
