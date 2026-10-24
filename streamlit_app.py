@@ -16,13 +16,15 @@ from historical import (
     predict_manual_only,
     run_walk_forward,
 )
-from market_catalog import MARKET_GROUPS, definition_for_event, definitions_for_group
+from eurobet import anchor_odds
+from market_catalog import MARKET_CATALOG, MARKET_GROUPS, definition_for_event, definitions_for_group
 from datasources.builder import plausibility_warnings
 from parser import MatchInputError, MatchInput, parse_match_input
 from ui_data import (
     render_automatic, render_claude, render_create, render_registry, render_style, render_tactical, show_provenance,
 )
 from ui_exact import render_exact_scores
+from ui_eurobet import find_paste, render_apply, render_paste, sharp_for
 from ui_odds import render_credits, render_odds
 from ui_performance import render_performance
 
@@ -488,6 +490,20 @@ with st.container(border=True):
     )
     quote_source = parsed_preview.odds if parsed_preview else {}
     quote_editor_token = str(abs(hash(text)))
+    field_keys = {definition.event_key: f"odd_{quote_editor_token}_{definition.key}" for definition in MARKET_CATALOG}
+    if parsed_preview is not None:
+        with st.expander("Incolla quote Eurobet", expanded=bool(find_paste(parsed_preview.home.name, parsed_preview.away.name))):
+            st.caption("Le quote Eurobet sono quelle che giochi: EV e semaforo si calcolano su di esse. L'ancoraggio dei "
+                       "gol usa la quota sharp dell'API se c'è (altrimenti Eurobet senza margine); corner e cartellini "
+                       "si ancorano a tutta la scala Over/Under Eurobet. Il formato «Quota 1: …» del blocco resta valido.")
+            match_slug = str(abs(hash((parsed_preview.home.name, parsed_preview.away.name))))
+            eurobet_paste = render_paste(parsed_preview.home.name, parsed_preview.away.name, f"eurobet_{match_slug}")
+            if eurobet_paste is not None and not eurobet_paste.empty:
+                current_fields = {market: float(st.session_state.get(widget, quote_source.get(market, 0.0)) or 0.0)
+                                  for market, widget in field_keys.items()}
+                render_apply(eurobet_paste, current_fields,
+                             lambda market, price: st.session_state.__setitem__(field_keys[market], float(price)),
+                             f"eurobet_{match_slug}")
     quote_categories = {
         "Esiti": ("1x2", "double_chance", "draw_no_bet", "first_half_1x2", "first_half_double_chance", "second_half_1x2", "second_half_double_chance"),
         "Goal": ("goal_no_goal", "first_half_goal_no_goal", "over_under", "first_half_over_under", "team_goals", "team_scoring"),
@@ -509,13 +525,16 @@ with st.container(border=True):
                         columns = st.columns(3)
                         for column, definition in zip(columns, definitions[start:start + 3]):
                             current = float(quote_source.get(definition.event_key, 0.0))
+                            widget_key = f"odd_{quote_editor_token}_{definition.key}"
+                            # Con un valore già in session state (es. quote Eurobet applicate) niente default.
+                            initial = {} if widget_key in st.session_state else {"value": current}
                             value = column.number_input(
                                 definition.label,
                                 min_value=0.0,
-                                value=current,
+                                **initial,
                                 step=0.01,
                                 format="%.2f",
-                                key=f"odd_{quote_editor_token}_{definition.key}",
+                                key=widget_key,
                                 help=f"Chiave motore: {definition.event_key}",
                             )
                             odds_input[definition.event_key] = float(value)
@@ -523,6 +542,15 @@ with st.container(border=True):
 tactical_factors, tactical_switches = render_tactical(
     parsed_preview.home.name if parsed_preview else None, parsed_preview.away.name if parsed_preview else None
 )
+def _anchor_signature(parsed: MatchInput | None) -> tuple:
+    """Quote che cambiano l'ancoraggio senza toccare i campi: scala Eurobet di corner/cartellini e quote sharp."""
+    if parsed is None:
+        return ()
+    paste = find_paste(parsed.home.name, parsed.away.name)
+    lines = tuple(sorted({**paste.count_lines("corner"), **paste.count_lines("cartellini")}.items())) if paste else ()
+    return lines, tuple(sorted((sharp_for(parsed.home.name, parsed.away.name) or {}).items()))
+
+
 current_signature = (
     text,
     int(simulations),
@@ -530,6 +558,7 @@ current_signature = (
     tuple(sorted(odds_input.items())),
     tactical_factors,
     tactical_switches,
+    _anchor_signature(parsed_preview),
 )
 
 if st.button("Esegui simulazione", type="primary", width="stretch"):
@@ -544,8 +573,12 @@ if st.button("Esegui simulazione", type="primary", width="stretch"):
                 merged_odds[market] = odd
             else:
                 merged_odds.pop(market, None)
-        config = config.__class__(**{**config.__dict__, "odds": merged_odds,
+        paste = find_paste(parsed.home.name, parsed.away.name)
+        sharp = sharp_for(parsed.home.name, parsed.away.name)
+        anchor, anchor_sources = anchor_odds(merged_odds, sharp, paste) if (paste or sharp) else (None, {})
+        config = config.__class__(**{**config.__dict__, "odds": merged_odds, "anchor_odds": anchor,
                                      "tactical": tactical_factors, "tactical_switches": tactical_switches})
+        st.session_state["anchor_sources"] = anchor_sources
         result = simulate_match(config)
         st.session_state["result"] = result
         st.session_state["result_config"] = config
@@ -681,6 +714,10 @@ def _overview_tab(result: dict, financial_rows: dict) -> None:
             )
         else:
             st.caption(f'Gol attesi solo dal modello: {anchoring.get("reason", "ancoraggio non disponibile.")}')
+        sources = st.session_state.get("anchor_sources") or {}
+        if sources:
+            st.caption("Quote dell'ancoraggio: " + " · ".join(f"{kind} {source}" for kind, source in sources.items())
+                       + ". EV e semaforo usano le quote dei campi (Eurobet quando applicate).")
         favorite_sign = summary["favorite_sign"]
         favorite_interval = summary["confidence_intervals_95"][favorite_sign]
         st.caption(

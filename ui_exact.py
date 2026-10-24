@@ -32,6 +32,15 @@ def _historical_note() -> str | None:
             f"{section['risultato_piu_probabile']['prevista']:.1%}, realizzato {section['risultato_piu_probabile']['reale']:.1%}.")
 
 
+def _eurobet_exact() -> dict[str, float]:
+    """Quote Eurobet incollate dei risultati esatti e dei gruppi per la partita simulata."""
+    from ui_eurobet import find_paste
+
+    config = st.session_state.get("result_config")
+    paste = find_paste(config.home.name, config.away.name) if config is not None else None
+    return paste.exact() if paste is not None else {}
+
+
 def render_exact_scores(result: dict) -> tuple[list[str], list[str]]:
     """Mostra la sezione e restituisce (gruppo minimo, il mio gruppo) per la mappa di calore."""
     st.subheader("Risultati esatti")
@@ -61,8 +70,19 @@ def render_exact_scores(result: dict) -> tuple[list[str], list[str]]:
     st.markdown("**Il mio gruppo**")
     picked = st.multiselect("Risultati del gruppo", list(table["Risultato"]), key="exact_group_scores", placeholder="Scegli i risultati",
                             help="Es. 1-0, 2-0, 2-1, 1-1: vince se il risultato finale è uno di questi.")
-    offered = st.number_input("Quota offerta (es. Eurobet) per questa combinazione", min_value=0.0, value=0.0, step=0.05,
-                              format="%.2f", key="exact_group_odds", help="0 = nessuna quota.")
+    eurobet = _eurobet_exact()
+    if eurobet:
+        groups = {selection: price for selection, price in eurobet.items() if "/" in selection}
+        st.caption(f"Quote Eurobet incollate: {len(eurobet) - len(groups)} risultati esatti e {len(groups)} gruppi"
+                   + (" (" + " · ".join(f"{selection} {price:.2f}" for selection, price in groups.items()) + ")" if groups else "")
+                   + ". Scegli gli stessi risultati per usarne la quota.")
+    if picked and eurobet.get(group_selection(picked)):
+        price = eurobet[group_selection(picked)]
+        if st.button(f"Usa la quota Eurobet {price:.2f} per {group_selection(picked)}", key="exact_use_eurobet"):
+            st.session_state["exact_group_odds"] = float(price)
+    initial = {} if "exact_group_odds" in st.session_state else {"value": 0.0}
+    offered = st.number_input("Quota offerta (es. Eurobet) per questa combinazione", min_value=0.0, step=0.05,
+                              format="%.2f", key="exact_group_odds", help="0 = nessuna quota.", **initial)
     if not picked:
         st.session_state.pop("exact_group", None)
         heat.html(heatmap(result, chosen, []))

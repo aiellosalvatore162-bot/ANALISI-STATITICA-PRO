@@ -350,6 +350,10 @@ class MatchConfig:
     base_goals_away: float = 1.12
     dixon_coles_rho: float | None = None
     odds: dict[str, float] | None = None
+    # Quote per l'ancoraggio di gol, corner e cartellini quando diverse da quelle giocate (``odds``: EV e
+    # semaforo). Es. quota sharp dell'API per i gol e tutta la scala Eurobet per corner e cartellini.
+    # None = si ancorano le stesse ``odds``.
+    anchor_odds: dict[str, float] | None = None
     goal_model: str = DEFAULT_GOAL_MODEL
     goal_params: GoalModelParams = DEFAULT_GOAL_PARAMS
     market_anchor: MarketAnchorParams = DEFAULT_MARKET_ANCHOR
@@ -633,6 +637,11 @@ def market_goal_rates(
     }
 
 
+def _anchor_source(config: MatchConfig) -> Mapping[str, float] | None:
+    """Quote da ancorare: ``anchor_odds`` se indicate, altrimenti le quote giocate."""
+    return config.anchor_odds if config.anchor_odds is not None else config.odds
+
+
 def anchor_goal_rates(model_lambda, model_mu, market_lambda, market_mu, params: MarketAnchorParams):
     """Log-scale blend; the model correction to the market rate is bounded.
 
@@ -688,7 +697,7 @@ def _anchored_goal_rates(config: MatchConfig) -> tuple[float, float, dict[str, A
         "params": asdict(params),
     }
     market = (
-        market_goal_rates(config.odds, params.devig_method, config.dixon_coles_rho)
+        market_goal_rates(_anchor_source(config), params.devig_method, config.dixon_coles_rho)
         if params.active
         else None
     )
@@ -1234,7 +1243,7 @@ def _anchor_count(config: MatchConfig, kind: str, model_mean: float) -> dict[str
     params = config.count_anchor
     details: dict[str, Any] = {"active": False, "model_mean": model_mean, "final_mean": model_mean,
                                "market_weight": params.market_weight, "lines": []}
-    lines = count_market_lines(config.odds, kind, params.devig_method) if params.active and model_mean > 0.0 else []
+    lines = count_market_lines(_anchor_source(config), kind, params.devig_method) if params.active and model_mean > 0.0 else []
     if not lines:
         details["reason"] = ("Ancoraggio di corner e cartellini disattivato nella configurazione." if not params.active
                              else "Solo modello: nessuna linea Over/Under quotata su entrambi i lati.")
@@ -1353,8 +1362,8 @@ def _events_for_scores(
         _team_multigol_ranges(getattr(config, "odds", None)),
     )
     for market in getattr(config, "odds", {}) or {}:
-        if " + " not in market:
-            continue
+        if " + " not in market or market in events:
+            continue  # le combo del catalogo (es. «1 + Over 1.5») ci sono già
         legs = market.split(" + ")
         if len(legs) != 2 or any(leg not in events for leg in legs):
             raise ValueError(f"Combo {market}: una o più gambe non sono supportate dal motore.")

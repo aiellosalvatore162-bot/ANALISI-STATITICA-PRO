@@ -158,6 +158,51 @@ Con 500 crediti per 15 giorni di gioco il budget medio è 33 crediti al giorno.
 Nei weekend pieni basta scendere a 6 partite mirate (10 + 12 + 10 = 32). Il
 profilo «completo» costa 6 crediti a partita: 10 partite = 60 crediti.
 
+## Quote Eurobet incollate
+
+Nella scheda partita («Quote e analisi valore» → «Incolla quote Eurobet») e in
+«Quote del giorno» (passaggio 4) si incollano una o più pagine quote copiate dal
+sito Eurobet, una dopo l'altra e in qualsiasi ordine: principali, multigol,
+corner, cartellini. Il parser (`eurobet.py`) legge una voce per riga guidato dai
+titoli delle sezioni («U/O GOAL», «MULTIGOL CASA», «U/O CORNER»…):
+- una quota ha due decimali e vale solo per l'etichetta che la precede; una
+  selezione sospesa resta senza quota, senza far slittare le quote successive;
+- un numero con un decimale o intero è una linea o un parametro («2.5»,
+  «1T - 1.5», «SQ.1 - 2.5», «2:0»); SQ.1 = casa, SQ.2 = ospite;
+- «1-2» è un intervallo nei multigol, un risultato nei risultati esatti, un
+  parziale/finale in 1T/FINALE;
+- righe incollate insieme («1.11 U/O CARTELLINI») si separano; virgola
+  decimale e maiuscole/minuscole sono tollerate;
+- «Combo Builder» sotto il titolo marca il mercato come combinabile: le
+  multiple combinate si costruiscono solo con questi mercati
+  (`eurobet.combo_allowed`);
+- le sezioni sconosciute si ignorano e si elencano.
+
+La tabella mostra per ogni voce sezione, selezione, linea, quota, mercato del
+simulatore e stato: ok, senza quota, doppione (stesso mercato già letto in
+un'altra sezione: vale la prima quota), non riconosciuto. Le voci «non
+simulato» (nessun campo nel simulatore: handicap, fasce, 1T/finale, multigol
+1T/2T, linee fuori catalogo…) stanno in un elenco chiuso e non entrano in EV,
+ancoraggio o registro. Sotto la tabella c'è il margine Eurobet per mercato
+(es. «u/o corner 10,5%»). Il pulsante «Applica» riempie solo i campi quota
+esistenti; i campi che hanno già un'altra quota cambiano solo dopo conferma.
+Risultati esatti e gruppi Eurobet compaiono in «Risultati esatti → Il mio
+gruppo» (pulsante «Usa la quota Eurobet»).
+
+Uso delle quote:
+- EV e semaforo: sulle quote dei campi, cioè su Eurobet quando applicate;
+- ancoraggio dei gol: quota sharp di The Odds API (Pinnacle o mediana),
+  salvata quando si compila il blocco da «Quote del giorno», altrimenti
+  Eurobet senza margine;
+- ancoraggio di corner e cartellini: media implicita da tutta la scala
+  Over/Under Eurobet (anche le linee fuori catalogo, es. corner 5.5 e 6.5),
+  senza margine, con la binomiale negativa del modello e peso 0.8 come nella
+  fase N;
+- con la scala Eurobet di corner o cartellini già incollata, «Quote del
+  giorno» non scarica quei mercati per evento dall'API.
+
+Il formato del blocco («Quota 1: 2.90») resta valido.
+
 ## Profili di stile
 
 La scheda **Stile** dei risultati mostra il radar delle due squadre

@@ -111,6 +111,19 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   `allow_high` per la seconda conferma); `day_cost` + `ui_odds.render_day_summary`
   per il riepilogo del costo previsto (da riusare prima di «Analizza tutte»
   nella futura pagina Oggi).
+- Fase N3: quote Eurobet incollate in `eurobet.py` (parser a stati guidato dai
+  titoli in `SECTIONS`: quota = due decimali dopo l'etichetta, mai slittata;
+  linee e parametri con un decimale; sezioni sconosciute elencate), interfaccia
+  in `ui_eurobet.py` (incollate per partita in `st.session_state`, scheda
+  partita, «Quote del giorno», «Il mio gruppo» dei risultati esatti). Si
+  riempiono solo i campi esistenti (chiavi del catalogo e gruppi esatti); i
+  campi già valorizzati cambiano solo dopo conferma. `MatchConfig.anchor_odds`
+  (None = come prima) separa le quote dell'ancoraggio da quelle dell'EV:
+  `eurobet.anchor_odds` = sharp dell'API per i gol (`odds_sharp`), altrimenti
+  Eurobet; tutta la scala Eurobet per corner e cartellini. Flag «Combo
+  Builder» per mercato (`EurobetPaste.combinable`, `combo_allowed`) da usare
+  nel costruttore di multiple (fase S). Test sui 3 esempi reali in
+  `tests/fixtures/eurobet/`.
 - Risultati esatti: `result["exact_scores"]` (finale, modello, mercato) dallo
   stesso campione; logica dei gruppi in `exact_scores.py` (coerenza e
   correlazione esatte per i mercati che dipendono dal solo punteggio finale),
@@ -146,7 +159,7 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
 - Le fonti remote devono degradare con un avviso (come `historical.py` ricade
   al 100% manuale), mai bloccare la simulazione manuale.
 
-## Stato del progetto (24/10/2026, dopo la fase N2)
+## Stato del progetto (24/10/2026, dopo la fase N3)
 
 - Fasi completate e unite a `main`: modello gol log-lineare (1), ancoraggio al
   mercato (2), mercati secondari (C2), livello dati (D), football-data.org,
@@ -157,7 +170,7 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   dashboard a tema calcio (J), taratura corner e cartellini con shrinkage dei
   corner ed equilibrio Elo sui cartellini (M), quote automatiche The Odds API
   con ancoraggio di corner e cartellini (N), risparmio crediti con budget
-  mensile (N2).
+  mensile (N2), quote Eurobet incollate (N3).
 - Test: `python -m pytest -q` (solo fixture salvate, nessuna rete); 2 `xfail`
   noti (PSG-Barcellona, Napoli-Bodø, input stimati).
 

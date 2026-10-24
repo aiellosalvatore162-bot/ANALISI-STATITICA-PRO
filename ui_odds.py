@@ -21,7 +21,9 @@ from datasources.oddsapi import (
     league_overview, merged_quotes_frame, odds_api_key, planned_cost, preselect, quote_rows, reference_quotes, sheet_odds,
 )
 from datasources.sources import COMPETITIONS, CUP_COMPETITIONS, football_data_org_key
+from eurobet import GOAL_ANCHOR_KEYS, skip_event_markets
 from ui_data import _use_block, source_cache
+from ui_eurobet import find_paste, render_paste, save_sharp
 
 
 @st.cache_resource(show_spinner=False)
@@ -189,15 +191,24 @@ def render_odds() -> None:
     selected = st.multiselect(f"Partite (massimo {limit}; proposta del sistema: più disaccordo tra bookmaker)", list(names),
                               preselect(overview, limit), format_func=names.get, max_selections=limit, key="odds_selected")
     sport_of = dict(zip(overview["event_id"], overview["sport"]))
-    calls = [(f"/sports/{sport_of[event_id]}/events/{event_id}/odds", api.event_params(markets), api.event_cost(markets))
-             for event_id in selected]
+    teams_of = dict(zip(overview["event_id"], zip(overview["home_team"], overview["away_team"])))
+    # Con la scala Eurobet di corner o cartellini già incollata, quei mercati non si scaricano (risparmio crediti).
+    event_markets = {event_id: skip_event_markets(find_paste(*teams_of[event_id]), markets) for event_id in selected}
+    saved = [names[event_id] for event_id in selected if len(event_markets[event_id]) < len(markets)]
+    calls = [(f"/sports/{sport_of[event_id]}/events/{event_id}/odds", api.event_params(event_markets[event_id]),
+              api.event_cost(event_markets[event_id])) for event_id in selected if event_markets[event_id]]
     cost, cached = planned_cost(api, calls)
     st.caption(f"Mercati: {', '.join(MARKET_LABELS.get(m, m) for m in markets) or 'nessuno'}. Costo per partita = mercati "
                "restituiti × regioni: si pagano solo i mercati che i bookmaker quotano davvero.")
-    approved = _approve(api, cost, cached, "odds_confirm_event") if selected and markets else None
+    if saved:
+        st.caption("Quote Eurobet di corner/cartellini già incollate (non si scaricano dall'API): " + ", ".join(saved) + ".")
+    approved = _approve(api, cost, cached, "odds_confirm_event") if calls else None
     if approved is not None and st.button("Scarica i mercati aggiuntivi", key="odds_event_button"):
         for event_id in selected:
-            result = _run(lambda: api.event_odds(sport_of[event_id], event_id, markets, **approved), names[event_id])
+            if not event_markets[event_id]:
+                continue
+            result = _run(lambda: api.event_odds(sport_of[event_id], event_id, event_markets[event_id], **approved),
+                          names[event_id])
             if result is not None:
                 st.session_state.setdefault("odds_event", {})[event_id] = (result.payload, result.fetched_at)
 
@@ -208,7 +219,15 @@ def render_odds() -> None:
     frame = merged_quotes_frame([league_event, extra[0] if extra else None])
     quotes = reference_quotes(frame, api.settings.get("riferimento"))
     fetched = max(value for value in (league_fetched, extra[1] if extra else None) if value is not None)
+    home_team, away_team = teams_of[event_id]
+    with st.expander("Incolla quote Eurobet di questa partita", expanded=bool(find_paste(home_team, away_team))):
+        paste = render_paste(home_team, away_team, f"odds_paste_{event_id}")
     eurobet_state = st.session_state.setdefault("odds_eurobet", {}).setdefault(event_id, {})
+    if paste is not None:
+        # Le quote incollate riempiono la colonna Eurobet dove è ancora vuota.
+        for market, price in paste.odds().items():
+            if market in quotes:
+                eurobet_state.setdefault(market, price)
     table = quote_rows(quotes, eurobet_state)
     edited = st.data_editor(
         table, hide_index=True, width="stretch", key=f"odds_editor_{event_id}",
@@ -231,6 +250,11 @@ def render_odds() -> None:
             sheet = provider.build(row["home_team"], row["away_team"], match_date=row["commence_time"].date(), competition=competition)
         sheet.odds = sheet_odds(quotes, fetched, eurobet, use_eurobet)
         sheet.competition = sheet.competition or label
+        # Quota sharp per l'ancoraggio dei gol, anche quando il blocco usa le quote Eurobet.
+        sharp = {key: quotes[key].price for key in GOAL_ANCHOR_KEYS if key in quotes}
+        reference = quotes["1"].reference if "1" in quotes else SOURCE
+        for name_pair in {(home_team, away_team), (sheet.home, sheet.away)}:
+            save_sharp(*name_pair, sharp, reference)
         _use_block(sheet)
 
     st.markdown("**5 · Quote di chiusura** (facoltativo)")
