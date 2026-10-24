@@ -1,0 +1,31 @@
+{
+  "nota": "Pagina Oggi e costruttore di multiple (fase S). Soglie EV in punti percentuali. Nessun parametro del modello: solo filtri e segnalazioni.",
+  "simulazioni": 30000,
+  "soglie_ev": {
+    "1X2": 3.0,
+    "Doppia chance": 2.0,
+    "DNB": 2.0,
+    "Gol": 3.0,
+    "Primo tempo": 4.0,
+    "Corner": 5.0,
+    "Cartellini": 5.0,
+    "Combo": 4.0,
+    "Risultati esatti": 8.0
+  },
+  "trappola_ev": -5.0,
+  "quota_minima_gamba": 1.20,
+  "bonus_multipla_pct": 0.0,
+  "obiettivo": "probabilità",
+  "multipla_corta_gambe": 4,
+  "multipla_lunga_gambe": 12,
+  "multipla_lunga_combo": 5,
+  "segnalazioni": {
+    "partita aperta": {"gol_casa": 1.04, "gol_ospite": 1.04, "corner": 1.03, "cartellini": 1.00},
+    "partita bloccata": {"gol_casa": 0.96, "gol_ospite": 0.96, "corner": 0.97, "cartellini": 1.03},
+    "turnover casa": {"gol_casa": 0.95, "gol_ospite": 1.02, "corner": 1.00, "cartellini": 1.00},
+    "turnover ospite": {"gol_casa": 1.02, "gol_ospite": 0.95, "corner": 1.00, "cartellini": 1.00},
+    "motivazione bassa casa": {"gol_casa": 0.96, "gol_ospite": 1.02, "corner": 0.98, "cartellini": 0.97},
+    "motivazione bassa ospite": {"gol_casa": 1.02, "gol_ospite": 0.96, "corner": 0.98, "cartellini": 0.97}
+  },
+  "limiti_segnalazioni": {"gol": [0.93, 1.07], "corner": [0.93, 1.07], "cartellini": [0.93, 1.07]}
+}

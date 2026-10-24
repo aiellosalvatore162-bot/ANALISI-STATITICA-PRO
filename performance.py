@@ -408,6 +408,8 @@ def fill_from_results(frame: pd.DataFrame, results: pd.DataFrame, *, source: str
     filled = frame.copy()
     report = FillReport(filled)
     for position, row in filled.iterrows():
+        if row["Mercato"] == "Multipla":
+            continue  # esito dalle gambe: settle_multiples
         need_outcome = pd.isna(row["Esito"]) and "rimborsata" not in row["Note"]
         closing_column = CLOSING_COLUMNS.get(row["Selezione"])
         need_closing = pd.isna(row["Quota_chiusura"]) and (closing_column is not None or "closing_odds" in results)
@@ -449,6 +451,44 @@ def fill_from_results(frame: pd.DataFrame, results: pd.DataFrame, *, source: str
         for column, value in added.items():
             filled.at[position, column] = value
         report.changes.append({"_riga": row["_riga"], "ID": row["ID"], **added})
+    report.not_found = sorted(set(report.not_found))
+    return report
+
+
+def settle_multiples(frame: pd.DataFrame, today: date | None = None) -> FillReport:
+    """Esito delle righe «Multipla» quando tutte le gambe hanno un esito nel registro.
+
+    Le gambe (``multiples.parse_selection``) sono le righe singole della stessa data, partita e
+    selezione: 1 se tutte vinte, 0 se tutte hanno esito e almeno una è persa.
+    """
+    from datasources.names import canonical_key
+    from multiples import parse_selection
+
+    today = today or date.today()
+    filled = frame.copy()
+    report = FillReport(filled)
+
+    def key(match: str) -> str:
+        teams = split_match(match)
+        return "|".join(canonical_key(team) for team in teams) if teams else str(match)
+
+    singles = filled[filled["Mercato"] != "Multipla"]
+    outcomes = {(row["Data"], key(row["Partita"]), str(row["Selezione"]).strip()): row["Esito"]
+                for _, row in singles.iterrows()}
+    for position, row in filled.iterrows():
+        if row["Mercato"] != "Multipla" or not pd.isna(row["Esito"]):
+            continue
+        legs = parse_selection(row["Selezione"])
+        values = [outcomes.get((row["Data"], key(match), market)) for match, markets in legs for market in markets]
+        if not legs or any(value is None or pd.isna(value) for value in values):
+            report.not_found.append(f"Multipla del {row['Data']}: gambe senza esito")
+            continue
+        outcome = float(all(float(value) == 1.0 for value in values))
+        note = f"esito multipla dalle {len(values)} selezioni delle gambe, compilato il {today:%d/%m/%Y}"
+        filled.at[position, "Esito"] = outcome
+        filled.at[position, "Note"] = f"{row['Note']}; {note}" if row["Note"] else note
+        report.outcomes += 1
+        report.changes.append({"_riga": row["_riga"], "ID": row["ID"], "Esito": outcome, "Note": filled.at[position, "Note"]})
     report.not_found = sorted(set(report.not_found))
     return report
 
