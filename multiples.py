@@ -227,15 +227,19 @@ def build_long(legs: Iterable[Leg], total: int = 12, combos: int = 5, objective:
     groups = list(_by_match(legs).values())
     options = [(_best(group, objective, "singola"), _best(group, objective, "combo builder")) for group in groups]
     total = min(total, sum(1 for single, combo in options if single or combo))
+    requested = combos
     combos = min(combos, sum(1 for _, combo in options if combo), total)
     warnings = []
+    if combos < requested:
+        warnings.append(f"Combo Builder possibili: {combos} invece di {requested} (servono le quote di entrambi i "
+                        "mercati: scarica le quote mirate di corner e cartellini o incolla quelle Eurobet).")
     if total < 12:
         warnings.append(f"Partite con gambe valide: {total}. La multipla lunga ne vuole 12-13: analizza più partite.")
     for wanted in range(combos, -1, -1):
         chosen = _long_dp(options, total, wanted, objective)
         if chosen is not None:
             if wanted < combos:
-                warnings.append(f"Combo Builder possibili: {wanted} invece di {combos}.")
+                warnings.append(f"Combo Builder possibili: {wanted} invece di {combos} (partite insufficienti).")
             break
     else:
         chosen = []

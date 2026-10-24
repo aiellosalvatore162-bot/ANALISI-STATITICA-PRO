@@ -408,7 +408,7 @@ def fill_from_results(frame: pd.DataFrame, results: pd.DataFrame, *, source: str
     filled = frame.copy()
     report = FillReport(filled)
     for position, row in filled.iterrows():
-        if row["Mercato"] == "Multipla":
+        if row.get("Mercato") == "Multipla":
             continue  # esito dalle gambe: settle_multiples
         need_outcome = pd.isna(row["Esito"]) and "rimborsata" not in row["Note"]
         closing_column = CLOSING_COLUMNS.get(row["Selezione"])

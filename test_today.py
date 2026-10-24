@@ -158,6 +158,8 @@ def test_long_multiple_has_five_combos_on_distinct_matches(analyses):
     for index, leg in enumerate(long.legs):
         alternatives = [other for other in legs if other.match_id == leg.match_id and other.kind == leg.kind]
         assert leg.probability == pytest.approx(max(other.probability for other in alternatives))
+    singles_only = multiples.build_long([leg for leg in legs if leg.kind == "singola"], total=12, combos=5)
+    assert any("Combo Builder possibili: 0 invece di 5" in warning for warning in singles_only.warnings)
     few = multiples.build_long(legs[:40], total=12, combos=5)
     assert few.warnings and len({leg.match_id for leg in few.legs}) == len(few.legs)
 
