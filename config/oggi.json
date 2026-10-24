@@ -13,19 +13,64 @@
     "Risultati esatti": 8.0
   },
   "trappola_ev": -5.0,
-  "quota_minima_gamba": 1.20,
+  "quota_minima_gamba": 1.2,
   "bonus_multipla_pct": 0.0,
+  "sconto_cb": 0.85,
+  "min_cb_reali_per_sconto": 20,
   "obiettivo": "probabilità",
   "multipla_corta_gambe": 4,
   "multipla_lunga_gambe": 12,
   "multipla_lunga_combo": 5,
   "segnalazioni": {
-    "partita aperta": {"gol_casa": 1.04, "gol_ospite": 1.04, "corner": 1.03, "cartellini": 1.00},
-    "partita bloccata": {"gol_casa": 0.96, "gol_ospite": 0.96, "corner": 0.97, "cartellini": 1.03},
-    "turnover casa": {"gol_casa": 0.95, "gol_ospite": 1.02, "corner": 1.00, "cartellini": 1.00},
-    "turnover ospite": {"gol_casa": 1.02, "gol_ospite": 0.95, "corner": 1.00, "cartellini": 1.00},
-    "motivazione bassa casa": {"gol_casa": 0.96, "gol_ospite": 1.02, "corner": 0.98, "cartellini": 0.97},
-    "motivazione bassa ospite": {"gol_casa": 1.02, "gol_ospite": 0.96, "corner": 0.98, "cartellini": 0.97}
+    "partita aperta": {
+      "gol_casa": 1.04,
+      "gol_ospite": 1.04,
+      "corner": 1.03,
+      "cartellini": 1.0
+    },
+    "partita bloccata": {
+      "gol_casa": 0.96,
+      "gol_ospite": 0.96,
+      "corner": 0.97,
+      "cartellini": 1.03
+    },
+    "turnover casa": {
+      "gol_casa": 0.95,
+      "gol_ospite": 1.02,
+      "corner": 1.0,
+      "cartellini": 1.0
+    },
+    "turnover ospite": {
+      "gol_casa": 1.02,
+      "gol_ospite": 0.95,
+      "corner": 1.0,
+      "cartellini": 1.0
+    },
+    "motivazione bassa casa": {
+      "gol_casa": 0.96,
+      "gol_ospite": 1.02,
+      "corner": 0.98,
+      "cartellini": 0.97
+    },
+    "motivazione bassa ospite": {
+      "gol_casa": 1.02,
+      "gol_ospite": 0.96,
+      "corner": 0.98,
+      "cartellini": 0.97
+    }
   },
-  "limiti_segnalazioni": {"gol": [0.93, 1.07], "corner": [0.93, 1.07], "cartellini": [0.93, 1.07]}
+  "limiti_segnalazioni": {
+    "gol": [
+      0.93,
+      1.07
+    ],
+    "corner": [
+      0.93,
+      1.07
+    ],
+    "cartellini": [
+      0.93,
+      1.07
+    ]
+  }
 }
