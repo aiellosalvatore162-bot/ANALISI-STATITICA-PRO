@@ -165,10 +165,20 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   allo script, riapertura con `auto_simulate`, «Riprendi da file»). Il registro
   della sessione resta la tabella SQLite `registro` (`PredictionLog.delete`
   per eliminare righe).
+- Fase S: pagina «Oggi» (`ui_today.py`, logica in `today.py`, filtri in
+  `config/oggi.json`) e costruttore di multiple (`multiples.py`: gambe,
+  trappole, singole/doppie/corta/lunga con programmazione dinamica, riga
+  «Multipla» del registro). Probabilità congiunte dei Combo Builder in
+  `result["joint_pairs"]` (`engine.joint_pair_probabilities`, stesso
+  campione). Segnalazioni e Claude multi-partita come `ClaudeAdjustment` dopo
+  l'ancoraggio. Esito delle multiple con `performance.settle_multiples`;
+  verifica esiti con Claude (`today.outcome_prompt`/`parse_outcomes`) nella
+  pagina Prestazioni. Demo per gli screenshot: `python -m tools.screenshots
+  --oggi` (quote registrate, dati reali).
 - Le fonti remote devono degradare con un avviso (come `historical.py` ricade
   al 100% manuale), mai bloccare la simulazione manuale.
 
-## Stato del progetto (24/10/2026, dopo la fase K)
+## Stato del progetto (24/10/2026, dopo la fase S)
 
 - Fasi completate e unite a `main`: modello gol log-lineare (1), ancoraggio al
   mercato (2), mercati secondari (C2), livello dati (D), football-data.org,
@@ -180,7 +190,7 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   corner ed equilibrio Elo sui cartellini (M), quote automatiche The Odds API
   con ancoraggio di corner e cartellini (N), risparmio crediti con budget
   mensile (N2), quote Eurobet incollate (N3), registro cumulativo ed Excel della
-  giornata (K).
+  giornata (K), pagina Oggi e costruttore di multiple (S).
 - Test: `python -m pytest -q` (solo fixture salvate, nessuna rete); 2 `xfail`
   noti (PSG-Barcellona, Napoli-Bodø, input stimati).
 
