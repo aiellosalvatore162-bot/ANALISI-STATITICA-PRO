@@ -92,7 +92,7 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   parametri base sono tarati sul 2024-26). Nell'app l'EV sui corner porta
   l'avviso `CORNER_EV_WARNING` finché non ci sono quote corner (fase N).
 - Fase N: The Odds API in `datasources/oddsapi.py` (cache 30 minuti, crediti
-  da `x-requests-remaining` nella tabella `odds_api_usage`, budget giornaliero,
+  da `x-requests-remaining` nella tabella `odds_api_usage`, budget mensile,
   istantanee `odds_snapshots` per le quote di chiusura), interfaccia in
   `ui_odds.py`, impostazioni e costi in `config/odds_api.json`. Chiave solo in
   `st.secrets["ODDS_API_KEY"]`, mai negli URL in cache, nei messaggi o nei test.
@@ -100,6 +100,17 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   ancorati alle linee Over/Under quotate (`engine.CountAnchorParams`, sezione
   `ancoraggio_conteggi`, peso 0.8 dichiarato, non tarato); l'ancoraggio sta
   prima del fattore Claude.
+- Fase N2 (risparmio crediti, nessun calcolo del modello toccato): profili dei
+  mercati mirati in `profili_mercati_evento` (default `profilo_mirato` =
+  «risparmio», solo corner e cartellini, 2 crediti a partita); quote per
+  campionato solo per le competizioni con partite nel giorno
+  (`OddsApi.sports_with_matches`, elenco eventi gratuito); punteggi solo per le
+  competizioni con giocate nel registro (`scores_plan`, niente competizioni
+  predefinite); budget mensile (`budget_mensile`, `giorni_di_gioco_mese`,
+  `soglia_avviso` 0.8, `soglia_conferma` 0.95, `OddsApi.usage`/`budget_level`,
+  `allow_high` per la seconda conferma); `day_cost` + `ui_odds.render_day_summary`
+  per il riepilogo del costo previsto (da riusare prima di «Analizza tutte»
+  nella futura pagina Oggi).
 - Risultati esatti: `result["exact_scores"]` (finale, modello, mercato) dallo
   stesso campione; logica dei gruppi in `exact_scores.py` (coerenza e
   correlazione esatte per i mercati che dipendono dal solo punteggio finale),
@@ -135,7 +146,7 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
 - Le fonti remote devono degradare con un avviso (come `historical.py` ricade
   al 100% manuale), mai bloccare la simulazione manuale.
 
-## Stato del progetto (23/10/2026, dopo la fase N)
+## Stato del progetto (24/10/2026, dopo la fase N2)
 
 - Fasi completate e unite a `main`: modello gol log-lineare (1), ancoraggio al
   mercato (2), mercati secondari (C2), livello dati (D), football-data.org,
@@ -145,7 +156,8 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   cartellini con la regola Eurobet (H3), risultati esatti e gruppi (I),
   dashboard a tema calcio (J), taratura corner e cartellini con shrinkage dei
   corner ed equilibrio Elo sui cartellini (M), quote automatiche The Odds API
-  con ancoraggio di corner e cartellini (N).
+  con ancoraggio di corner e cartellini (N), risparmio crediti con budget
+  mensile (N2).
 - Test: `python -m pytest -q` (solo fixture salvate, nessuna rete); 2 `xfail`
   noti (PSG-Barcellona, Napoli-Bodø, input stimati).
 

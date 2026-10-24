@@ -22,7 +22,7 @@ from performance import fill_from_results
 FIXTURES = Path(__file__).parent / "tests" / "fixtures" / "oddsapi"
 KEY = "chiave-di-prova-0123"
 NOW = datetime(2026, 10, 23, 14, 0, tzinfo=timezone.utc)
-SETTINGS = {**oddsapi.load_settings(), "budget_giornaliero": 40}
+SETTINGS = {**oddsapi.load_settings(), "budget_mensile": 500, "giorni_di_gioco_mese": 15}
 
 
 def load(name: str):
@@ -45,11 +45,14 @@ class FakeApi:
         if path == "/sports":
             body, cost = load("sports.json"), 0
         elif path.endswith("/events"):
-            body, cost = load("events_serie_a.json"), 0
+            body, cost = (load("events_serie_a.json") if "italy_serie_a" in path else []), 0
         elif path.endswith("/scores"):
             body, cost = load("scores_champions.json"), 2
         elif "/events/" in path:
-            body = load("event_odds.json")
+            # Come l'API: solo i mercati richiesti, si pagano quelli restituiti.
+            body, wanted = load("event_odds.json"), set(params["markets"].split(","))
+            body["bookmakers"] = [{**bookmaker, "markets": [m for m in bookmaker["markets"] if m["key"] in wanted]}
+                                  for bookmaker in body["bookmakers"]]
             cost = len({market["key"] for bookmaker in body["bookmakers"] for market in bookmaker["markets"]})
         else:
             body, cost = load("odds_serie_a.json"), len(params["markets"].split(","))
@@ -69,12 +72,12 @@ def api(tmp_path):
 
 def test_free_endpoints_and_league_costs_follow_the_documentation(api):
     assert api.sports().cost == 0 and api.events("soccer_italy_serie_a", date(2026, 10, 25)).cost == 0
-    assert api.league_cost() == 2 and api.event_cost() == 6
+    assert api.league_cost() == 2 and api.event_cost(api.profile_markets("completo")) == 6
     league = api.league_odds("soccer_italy_serie_a")
     assert league.cost == 2 and len(league.payload) == 20
     usage = api.usage()
-    assert usage["remaining"] == 498 and usage["spent_today"] == 2
-    event = api.event_odds("soccer_italy_serie_a", "0b4894e9fb123ef3045269f97e339eba")
+    assert usage["remaining"] == 498 and usage["spent_today"] == 2 and usage["spent_month"] == 2
+    event = api.event_odds("soccer_italy_serie_a", "0b4894e9fb123ef3045269f97e339eba", api.profile_markets("completo"))
     assert event.cost == 6 and api.usage()["spent_today"] == 8
     params = api.fake.calls[2][1]
     assert params["regions"] == "eu" and params["markets"] == "h2h,totals"
@@ -93,11 +96,78 @@ def test_cache_for_30_minutes_costs_nothing_and_never_stores_the_key(api, tmp_pa
 
 
 def test_budget_is_checked_before_calling_the_api(api):
-    small = oddsapi.OddsApi(api.cache, KEY, settings={**SETTINGS, "budget_giornaliero": 5}, opener=api.fake, now=lambda: NOW)
+    small = oddsapi.OddsApi(api.cache, KEY, settings={**SETTINGS, "budget_mensile": 5}, opener=api.fake, now=lambda: NOW)
     small.league_odds("soccer_italy_serie_a")
-    with pytest.raises(oddsapi.BudgetExceeded, match="Budget giornaliero"):
-        small.event_odds("soccer_italy_serie_a", "0b4894e9fb123ef3045269f97e339eba")
+    with pytest.raises(oddsapi.BudgetExceeded, match="Budget mensile"):
+        small.event_odds("soccer_italy_serie_a", "0b4894e9fb123ef3045269f97e339eba", small.profile_markets("completo"))
     assert len(api.fake.calls) == 1
+
+
+def test_savings_profile_is_the_default_and_costs_two_credits_per_match(api):
+    assert api.profile_markets() == ["alternate_totals_corners", "alternate_totals_cards"]
+    assert api.event_cost() == 2 and api.event_cost(api.profile_markets("completo")) == 6
+    event = api.event_odds("soccer_italy_serie_a", "0b4894e9fb123ef3045269f97e339eba")
+    assert event.cost == 2 and api.fake.calls[-1][1]["markets"] == "alternate_totals_corners,alternate_totals_cards"
+    keys = set(oddsapi.quotes_frame(event.payload)["key"])
+    assert keys and all(key.endswith(("corner", "cartellini")) for key in keys)
+    with pytest.raises(ValueError, match="Profilo"):
+        api.profile_markets("inesistente")
+
+
+def test_league_odds_only_for_competitions_with_matches_that_day(api):
+    events, sports, warnings = api.sports_with_matches(["soccer_italy_serie_a", "soccer_epl", "soccer_uefa_champs_league"],
+                                                       date(2026, 10, 25))
+    assert sports == ["soccer_italy_serie_a"] and len(events) == 5 and not warnings
+    assert all(url.endswith("/events") for url, _ in api.fake.calls) and api.usage()["spent_month"] == 0
+    summary = oddsapi.day_cost(api, sports, 10)
+    assert (summary["league"], summary["event"], summary["scores"], summary["total"]) == (2, 20, 2, 24)
+    api.league_odds("soccer_italy_serie_a")
+    targeted = [("soccer_italy_serie_a", "0b4894e9fb123ef3045269f97e339eba")]
+    api.event_odds(*targeted[0])
+    cached = oddsapi.day_cost(api, sports, targeted)
+    assert cached["today"] == 0 and cached["cached"] == 2 and cached["total"] == 2
+    full = oddsapi.day_cost(api, sports, 10, api.profile_markets("completo"))
+    assert full["event"] == 60
+
+
+def _usage_at(api, moment, spent):
+    client = oddsapi.OddsApi(api.cache, KEY, settings=SETTINGS, opener=api.fake, now=lambda: moment)
+    with client.cache._connect() as connection:
+        connection.execute("INSERT INTO odds_api_usage (at, endpoint, cost, used, remaining) VALUES (?, ?, ?, ?, ?)",
+                           (moment.isoformat(), "/test", spent, spent, 500 - spent))
+    return client
+
+
+def test_monthly_budget_counts_days_left_and_suggests_todays_budget(api):
+    # Spesa del mese scorso: non conta per ottobre.
+    _usage_at(api, datetime(2026, 9, 30, 10, 0, tzinfo=timezone.utc), 100)
+    client = _usage_at(api, NOW, 50)
+    usage = client.usage()
+    assert usage["spent_month"] == 50 and usage["budget"] == 500
+    assert usage["left"] == 450 and usage["days_left"] == 9          # dal 23 al 31 ottobre
+    assert usage["play_days_left"] == 5 and usage["suggested_today"] == 90  # ceil(15 × 9/31) = 5
+    later = oddsapi.OddsApi(api.cache, KEY, settings=SETTINGS, opener=api.fake,
+                            now=lambda: datetime(2026, 10, 31, 12, 0, tzinfo=timezone.utc))
+    assert later.usage()["days_left"] == 1 and later.usage()["play_days_left"] == 1
+
+
+def test_warning_at_80_percent_and_confirmation_above_95(api):
+    client = _usage_at(api, NOW, 400)
+    assert client.budget_level(0) == "avviso" and client.budget_level(10) == "avviso"
+    assert client.budget_level(76) == "conferma" and client.budget_level(101) == "blocco"
+    with pytest.raises(oddsapi.BudgetConfirmationRequired, match="conferma esplicita"):
+        client.league_odds("soccer_italy_serie_a", markets=["h2h"] * 76)
+    calls = len(api.fake.calls)
+    assert _usage_at(api, NOW, 75).budget_level(2) == "conferma"  # 477 su 500
+    with pytest.raises(oddsapi.BudgetConfirmationRequired):
+        client.league_odds("soccer_italy_serie_a")
+    assert len(api.fake.calls) == calls
+    assert client.league_odds("soccer_italy_serie_a", allow_high=True).cost == 2
+    assert client.usage()["spent_month"] == 477
+    with pytest.raises(oddsapi.BudgetExceeded, match="Budget mensile"):
+        client.event_odds("soccer_italy_serie_a", "x", ["h2h"] * 30, allow_high=True)
+    assert oddsapi.OddsApi(api.cache, KEY, settings=SETTINGS, opener=api.fake, now=lambda: NOW).budget_level(0) == "avviso"
+
 
 
 def test_errors_hide_the_key_and_fall_back_to_the_cache(api):
@@ -181,13 +251,21 @@ def test_scores_settle_goal_markets_and_snapshots_give_closing_odds(api):
     assert "The Odds API (punteggi)" in filled.loc["b", "Note"]
 
 
-def test_scores_plan_covers_recent_rows_only():
-    frame = pd.DataFrame({"Data": [date(2026, 10, 21), date(2026, 10, 10), date(2026, 10, 22)],
-                          "Competizione": ["Champions League", "Serie A", ""], "Esito": [np.nan, np.nan, np.nan],
-                          "Note": ["", "", ""]})
-    plan = oddsapi.scores_plan(frame, date(2026, 10, 23), ["soccer_epl"])
-    assert plan["sports"] == ["soccer_epl", "soccer_uefa_champs_league"]
-    assert plan["days_from"] == 3 and plan["too_old"] == 1 and plan["rows"] == 2
+def test_scores_plan_covers_only_competitions_played_in_the_registry(api):
+    frame = pd.DataFrame({"Data": [date(2026, 10, 21), date(2026, 10, 10), date(2026, 10, 22), date(2026, 10, 22)],
+                          "Partita": ["Inter - Shakhtar", "Roma - Lazio", "Napoli - Juventus", "Ajax - PSV"],
+                          "Competizione": ["Champions League", "Serie A", "", ""], "Esito": [np.nan] * 4,
+                          "Note": [""] * 4})
+    # Napoli - Juventus senza competizione: riconosciuta dall'istantanea delle quote salvata.
+    league = load("odds_serie_a.json")
+    snapshot = {**league[3], "id": "napoli-juve", "home_team": "Napoli", "away_team": "Juventus",
+                "commence_time": "2026-10-22T18:45:00Z"}
+    api._snapshot("soccer_italy_serie_a", [snapshot], datetime(2026, 10, 22, 12, 0, tzinfo=timezone.utc))
+    plan = oddsapi.scores_plan(frame, date(2026, 10, 23), api.closing_snapshots())
+    assert plan["sports"] == ["soccer_italy_serie_a", "soccer_uefa_champs_league"]
+    assert plan["unknown"] == ["Ajax - PSV"]  # nessuna competizione predefinita aggiunta
+    assert plan["days_from"] == 3 and plan["too_old"] == 1 and plan["rows"] == 3
+    assert oddsapi.scores_plan(frame.iloc[[1]], date(2026, 10, 23))["sports"] == []
 
 
 # --- Ancoraggio di corner e cartellini ------------------------------------------------------

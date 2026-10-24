@@ -107,15 +107,18 @@ gratuito: 500 crediti al mese. Costi dalla documentazione ufficiale v4:
 | Elenco sport (`/sports`) | 0 |
 | Elenco partite (`/sports/{sport}/events`) | 0 |
 | Quote per campionato (`/sports/{sport}/odds`) | mercati × regioni (h2h + totals, regione eu = 2) |
-| Quote per evento (`/events/{id}/odds`) | mercati *restituiti* × regioni (fino a 6 con i mercati predefiniti) |
+| Quote per evento (`/events/{id}/odds`) | mercati *restituiti* × regioni (fino a 2 col profilo «risparmio», 6 col «completo») |
 | Punteggi (`/scores`) | 1, oppure 2 con `daysFrom` (partite concluse fino a 3 giorni prima) |
 
 Le risposte vuote non costano. I passaggi sono cinque:
 1. elenco partite gratuito per le competizioni scelte;
-2. quote 1X2 e Over/Under per campionato;
-3. mercati aggiuntivi (Goal/No Goal, linee gol, corner, cartellini, primo
-   tempo) solo per un massimo di 10 partite, scelte a mano o proposte dal
-   sistema (più disaccordo tra bookmaker sull'1X2);
+2. quote 1X2 e Over/Under per campionato, solo per le competizioni che hanno
+   partite nel giorno scelto (le altre non si scaricano);
+3. mercati aggiuntivi solo per un massimo di 10 partite, scelte a mano o
+   proposte dal sistema (più disaccordo tra bookmaker sull'1X2), secondo il
+   profilo: «risparmio» (predefinito: corner e cartellini, 2 crediti a
+   partita), «completo» (anche Goal/No Goal, linee gol e primo tempo, 6
+   crediti) o personalizzato;
 4. compilazione del blocco;
 5. quote di chiusura facoltative.
 
@@ -125,22 +128,35 @@ Accanto si possono scrivere le quote Eurobet, per il confronto o per usarle nel
 blocco.
 
 Ogni scarico che costa crediti mostra prima il costo massimo e chiede una
-conferma. Le risposte restano in cache per 30 minuti, e un budget giornaliero
-(`config/odds_api.json`) blocca le chiamate oltre il limite. Il contatore dei
-crediti nella barra laterale legge l'intestazione `x-requests-remaining`.
+conferma; dopo l'elenco partite un riquadro riassume il costo previsto della
+giornata (competizioni, partite mirate, crediti totali). Le risposte restano in
+cache per 30 minuti. Il budget è mensile (`budget_mensile`, 500 di default, in
+`config/odds_api.json`). Il contatore nella barra laterale mostra:
+- crediti rimasti nel mese (il minimo tra budget meno spesa del mese e
+  l'intestazione `x-requests-remaining`);
+- giorni rimanenti nel mese;
+- budget suggerito oggi = rimasti / giorni di gioco stimati da qui a fine mese
+  (`giorni_di_gioco_mese`, 15 di default, in proporzione ai giorni rimasti).
+
+All'80% del budget mensile compare un avviso giallo; oltre il 95% ogni scarico
+chiede una seconda conferma; oltre il 100% è bloccato.
 
 Ogni scarico per campionato salva un'istantanea delle quote. Nella pagina
 Prestazioni, «Esiti da The Odds API» scarica i punteggi finali (anche delle
-coppe) e compila gli esiti dei mercati decisi dai gol a fine partita; come
+coppe) solo per le competizioni con giocate nel registro (colonna
+Competizione, oppure la partita riconosciuta nelle istantanee salvate) e compila gli esiti dei mercati decisi dai gol a fine partita; come
 quote di chiusura usa l'ultima istantanea prima del calcio d'inizio.
 
-Giornata tipo con i valori predefiniti:
-- top 5 e 3 coppe europee: 8 × 2 = 16 crediti;
-- 10 partite mirate: fino a 60 crediti;
-- punteggi del giorno dopo: 8 × 2 = 16 crediti.
+Giornate tipo col profilo «risparmio» (10 partite mirate):
+- campionato, top 5 tutti in campo: 5 × 2 + 10 × 2 + punteggi 5 × 2 = 40
+  crediti;
+- campionato, una sola lega: 2 + 20 + 2 = 24 crediti;
+- coppa, Champions League: 2 + 20 + 2 = 24 crediti;
+- coppa, Europa e Conference League: 4 + 20 + 4 = 28 crediti.
 
-In tutto fino a 92 crediti al giorno. Con 500 crediti al mese conviene
-limitare le partite mirate (3 partite = 18 crediti, giornata ≈ 50).
+Con 500 crediti per 15 giorni di gioco il budget medio è 33 crediti al giorno.
+Nei weekend pieni basta scendere a 6 partite mirate (10 + 12 + 10 = 32). Il
+profilo «completo» costa 6 crediti a partita: 10 partite = 60 crediti.
 
 ## Profili di stile
 

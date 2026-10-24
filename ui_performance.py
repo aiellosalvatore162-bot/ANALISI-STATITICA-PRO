@@ -78,33 +78,39 @@ def _fill_section(registry, original: bytes, signature: str) -> pd.DataFrame:
 def _odds_api_fill(frame: pd.DataFrame, signature: str):
     """Esiti dei mercati gol (anche coppe) dai punteggi di The Odds API e chiusure dalle istantanee salvate."""
     from datasources.oddsapi import results_from_scores, scores_plan
-    from ui_odds import _confirmed, _run, odds_client
+    from ui_odds import _approve, _run, odds_client
 
     api = odds_client()
     if not api.configured:
         return None
-    plan = scores_plan(frame, date.today(), api.settings.get("competizioni_predefinite", []))
+    plan = scores_plan(frame, date.today(), api.closing_snapshots())
     if not plan["rows"]:
         return None
     with st.expander("Esiti da The Odds API (partite degli ultimi 3 giorni, anche coppe)", expanded=False):
-        st.caption(f"{plan['rows']} righe senza esito negli ultimi 3 giorni; punteggi di {len(plan['sports'])} competizioni "
-                   f"(daysFrom={plan['days_from']}, 2 crediti ciascuna). Solo risultato finale: si compilano i mercati "
+        st.caption(f"{plan['rows']} righe senza esito negli ultimi 3 giorni; punteggi delle sole "
+                   f"{len(plan['sports'])} competizioni con giocate nel registro (daysFrom={plan['days_from']}, "
+                   "2 crediti ciascuna). Solo risultato finale: si compilano i mercati "
                    "decisi dai gol a fine partita; primo tempo, corner e cartellini restano a football-data.co.uk o a mano. "
                    "Le quote di chiusura vengono dalle istantanee già salvate (gratis).")
+        if plan["unknown"]:
+            st.caption("Competizione non riconosciuta (colonna Competizione vuota e nessuna istantanea delle quote): "
+                       + ", ".join(plan["unknown"]) + ". Per queste righe non si scaricano punteggi.")
         if plan["too_old"]:
             st.caption(f"{plan['too_old']} righe più vecchie di 3 giorni: fuori dalla finestra dell'endpoint dei punteggi.")
+        if not plan["sports"]:
+            return None
         cost, cached = 0, 0
         for sport in plan["sports"]:
-            if api.is_cached(f"/sports/{sport}/scores", {"daysFrom": plan["days_from"], "dateFormat": "iso"}):
+            if api.is_cached(f"/sports/{sport}/scores", api.scores_params(plan["days_from"])):
                 cached += 1
             else:
                 cost += 2
-        if not (_confirmed(cost, cached, "performance_scores_confirm")
-                and st.button("Scarica i punteggi", key="performance_scores_button")):
+        approved = _approve(api, cost, cached, "performance_scores_confirm")
+        if approved is None or not st.button("Scarica i punteggi", key="performance_scores_button"):
             return None
         payloads = []
         for sport in plan["sports"]:
-            result = _run(lambda: api.scores(sport, plan["days_from"]), sport)
+            result = _run(lambda: api.scores(sport, plan["days_from"], **approved), sport)
             if result is not None:
                 payloads.append(result.payload)
         results = results_from_scores(payloads, api.closing_snapshots(), api.settings.get("riferimento"))
