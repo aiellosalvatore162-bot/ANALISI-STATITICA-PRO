@@ -29,10 +29,10 @@ COLUMNS = (
     "Quota_chiusura", "Esito", "Note",
 )
 PROBABILITY_COLUMNS = ("Prob_finale", "Prob_mercato", "Prob_modello", "Prob_stile", "Prob_Claude")
-# Stessi nomi, stesso ordine della tabella «per mercato» del foglio Riepilogo.
+# Stessi nomi, stesso ordine della tabella «per mercato» del foglio Riepilogo («Multipla»: schedine con più partite, fase S).
 MARKETS = ("1X2", "Doppia chance", "DNB", "Over 1.5", "Under 1.5", "Over 2.5", "Under 2.5", "Over 3.5", "Under 3.5",
            "Goal/NoGoal", "Multigol", "Multigol casa", "Multigol ospite", "Primo tempo", "Over 0.5 1T", "Over 1.5 1T",
-           "Corner", "Cartellini", "Combo", "Risultati esatti")
+           "Corner", "Cartellini", "Combo", "Risultati esatti", "Multipla")
 TYPES = ("Reale", "A carta")
 # Selezioni proposte di default quando non ci sono quote inserite.
 DEFAULT_SELECTIONS = ("1", "X", "2", "Over 1.5 gol", "Over 2.5 gol", "Under 2.5 gol", "Goal", "No Goal",
@@ -167,6 +167,14 @@ def to_excel(rows: Sequence[Mapping[str, Any]], *, sheet: str = "Registro") -> b
     workbook = Workbook()
     worksheet = workbook.active
     worksheet.title = sheet
+    write_registry_sheet(worksheet, rows)
+    buffer = BytesIO()
+    workbook.save(buffer)
+    return buffer.getvalue()
+
+
+def write_registry_sheet(worksheet, rows: Sequence[Mapping[str, Any]]) -> None:
+    """Intestazione e righe A–S con i formati del file dell'utente (date, probabilità in percentuale)."""
     worksheet.append(list(COLUMNS))
     for row in rows:
         values = []
@@ -185,9 +193,6 @@ def to_excel(rows: Sequence[Mapping[str, Any]], *, sheet: str = "Registro") -> b
             elif column in PROBABILITY_COLUMNS:
                 cell.number_format = "0.0%"
     worksheet.freeze_panes = "A2"
-    buffer = BytesIO()
-    workbook.save(buffer)
-    return buffer.getvalue()
 
 
 class PredictionLog:
@@ -240,6 +245,12 @@ class PredictionLog:
         with sqlite3.connect(self.path) as connection:
             updated = sum(self._upsert(connection, row, session) for row in rows)
         return len(rows) - updated, updated
+
+    def delete(self, ids: Sequence[str], session: str) -> int:
+        """Elimina le righe con questi ``ID`` della sessione; restituisce quante."""
+        with sqlite3.connect(self.path) as connection:
+            return sum(connection.execute(f'DELETE FROM {self.TABLE} WHERE "ID" = ? AND sessione = ?',
+                                          (row_id, session)).rowcount for row_id in ids)
 
     def rows(self, session: str | None = None) -> list[dict]:
         query = f"SELECT * FROM {self.TABLE}" + (" WHERE sessione = ?" if session else "") + " ORDER BY rowid"

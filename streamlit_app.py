@@ -25,6 +25,7 @@ from ui_data import (
 )
 from ui_exact import render_exact_scores
 from ui_eurobet import find_paste, render_apply, render_paste, sharp_for
+from ui_memory import RESTART_WARNING, remember, remember_claude, render_registry_table, render_sidebar
 from ui_odds import render_credits, render_odds
 from ui_performance import render_performance
 
@@ -58,6 +59,7 @@ ARBITRO: Gialli medi 4.5 | Falli medi 24
 """
 
 st.set_page_config(page_title="Simulpro · Analisi on-demand", page_icon="⚽", layout="wide")
+st.warning(RESTART_WARNING, icon="💾")
 
 
 @st.cache_data(ttl=24 * 60 * 60, show_spinner=False)
@@ -561,7 +563,8 @@ current_signature = (
     _anchor_signature(parsed_preview),
 )
 
-if st.button("Esegui simulazione", type="primary", width="stretch"):
+# «auto_simulate»: partita riaperta dall'elenco delle partite analizzate.
+if st.button("Esegui simulazione", type="primary", width="stretch") or st.session_state.pop("auto_simulate", False):
     try:
         if parsed_preview is None:
             raise MatchInputError(parse_error or "Input non valido")
@@ -584,6 +587,8 @@ if st.button("Esegui simulazione", type="primary", width="stretch"):
         st.session_state["result_config"] = config
         st.session_state["result_signature"] = current_signature
         st.session_state["warnings"] = parsed.warnings
+        remember(result, block=text, odds=merged_odds, simulations=int(simulations), seed=int(seed),
+                 warnings=[*parsed.warnings, *plausibility_warnings(text)])
     except MatchInputError as exc:
         st.error(str(exc))
 
@@ -910,12 +915,20 @@ if result:
     with tabs[4]:
         if st.session_state.get("result_config") is not None:
             claude_result, claude_note = render_claude(result, st.session_state["result_config"], text)
+            remember_claude(result, claude_result)
     with tabs[5]:
         if st.session_state.get("result_config") is not None:
             render_registry(result, st.session_state["result_config"], claude_result, claude_note)
+        render_registry_table()
 else:
     for tab in tabs[:6]:
         with tab:
             st.info("Esegui la simulazione per vedere le schede di questa partita.")
+    with tabs[5]:
+        render_registry_table()
 with tabs[6]:
     render_performance()
+
+# In fondo allo script: l'elenco include già la partita simulata in questo passaggio.
+with st.sidebar:
+    render_sidebar()

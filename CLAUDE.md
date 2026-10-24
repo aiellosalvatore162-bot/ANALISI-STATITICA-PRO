@@ -147,7 +147,7 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   l'ancoraggio al mercato (`MatchConfig.claude`).
 - Registro delle previsioni unico in `prediction_log.py`: colonne A–S del file
   dell'utente `tests/fixtures/Registro_Previsioni.xlsx` (nomi e ordine esatti),
-  probabilità in decimali, nomi mercato fissi (`MARKETS`, i 20 del foglio
+  probabilità in decimali, nomi mercato fissi (`MARKETS`, i 21 del foglio
   Riepilogo; DNB con probabilità condizionata al non rimborso; cartellini in
   punti con la regola del bookmaker; «Risultati esatti» con Selezione =
   gruppo «1-0/2-0/2-1»), `ID` = data|partita|mercato|selezione come chiave (niente
@@ -156,10 +156,19 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   esiti si ricavano con le definizioni degli eventi del motore
   (`engine._event_catalog`); la compilazione automatica non sovrascrive mai
   valori presenti nel file e scrive fonte e data in `Note`.
+- Fase K: memoria delle partite analizzate in `match_memory.py` (voce per
+  partita con blocco, quote dei campi, incollata Eurobet, risposta di Claude,
+  segnalazioni e riassunto; chiave data|casa - ospite) e Excel della giornata
+  (fogli Registro A–S, Analisi, Schede tattiche, Tecnico nascosto in JSON
+  diviso in celle da 30.000 caratteri); interfaccia in `ui_memory.py`
+  (`st.session_state["analyzed_matches"]`, barra laterale disegnata in fondo
+  allo script, riapertura con `auto_simulate`, «Riprendi da file»). Il registro
+  della sessione resta la tabella SQLite `registro` (`PredictionLog.delete`
+  per eliminare righe).
 - Le fonti remote devono degradare con un avviso (come `historical.py` ricade
   al 100% manuale), mai bloccare la simulazione manuale.
 
-## Stato del progetto (24/10/2026, dopo la fase N3)
+## Stato del progetto (24/10/2026, dopo la fase K)
 
 - Fasi completate e unite a `main`: modello gol log-lineare (1), ancoraggio al
   mercato (2), mercati secondari (C2), livello dati (D), football-data.org,
@@ -170,7 +179,8 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   dashboard a tema calcio (J), taratura corner e cartellini con shrinkage dei
   corner ed equilibrio Elo sui cartellini (M), quote automatiche The Odds API
   con ancoraggio di corner e cartellini (N), risparmio crediti con budget
-  mensile (N2), quote Eurobet incollate (N3).
+  mensile (N2), quote Eurobet incollate (N3), registro cumulativo ed Excel della
+  giornata (K).
 - Test: `python -m pytest -q` (solo fixture salvate, nessuna rete); 2 `xfail`
   noti (PSG-Barcellona, Napoli-Bodø, input stimati).
 

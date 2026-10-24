@@ -468,7 +468,7 @@ def render_registry(result: dict, config, claude: dict | None = None, claude_not
     from datetime import datetime
 
     from prediction_log import (
-        DEFAULT_SELECTIONS, PROBABILITY_COLUMNS, TYPES, PredictionLog, SaveInfo, market_of, model_version, prediction_rows, to_excel,
+        DEFAULT_SELECTIONS, PROBABILITY_COLUMNS, TYPES, PredictionLog, SaveInfo, market_of, model_version, prediction_rows,
     )
 
     st.subheader("Registro delle previsioni")
@@ -516,12 +516,5 @@ def render_registry(result: dict, config, claude: dict | None = None, claude_not
         records = [{key: None if pd.isna(value) else value for key, value in row.items()}
                    for row in edited.to_dict("records")]
         new, updated = log.save(records, session)
-        st.success(f"Registro: {new} righe nuove" + (f", {updated} aggiornate (stesso ID: niente doppioni)." if updated else "."))
-    saved = log.rows(session)
-    if saved:
-        st.markdown(f"**Righe di questa sessione: {len(saved)}**")
-        st.dataframe(pd.DataFrame(saved), hide_index=True, width="stretch",
-                     column_config={column: st.column_config.NumberColumn(column, format="percent") for column in PROBABILITY_COLUMNS})
-        st.download_button("Scarica registro Excel", to_excel(saved), file_name=f"registro_{date.today():%Y%m%d}.xlsx",
-                           mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key="registry_download",
-                           help="Solo colonne A–S: copia le righe e incollale nel foglio Registro sotto l'ultima riga piena.")
+        st.success(f"Registro: {new} righe nuove" + (f", {updated} aggiornate (stesso ID: niente doppioni)." if updated else ".")
+                   + " Le righe si sommano a quelle delle altre partite della giornata (tabella qui sotto).")

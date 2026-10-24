@@ -338,6 +338,38 @@ verifica storica (`python -m tools.baseline --risultati-esatti`, sezione
 `risultati_esatti` della configurazione e `docs/BASELINE.md`) misura log-loss,
 calibrazione dei singoli risultati e copertura reale del gruppo minimo.
 
+## Partite analizzate ed Excel della giornata
+
+Ogni partita simulata entra da sola nell'elenco **Partite analizzate** della
+barra laterale. Ogni voce conserva:
+- squadre, data e competizione;
+- il blocco dati e le quote dei campi;
+- l'incollata Eurobet e la risposta di Claude;
+- le segnalazioni, le probabilità principali e l'EV.
+
+La chiave è data|casa - ospite, quindi rianalizzare la stessa partita aggiorna
+la voce. Un clic sul nome riapre la partita con tutto compilato e la risimula;
+«✕» la toglie dall'elenco (le righe del registro restano).
+
+Il registro della sessione accumula le selezioni di tutte le partite, senza
+doppioni grazie all'`ID`. La tab Registro mostra tutte le righe, con:
+- un filtro per partita;
+- il contatore («12 selezioni da 5 partite»);
+- l'eliminazione delle righe scelte.
+
+**Scarica Excel della giornata** (barra laterale e tab Registro) crea un unico
+file:
+- «Registro»: colonne A–S, anche le righe «Multipla»;
+- «Analisi»: una riga per partita con le probabilità principali (1X2, doppia
+  chance, Over/Under, Goal/No Goal, multigol, primo tempo, corner,
+  cartellini), le quote e l'EV;
+- «Schede tattiche»: vuoto finché la fase Q non lo usa;
+- «Tecnico» (nascosto): le voci complete in JSON.
+
+**Riprendi da file** ricarica da quell'Excel il registro, le partite (riapribili)
+e le schede tattiche. Online la sessione si perde se l'app si riavvia: l'avviso
+in cima ricorda di scaricare l'Excel ogni 3-4 partite.
+
 ## Registro delle previsioni e pagina Prestazioni
 
 Dopo una simulazione, la sezione **Registro delle previsioni** salva una riga per
@@ -350,7 +382,7 @@ Puntata, Tipo, Versione_modello, Quota_chiusura, Esito, Note`.
   sole quote, `Prob_modello` il solo modello, `Prob_stile` la simulazione con lo
   scenario tattico attivo, `Prob_Claude` quella con le correzioni di Claude;
   `Prob_finale` è l'ultima disponibile.
-- `Mercato` usa sempre i 20 nomi della tabella «per mercato» del Riepilogo:
+- `Mercato` usa sempre i 21 nomi della tabella «per mercato» del Riepilogo (l'ultimo è «Multipla»):
   1X2, Doppia chance, DNB, Over 1.5, Under 1.5, Over 2.5, Under 2.5, Over 3.5,
   Under 3.5, Goal/NoGoal, Multigol (totale), Multigol casa, Multigol ospite,
   Primo tempo (1X2 del primo tempo), Over 0.5 1T, Over 1.5 1T, Corner,
