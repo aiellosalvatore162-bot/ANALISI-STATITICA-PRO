@@ -173,12 +173,17 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   campione). Segnalazioni e Claude multi-partita come `ClaudeAdjustment` dopo
   l'ancoraggio. Esito delle multiple con `performance.settle_multiples`;
   verifica esiti con Claude (`today.outcome_prompt`/`parse_outcomes`) nella
-  pagina Prestazioni. Demo per gli screenshot: `python -m tools.screenshots
+  pagina Prestazioni. Fase S2: quota CB reale (`cb_real_odds` per
+  `Leg.key`) o stimata (prodotto × `sconto_cb`), nota «quota CB reale/stimata»
+  nella riga Multipla e `performance.observed_cb_discount`; segnalazioni nella
+  scheda (`ui_memory.flags_key`, combinate con Claude da
+  `today.combined_adjustment`) e blocco Claude per partita
+  (`today.split_multi_response`) riaperti da «Apri scheda». Demo per gli screenshot: `python -m tools.screenshots
   --oggi` (quote registrate, dati reali).
 - Le fonti remote devono degradare con un avviso (come `historical.py` ricade
   al 100% manuale), mai bloccare la simulazione manuale.
 
-## Stato del progetto (24/10/2026, dopo la fase S)
+## Stato del progetto (24/10/2026, dopo la fase S2)
 
 - Fasi completate e unite a `main`: modello gol log-lineare (1), ancoraggio al
   mercato (2), mercati secondari (C2), livello dati (D), football-data.org,
@@ -190,7 +195,8 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   corner ed equilibrio Elo sui cartellini (M), quote automatiche The Odds API
   con ancoraggio di corner e cartellini (N), risparmio crediti con budget
   mensile (N2), quote Eurobet incollate (N3), registro cumulativo ed Excel della
-  giornata (K), pagina Oggi e costruttore di multiple (S).
+  giornata (K), pagina Oggi e costruttore di multiple (S), rifiniture delle multiple
+  (S2).
 - Test: `python -m pytest -q` (solo fixture salvate, nessuna rete); 2 `xfail`
   noti (PSG-Barcellona, Napoli-Bodø, input stimati).
 

@@ -17,6 +17,8 @@ from historical import (
     run_walk_forward,
 )
 from eurobet import anchor_odds
+from multiples import load_settings as load_today_settings
+from today import combined_adjustment
 from market_catalog import MARKET_CATALOG, MARKET_GROUPS, definition_for_event, definitions_for_group
 from datasources.builder import plausibility_warnings
 from parser import MatchInputError, MatchInput, parse_match_input
@@ -25,7 +27,7 @@ from ui_data import (
 )
 from ui_exact import render_exact_scores
 from ui_eurobet import find_paste, render_apply, render_paste, sharp_for
-from ui_memory import RESTART_WARNING, remember, remember_claude, render_registry_table, render_sidebar
+from ui_memory import RESTART_WARNING, flags_key, remember, remember_claude, render_registry_table, render_sidebar
 from ui_odds import render_credits, render_odds
 from ui_performance import render_performance
 
@@ -518,6 +520,10 @@ with st.container(border=True):
                 render_apply(eurobet_paste, current_fields,
                              lambda market, price: st.session_state.__setitem__(field_keys[market], float(price)),
                              f"eurobet_{match_slug}")
+        st.pills("Segnalazioni da osservatore", list(load_today_settings()["segnalazioni"]), selection_mode="multi",
+                 key=flags_key(parsed_preview.home.name, parsed_preview.away.name),
+                 help="Effetti piccoli e limitati (config/oggi.json) su gol, corner e cartellini, dopo l'ancoraggio; "
+                      "finiscono in Note nel registro («segnalazione: …»).")
     quote_categories = {
         "Esiti": ("1x2", "double_chance", "draw_no_bet", "first_half_1x2", "first_half_double_chance", "second_half_1x2", "second_half_double_chance"),
         "Goal": ("goal_no_goal", "first_half_goal_no_goal", "over_under", "first_half_over_under", "team_goals", "team_scoring"),
@@ -573,6 +579,8 @@ current_signature = (
     tactical_factors,
     tactical_switches,
     _anchor_signature(parsed_preview),
+    tuple(st.session_state.get(flags_key(parsed_preview.home.name, parsed_preview.away.name)) or [])
+    if parsed_preview is not None else (),
 )
 
 # «auto_simulate»: partita riaperta dall'elenco delle partite analizzate.
@@ -591,8 +599,11 @@ if st.button("Esegui simulazione", type="primary", width="stretch") or st.sessio
         paste = find_paste(parsed.home.name, parsed.away.name)
         sharp = sharp_for(parsed.home.name, parsed.away.name)
         anchor, anchor_sources = anchor_odds(merged_odds, sharp, paste) if (paste or sharp) else (None, {})
+        flags = list(st.session_state.get(flags_key(parsed.home.name, parsed.away.name)) or [])
         config = config.__class__(**{**config.__dict__, "odds": merged_odds, "anchor_odds": anchor,
-                                     "tactical": tactical_factors, "tactical_switches": tactical_switches})
+                                     "tactical": tactical_factors, "tactical_switches": tactical_switches,
+                                     "claude": combined_adjustment(flags, None)})
+        st.session_state["result_flags"] = flags
         st.session_state["anchor_sources"] = anchor_sources
         result = simulate_match(config)
         st.session_state["result"] = result
@@ -600,7 +611,7 @@ if st.button("Esegui simulazione", type="primary", width="stretch") or st.sessio
         st.session_state["result_signature"] = current_signature
         st.session_state["warnings"] = parsed.warnings
         remember(result, block=text, odds=merged_odds, simulations=int(simulations), seed=int(seed),
-                 warnings=[*parsed.warnings, *plausibility_warnings(text)])
+                 warnings=[*parsed.warnings, *plausibility_warnings(text)], flags=flags)
     except MatchInputError as exc:
         st.error(str(exc))
 
@@ -930,7 +941,9 @@ if result:
             remember_claude(result, claude_result)
     with tabs[5]:
         if st.session_state.get("result_config") is not None:
-            render_registry(result, st.session_state["result_config"], claude_result, claude_note)
+            flags = st.session_state.get("result_flags") or []
+            note = "; ".join(part for part in (f"segnalazione: {', '.join(flags)}" if flags else "", claude_note) if part)
+            render_registry(result, st.session_state["result_config"], claude_result, note)
         render_registry_table()
 else:
     for tab in tabs[:6]:

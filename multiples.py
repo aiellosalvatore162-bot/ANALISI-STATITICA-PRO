@@ -43,8 +43,14 @@ class Leg:
     selections: tuple[str, ...]     # una selezione, oppure due per il Combo Builder
     probability: float              # 0-1
     odds: float | None
-    estimated_odds: bool = False    # quota del Combo Builder stimata (prodotto delle quote): verificala su Eurobet
+    estimated_odds: bool = False    # quota del Combo Builder stimata (prodotto × sconto CB): inserisci quella vera
     note: str = ""
+    product_odds: float | None = None   # Combo Builder: prodotto delle quote dei due mercati
+
+    @property
+    def key(self) -> str:
+        """Chiave della quota CB Eurobet inserita a mano: partita e mercati."""
+        return f"{self.match}|{self.label}"
 
     @property
     def kind(self) -> str:
@@ -76,11 +82,13 @@ def _family(selection: str) -> str | None:
 
 
 def candidate_legs(match_id: str, match: str, result: Mapping[str, Any], odds: Mapping[str, float],
-                   combinable: Iterable[str] | None = None) -> list[Leg]:
+                   combinable: Iterable[str] | None = None, *, cb_discount: float = 1.0,
+                   cb_real_odds: Mapping[str, float] | None = None) -> list[Leg]:
     """Gambe possibili di una partita: le selezioni del registro con quota e i Combo Builder delle due famiglie.
 
     ``combinable``: mercati marcati «Combo Builder» nell'incollata Eurobet; ``None`` = flag non noti
-    (combo ammesse, da verificare su Eurobet).
+    (combo ammesse, da verificare su Eurobet). Quota di un Combo Builder: quella vera di Eurobet se inserita
+    (``cb_real_odds``, chiave ``Leg.key``), altrimenti il prodotto delle due quote × ``cb_discount`` (stimata).
     """
     from prediction_log import market_of
 
@@ -97,8 +105,13 @@ def candidate_legs(match_id: str, match: str, result: Mapping[str, Any], odds: M
         if allowed is not None and not (first in allowed and second in allowed):
             continue
         note = "" if allowed is not None else "flag Combo Builder non noti: verifica su Eurobet che la combinazione sia ammessa"
-        legs.append(Leg(match_id, match, (first, second), float(probability) / 100.0,
-                        round(float(odds[first]) * float(odds[second]), 3), estimated_odds=True, note=note))
+        product = round(float(odds[first]) * float(odds[second]), 3)
+        leg = Leg(match_id, match, (first, second), float(probability) / 100.0, round(product * cb_discount, 3),
+                  estimated_odds=True, note=note, product_odds=product)
+        real = (cb_real_odds or {}).get(leg.key)
+        if real and float(real) > 1.0:
+            leg = replace(leg, odds=float(real), estimated_odds=False)
+        legs.append(leg)
     return legs
 
 
@@ -161,8 +174,8 @@ class Multiple:
         notes = list(self.warnings)
         notes += [f"{leg.match} · {leg.label}: EV {leg.ev * 100:+.1f}% (negativo)" for leg in self.legs
                   if leg.ev is not None and leg.ev < 0]
-        notes += [f"{leg.match} · {leg.label}: quota Combo Builder stimata come prodotto ({leg.odds:.2f}), "
-                  "quella vera di Eurobet di solito è più bassa" for leg in self.legs if leg.estimated_odds]
+        notes += [f"{leg.match} · {leg.label}: quota Combo Builder stimata {leg.odds:.2f} (prodotto {leg.product_odds:.2f} "
+                  f"× sconto CB): inserisci la quota vera di Eurobet" for leg in self.legs if leg.estimated_odds]
         notes += [f"{leg.match} · {leg.label}: {leg.note}" for leg in self.legs if leg.note]
         return notes
 
@@ -231,8 +244,9 @@ def build_long(legs: Iterable[Leg], total: int = 12, combos: int = 5, objective:
     combos = min(combos, sum(1 for _, combo in options if combo), total)
     warnings = []
     if combos < requested:
-        warnings.append(f"Combo Builder possibili: {combos} invece di {requested} (servono le quote di entrambi i "
-                        "mercati: scarica le quote mirate di corner e cartellini o incolla quelle Eurobet).")
+        warnings.append(f"Combo Builder possibili: {combos} invece di {requested}. Servono le quote di entrambi i mercati "
+                        "(quote mirate di corner e cartellini o incollata Eurobet); con la quota stimata molti finiscono "
+                        "tra le trappole: inserisci la quota CB vera in «Quote reali dei Combo Builder».")
     if total < 12:
         warnings.append(f"Partite con gambe valide: {total}. La multipla lunga ne vuole 12-13: analizza più partite.")
     for wanted in range(combos, -1, -1):
@@ -265,6 +279,26 @@ def _long_dp(options, total: int, combos: int, objective: str) -> list[Leg] | No
     return None if found is None else sorted(found[1], key=lambda leg: (leg.kind != "combo builder", -leg.probability))
 
 
+def format_probability(number: float) -> str:
+    """Probabilità leggibile anche quando è minuscola (multiple lunghe)."""
+    if number >= 0.01:
+        return f"{number:.1%}"
+    return f"{number:.2%}" if number >= 0.0001 else "< 0.01%"
+
+
+def comparison_line(probable: Multiple | None, value: Multiple | None) -> str | None:
+    """«più valore: probabilità X% (1 su N), EV Y% — differenza rispetto a più probabile»."""
+    if not probable or not value or not probable.legs or not value.legs or probable.ev is None or value.ev is None:
+        return None
+
+    ratio = probable.probability / value.probability if value.probability > 0 else None
+    return (f"Più valore: probabilità {format_probability(value.probability)} (1 su {value.one_in}), EV {value.ev:+.1%} — rispetto a più "
+            f"probabile ({format_probability(probable.probability)}, 1 su {probable.one_in}, EV {probable.ev:+.1%}): probabilità "
+            f"{(value.probability - probable.probability) * 100:+.2f} punti"
+            + (f" ({ratio:.1f} volte meno probabile)" if ratio and ratio > 1 else "")
+            + f", EV {(value.ev - probable.ev) * 100:+.1f} punti.")
+
+
 # --- Registro ---------------------------------------------------------------------------------
 
 def multiple_row(multiple: Multiple, *, day: date | str, time: str, competition: str, kind: str, version: str,
@@ -276,7 +310,7 @@ def multiple_row(multiple: Multiple, *, day: date | str, time: str, competition:
     digest = hashlib.sha1(selection.encode("utf-8")).hexdigest()[:10]
     day_text = day.isoformat() if isinstance(day, date) else str(day)
     extra = [f"{len(multiple.legs)} gambe", f"bonus {multiple.bonus_pct:g}%" if multiple.bonus_pct else "",
-             "quote Combo Builder stimate" if any(leg.estimated_odds for leg in multiple.legs) else "", note]
+             *[cb_note(leg) for leg in multiple.legs if leg.kind == "combo builder"], note]
     row = {column: None for column in COLUMNS}
     row.update({
         "ID": f"{day_text}|Multipla|Multipla|{digest}", "Data": day_text, "Ora": time, "Competizione": competition,
@@ -286,6 +320,13 @@ def multiple_row(multiple: Multiple, *, day: date | str, time: str, competition:
         "Note": "; ".join(part for part in extra if part),
     })
     return row
+
+
+def cb_note(leg: Leg) -> str:
+    """Nota del registro per un Combo Builder: «quota CB reale 2.80 / prodotto 3.35 [partita: mercati]» o «stimata»."""
+    state = "stimata" if leg.estimated_odds else "reale"
+    product = f" / prodotto {leg.product_odds:.2f}" if leg.product_odds else ""
+    return f"quota CB {state} {leg.odds:.2f}{product} [{leg.match}: {leg.label}]"
 
 
 def parse_selection(selection: str) -> list[tuple[str, list[str]]]:

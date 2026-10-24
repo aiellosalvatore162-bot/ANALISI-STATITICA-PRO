@@ -15,11 +15,12 @@ import streamlit as st
 
 from match_memory import make_record, upsert
 from multiples import (
-    OBJECTIVES, Leg, Multiple, build_doubles, build_long, build_short, candidate_legs, filter_legs, load_settings,
+    OBJECTIVES, Leg, Multiple, build_doubles, comparison_line, format_probability, build_long, build_short, candidate_legs, filter_legs, load_settings,
     multiple_row,
 )
 from today import (
-    Analysis, TodayMatch, analyze, match_ids, multi_analysis_prompt, parse_multi_response, simulate, value_picks,
+    Analysis, TodayMatch, analyze, match_ids, multi_analysis_prompt, parse_multi_response, simulate, split_multi_response,
+    value_picks,
 )
 
 
@@ -40,7 +41,9 @@ def _remember(analysis: Analysis) -> None:
 
     record = make_record(analysis.result, block=analysis.block, odds=analysis.odds,
                          day=analysis.match.commence_time.date(), competition=analysis.match.competition,
-                         warnings=[*analysis.warnings, *([analysis.note()] if analysis.note() else [])])
+                         warnings=[*analysis.warnings, *([analysis.note()] if analysis.note() else [])],
+                         flags=analysis.flags, claude_answer=analysis.claude_text,
+                         claude_applied=analysis.claude is not None and analysis.claude.adjustment() is not None)
     upsert(_store(), record)
 
 
@@ -325,6 +328,7 @@ def _render_deep(api, analyses: list[Analysis], settings: dict) -> None:
         return
     ids = match_ids(analyses)
     try:
+        texts, _ = split_multi_response(answer, ids)
         responses, warnings = parse_multi_response(answer, ids)
     except ResponseError as exc:
         st.error(str(exc))
@@ -342,6 +346,7 @@ def _render_deep(api, analyses: list[Analysis], settings: dict) -> None:
     if st.session_state.get("today_claude_signature") != signature:
         for index, analysis in enumerate(analyses):
             if analysis.ok and (index in responses or analysis.claude is not None):
+                analysis.claude_text = texts.get(index, "")  # torna nella tab Claude della scheda
                 simulate(analysis, claude=responses.get(index) if apply else None, keep_claude=False, settings=settings)
                 _remember(analysis)
         st.session_state["today_claude_signature"] = signature
@@ -353,35 +358,79 @@ def _render_deep(api, analyses: list[Analysis], settings: dict) -> None:
 
 # --- Costruttore di multiple ----------------------------------------------------------------------------
 
-def _leg_pool(analyses: list[Analysis]) -> list[Leg]:
+def _leg_pool(analyses: list[Analysis], settings: dict) -> list[Leg]:
     from ui_eurobet import find_paste
 
+    real = st.session_state.get("cb_real_odds", {})
     legs = []
     for index, analysis in enumerate(analyses):
         if not analysis.ok:
             continue
         paste = find_paste(analysis.match.home, analysis.match.away)
         combinable = paste.combinable() if paste is not None and not paste.empty else None
-        legs += candidate_legs(str(index), analysis.match.label, analysis.result, analysis.odds, combinable)
+        legs += candidate_legs(str(index), analysis.match.label, analysis.result, analysis.odds, combinable,
+                               cb_discount=float(settings.get("sconto_cb", 0.85)), cb_real_odds=real)
     return legs
 
 
 def _leg_table(multiple: Multiple) -> pd.DataFrame:
     return pd.DataFrame([{
         "Partita": leg.match, "Gamba": leg.label, "Tipo": leg.kind, "Prob. %": round(leg.probability * 100, 1),
-        "Quota": leg.odds, "Quota equa": round(leg.fair_odds, 2) if leg.fair_odds else None,
+        "Quota": leg.odds, "Quota CB": ("stimata" if leg.estimated_odds else "reale") if leg.kind == "combo builder" else "",
+        "Quota equa": round(leg.fair_odds, 2) if leg.fair_odds else None,
         "EV %": round(leg.ev * 100, 1) if leg.ev is not None else None,
     } for leg in multiple.legs])
 
 
-def _render_multiple(multiple: Multiple, pool: list[Leg], analyses: list[Analysis], key: str, kind: str) -> None:
+def _render_cb_catalog(pool: list[Leg]) -> None:
+    """Le combo più probabili di ogni partita (anche quelle escluse come trappole) con il campo della quota vera."""
+    best: dict[str, list[Leg]] = {}
+    for leg in pool:
+        if leg.kind == "combo builder":
+            best.setdefault(leg.match_id, []).append(leg)
+    legs = [leg for group in best.values() for leg in sorted(group, key=lambda leg: -leg.probability)[:3]]
+    if not legs:
+        return
+    with st.expander(f"Quote reali dei Combo Builder ({len(legs)} combo, le 3 più probabili per partita)", expanded=False):
+        _render_cb_odds(Multiple("Combo Builder", legs), "cb_catalog")
+
+
+def _render_cb_odds(multiple: Multiple, key: str) -> None:
+    """Campo «Quota CB Eurobet» per ogni Combo Builder: con la quota vera, EV e quota totale usano quella."""
+    combos = [leg for leg in multiple.legs if leg.kind == "combo builder"]
+    if not combos:
+        return
+    real = st.session_state.setdefault("cb_real_odds", {})
+    table = pd.DataFrame([{"Partita": leg.match, "Combo Builder": leg.label, "Prodotto": leg.product_odds,
+                           "Quota usata": leg.odds, "Quota CB Eurobet": real.get(leg.key)} for leg in combos])
+    st.caption("Quota CB Eurobet: scrivi la quota vera del Combo Builder che vedi su Eurobet. Vuota = stimata "
+               "(prodotto × sconto CB di config/oggi.json).")
+    edited = st.data_editor(table, hide_index=True, width="stretch", key=f"{key}_cb",
+                            disabled=["Partita", "Combo Builder", "Prodotto", "Quota usata"],
+                            column_config={"Quota CB Eurobet": st.column_config.NumberColumn(min_value=1.01, step=0.01, format="%.2f")})
+    changed = False
+    for leg, value in zip(combos, edited["Quota CB Eurobet"]):
+        value = None if pd.isna(value) or float(value) <= 1.0 else float(value)
+        if value != real.get(leg.key):
+            if value is None:
+                real.pop(leg.key, None)
+            else:
+                real[leg.key] = value
+            changed = True
+    if changed:
+        st.rerun()
+
+
+def _render_multiple(multiple: Multiple, pool: list[Leg], analyses: list[Analysis], key: str, kind: str) -> Multiple | None:
     overrides = st.session_state.setdefault("today_overrides", {})
     if key in overrides:
-        multiple = replace(multiple, legs=list(overrides[key]))
+        # Gambe scelte a mano, aggiornate con le quote correnti (es. quota CB inserita dopo la sostituzione).
+        current = {(leg.match_id, leg.selections): leg for leg in pool}
+        multiple = replace(multiple, legs=[current.get((leg.match_id, leg.selections), leg) for leg in overrides[key]])
     if not multiple.legs:
         st.info("Nessuna gamba disponibile.")
-        return
-    probability = f"{multiple.probability:.1%}" if multiple.probability >= 0.01 else f"{multiple.probability:.2%}"
+        return None
+    probability = format_probability(multiple.probability)
     metrics = st.columns(4)
     metrics[0].metric("Probabilità", probability)
     metrics[1].metric("Quota" + (" (con bonus)" if multiple.bonus_pct else ""), f"{multiple.odds:,.2f}".replace(",", ".") if multiple.odds else "—")
@@ -389,6 +438,7 @@ def _render_multiple(multiple: Multiple, pool: list[Leg], analyses: list[Analysi
     metrics[3].metric("EV", f"{multiple.ev:+.1%}" if multiple.ev is not None else "—")
     st.markdown(f"**{multiple.sentence().capitalize()}** · {len(multiple.legs)} gambe")
     st.dataframe(_leg_table(multiple), hide_index=True, width="stretch")
+    _render_cb_odds(multiple, key)
     warnings = multiple.leg_warnings()
     if warnings:
         st.warning("\n".join(f"- {warning}" for warning in warnings))
@@ -414,6 +464,7 @@ def _render_multiple(multiple: Multiple, pool: list[Leg], analyses: list[Analysi
         info = _save_info(first, kind)
         rows.append(multiple_row(multiple, day=info.day, time=info.time, competition="", kind=kind, version=info.version))
         _save(rows)
+    return multiple
 
 
 def _render_builder(analyses: list[Analysis], settings: dict) -> None:
@@ -430,7 +481,8 @@ def _render_builder(analyses: list[Analysis], settings: dict) -> None:
     bonus = columns[3].number_input("Bonus multipla % (Eurobet)", 0.0, 100.0, float(settings["bonus_multipla_pct"]), 1.0,
                                     key="today_bonus", help="Incluso nella quota e nell'EV; vale se ogni gamba ha almeno la quota minima.")
     kind = columns[4].radio("Tipo", TYPES, index=1, horizontal=True, key="today_builder_kind")
-    pool = _leg_pool(analyses)
+    pool = _leg_pool(analyses, settings)
+    _render_cb_catalog(pool)
     filtered = filter_legs(pool, trap_ev=trap, min_odds=min_odds)
     if filtered.traps:
         with st.expander(f"Trappole escluse ({len(filtered.traps)}): EV sotto {trap:g}%", expanded=False):
@@ -460,10 +512,15 @@ def _render_builder(analyses: list[Analysis], settings: dict) -> None:
         total = options[0].radio("Gambe", [12, 13], index=[12, 13].index(int(settings["multipla_lunga_gambe"])),
                                  horizontal=True, key="today_long_total")
         combos = options[1].slider("Combo Builder", 0, 5, int(settings["multipla_lunga_combo"]), key="today_long_combos")
+        comparison = st.empty()  # riga di confronto, scritta quando le due versioni sono pronte
         versions = st.columns(2)
+        shown = {}
         for column, version, title in ((versions[0], "probabilità", "Più probabile"), (versions[1], "valore", "Più valore")):
             with column:
                 st.markdown(f"**{title}**" + (" (obiettivo scelto)" if version == objective else ""))
                 long = build_long(legs, total=total, combos=combos, objective=version, bonus_pct=bonus,
                                   name=f"Multipla lunga · {title.lower()}")
-                _render_multiple(long, legs, analyses, f"long_{version}_{total}_{combos}", kind)
+                shown[version] = _render_multiple(long, legs, analyses, f"long_{version}_{total}_{combos}", kind)
+        line = comparison_line(shown.get("probabilità"), shown.get("valore"))
+        if line:
+            comparison.info(line)

@@ -23,6 +23,11 @@ RESTART_WARNING = "Online i dati si perdono se l'app si riavvia: scarica l'Excel
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 
+def flags_key(home: str, away: str) -> str:
+    """Chiave del campo «Segnalazioni da osservatore» della scheda: una per partita."""
+    return f"observer_flags|{' '.join(home.split())}|{' '.join(away.split())}"
+
+
 def _store() -> dict:
     return st.session_state.setdefault("analyzed_matches", {})
 
@@ -35,7 +40,7 @@ def registry_log() -> PredictionLog:
     return PredictionLog(source_cache())
 
 
-def remember(result: dict, *, block: str, odds: dict, simulations: int, seed: int, warnings=()) -> dict:
+def remember(result: dict, *, block: str, odds: dict, simulations: int, seed: int, warnings=(), flags=()) -> dict:
     """Salva (o aggiorna) la partita appena simulata nella memoria della giornata."""
     from ui_eurobet import _find
 
@@ -52,7 +57,7 @@ def remember(result: dict, *, block: str, odds: dict, simulations: int, seed: in
         result, block=block, odds=odds, day=meta.get("date") or date.today(), competition=meta.get("competition") or "",
         eurobet_text=paste["text"] if paste else "", warnings=warnings, simulations=simulations, seed=seed,
         claude_answer=previous.get("claude_answer", "") if same_match else "",
-        claude_applied=previous.get("claude_applied", False) if same_match else False,
+        claude_applied=previous.get("claude_applied", False) if same_match else False, flags=flags,
     )
     upsert(_store(), record)
     st.session_state["current_match_id"] = record["id"]
@@ -89,6 +94,7 @@ def _reopen(record_id: str) -> None:
     if record.get("eurobet_text"):
         store_paste("eurobet_pastes", record["home"], record["away"], text=record["eurobet_text"],
                     paste=parse_eurobet(record["eurobet_text"]))
+    st.session_state[flags_key(record["home"], record["away"])] = list(record.get("flags") or [])
     st.session_state["claude_answer"] = record.get("claude_answer", "")
     st.session_state["claude_apply"] = bool(record.get("claude_applied"))
     st.session_state.pop("claude_signature", None)

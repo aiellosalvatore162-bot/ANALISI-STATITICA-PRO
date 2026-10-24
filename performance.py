@@ -493,6 +493,18 @@ def settle_multiples(frame: pd.DataFrame, today: date | None = None) -> FillRepo
     return report
 
 
+_CB_REAL = re.compile(r"quota CB reale (\d+(?:\.\d+)?) / prodotto (\d+(?:\.\d+)?)")
+
+
+def observed_cb_discount(frame: pd.DataFrame) -> tuple[int, float | None]:
+    """Combo Builder con quota reale nelle note delle righe «Multipla» e sconto medio osservato (reale / prodotto)."""
+    ratios = []
+    rows = frame[frame["Mercato"] == "Multipla"] if "Mercato" in frame else frame.iloc[0:0]
+    for note in rows["Note"].fillna(""):
+        ratios += [float(real) / float(product) for real, product in _CB_REAL.findall(str(note)) if float(product) > 0]
+    return len(ratios), (sum(ratios) / len(ratios) if ratios else None)
+
+
 def _closing_price(match, selection: str, column: str | None) -> float | None:
     """Quota di chiusura: colonna media di football-data.co.uk o istantanea The Odds API (``closing_odds``)."""
     if column is not None and pd.notna(match.get(column)) and float(match[column]) > 1.0:
