@@ -12,7 +12,7 @@ import streamlit as st
 from dashboard import GLOSSARY, missing_as_dash
 from performance import (
     MIN_SELECTIONS, RegistryError, bankroll, calibration_table, clv_by_market, collect_results, component_comparison,
-    FillReport, edge_verdicts, fill_from_results, read_registry, scores_over_time, settle_multiples, updated_workbook,
+    FillReport, edge_verdicts, fill_from_results, observed_cb_discount, read_registry, scores_over_time, settle_multiples, updated_workbook,
 )
 
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -81,6 +81,23 @@ def _fill_section(registry, original: bytes, signature: str) -> pd.DataFrame:
                            file_name="Registro_Previsioni_aggiornato.xlsx", mime=XLSX, key="performance_download",
                            help="Il tuo file con le sole colonne Quota_chiusura, Esito e Note compilate: formule e fogli restano uguali.")
     return current
+
+
+def _cb_discount_note(frame: pd.DataFrame) -> None:
+    """Sconto medio osservato dei Combo Builder (quota reale Eurobet / prodotto), per aggiornare «sconto_cb»."""
+    from multiples import load_settings
+
+    settings = load_settings()
+    count, mean = observed_cb_discount(frame)
+    needed = int(settings.get("min_cb_reali_per_sconto", 20))
+    if not count:
+        return
+    if count >= needed:
+        st.info(f"Sconto Combo Builder osservato: quota reale = {mean:.3f} × prodotto delle quote, su {count} combo con quota "
+                f"reale (in config/oggi.json «sconto_cb» vale {float(settings.get('sconto_cb', 0.85)):.2f}: aggiornalo se diverso).")
+    else:
+        st.caption(f"Sconto Combo Builder: {count} combo con quota reale su {needed} necessarie per stimarlo "
+                   f"(media provvisoria {mean:.3f}).")
 
 
 def _claude_outcome_fill(frame: pd.DataFrame, signature: str) -> FillReport | None:
@@ -193,6 +210,7 @@ def render_performance() -> None:
     metrics[0].metric("Selezioni", len(frame))
     metrics[1].metric("Con esito", settled)
     metrics[2].metric("Con quota di chiusura", int(frame["Quota_chiusura"].notna().sum()))
+    _cb_discount_note(frame)
     if not settled:
         st.info("Servono righe con Esito (1 = vinta, 0 = persa) per calcolare le misure.")
         return
