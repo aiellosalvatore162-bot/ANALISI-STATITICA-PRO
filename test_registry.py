@@ -53,7 +53,7 @@ def test_columns_and_markets_match_the_user_template():
     assert tuple(header[:19]) == COLUMNS
     summary = workbook["Riepilogo"]
     assert tuple(summary.cell(row=row, column=1).value for row in range(9, 9 + len(MARKETS))) == MARKETS
-    assert len(MARKETS) == 20 and MARKETS[-1] == "Risultati esatti" and summary.cell(row=9 + len(MARKETS), column=1).value is None
+    assert len(MARKETS) == 21 and MARKETS[-1] == "Multipla" and summary.cell(row=9 + len(MARKETS), column=1).value is None
 
 
 @pytest.mark.parametrize("selection, market", [

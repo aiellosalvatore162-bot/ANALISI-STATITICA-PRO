@@ -29,10 +29,10 @@ COLUMNS = (
     "Quota_chiusura", "Esito", "Note",
 )
 PROBABILITY_COLUMNS = ("Prob_finale", "Prob_mercato", "Prob_modello", "Prob_stile", "Prob_Claude")
-# Stessi nomi, stesso ordine della tabella «per mercato» del foglio Riepilogo.
+# Stessi nomi, stesso ordine della tabella «per mercato» del foglio Riepilogo («Multipla»: schedine con più partite, fase S).
 MARKETS = ("1X2", "Doppia chance", "DNB", "Over 1.5", "Under 1.5", "Over 2.5", "Under 2.5", "Over 3.5", "Under 3.5",
            "Goal/NoGoal", "Multigol", "Multigol casa", "Multigol ospite", "Primo tempo", "Over 0.5 1T", "Over 1.5 1T",
-           "Corner", "Cartellini", "Combo", "Risultati esatti")
+           "Corner", "Cartellini", "Combo", "Risultati esatti", "Multipla")
 TYPES = ("Reale", "A carta")
 # Selezioni proposte di default quando non ci sono quote inserite.
 DEFAULT_SELECTIONS = ("1", "X", "2", "Over 1.5 gol", "Over 2.5 gol", "Under 2.5 gol", "Goal", "No Goal",
