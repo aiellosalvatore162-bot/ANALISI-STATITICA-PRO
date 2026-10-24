@@ -2,8 +2,9 @@
 
 Avvia l'app in modalità headless, inserisce una partita d'esempio con quote,
 esegue la simulazione e salva ogni tab in desktop e mobile, tema chiaro e
-scuro, in ``docs/screenshot/``. Uso: ``python -m tools.screenshots``
-(richiede ``pip install playwright`` e ``python -m playwright install chromium``).
+scuro, in ``docs/screenshot/``. Uso: ``python -m tools.screenshots``; con
+``--oggi`` la pagina «Oggi» della demo ``tools/demo_oggi.py`` (quote registrate,
+dati reali delle fonti gratuite) in desktop chiaro e scuro (richiede ``pip install playwright`` e ``python -m playwright install chromium``).
 """
 
 from __future__ import annotations
@@ -137,19 +138,58 @@ def capture(url: str, only: set[str] | None = None) -> list[Path]:
     return saved
 
 
+def capture_oggi(url: str) -> list[Path]:
+    """Pagina «Oggi» (layout per computer): cerca le partite, «Analizza tutte», multipla lunga."""
+    from playwright.sync_api import sync_playwright
+
+    OUTPUT.mkdir(parents=True, exist_ok=True)
+    saved = []
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        for theme in ("light", "dark"):
+            viewport = {"width": 1600, "height": 1000}
+            context = browser.new_context(viewport=viewport, color_scheme=theme, device_scale_factor=1)
+            page = context.new_page()
+            page.goto(url, wait_until="networkidle")
+            _wait_idle(page)
+            page.get_by_role("button", name="Cerca le partite del giorno (gratis)").click()
+            _wait_idle(page)
+            confirm = page.get_by_text("Confermo la spesa di")
+            if confirm.count():  # con le quote già in cache il costo è 0 e non c'è conferma
+                confirm.first.click()
+                _wait_idle(page)
+            page.get_by_role("button", name="Analizza tutte").click()
+            # La prima volta i dati delle squadre si scaricano tutti: può volerci qualche minuto.
+            page.get_by_text("Costruttore di multiple").wait_for(timeout=1_200_000)
+            _wait_idle(page, timeout=600_000)
+            page.get_by_role("tab", name="Multipla lunga (12-13)").click()
+            _settle(page)
+            height = page.evaluate("() => document.querySelector('[data-testid=\"stMain\"]').scrollHeight")
+            page.set_viewport_size({"width": viewport["width"], "height": min(int(height) + 40, 14000)})
+            page.wait_for_timeout(800)
+            path = OUTPUT / f"oggi_desktop_{'chiaro' if theme == 'light' else 'scuro'}.png"
+            page.screenshot(path=str(path), full_page=True)
+            saved.append(path)
+            context.close()
+        browser.close()
+    return saved
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--port", type=int, default=8591)
     parser.add_argument("--solo", nargs="*", help="Solo queste tab (slug), es. panoramica gol")
+    parser.add_argument("--oggi", action="store_true", help="Solo la pagina «Oggi» della demo con quote registrate")
     args = parser.parse_args()
     env = {**os.environ, "SIMULPRO_CACHE_DB": str(ROOT / "data" / "cache" / "screenshot.sqlite")}
-    server = subprocess.Popen([sys.executable, "-m", "streamlit", "run", str(ROOT / "streamlit_app.py"), "--server.headless", "true",
+    entry = ROOT / "tools" / "demo_oggi.py" if args.oggi else ROOT / "streamlit_app.py"
+    server = subprocess.Popen([sys.executable, "-m", "streamlit", "run", str(entry), "--server.headless", "true",
                                "--server.port", str(args.port), "--browser.gatherUsageStats", "false"],
                               cwd=ROOT, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
         url = f"http://localhost:{args.port}"
         _wait_for_server(url)
-        for path in capture(url, set(args.solo) if args.solo else None):
+        for path in (capture_oggi(url) if args.oggi else capture(url, set(args.solo) if args.solo else None)):
             print(path.relative_to(ROOT))
     finally:
         server.terminate()
