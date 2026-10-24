@@ -167,6 +167,14 @@ def to_excel(rows: Sequence[Mapping[str, Any]], *, sheet: str = "Registro") -> b
     workbook = Workbook()
     worksheet = workbook.active
     worksheet.title = sheet
+    write_registry_sheet(worksheet, rows)
+    buffer = BytesIO()
+    workbook.save(buffer)
+    return buffer.getvalue()
+
+
+def write_registry_sheet(worksheet, rows: Sequence[Mapping[str, Any]]) -> None:
+    """Intestazione e righe A–S con i formati del file dell'utente (date, probabilità in percentuale)."""
     worksheet.append(list(COLUMNS))
     for row in rows:
         values = []
@@ -185,9 +193,6 @@ def to_excel(rows: Sequence[Mapping[str, Any]], *, sheet: str = "Registro") -> b
             elif column in PROBABILITY_COLUMNS:
                 cell.number_format = "0.0%"
     worksheet.freeze_panes = "A2"
-    buffer = BytesIO()
-    workbook.save(buffer)
-    return buffer.getvalue()
 
 
 class PredictionLog:
@@ -240,6 +245,12 @@ class PredictionLog:
         with sqlite3.connect(self.path) as connection:
             updated = sum(self._upsert(connection, row, session) for row in rows)
         return len(rows) - updated, updated
+
+    def delete(self, ids: Sequence[str], session: str) -> int:
+        """Elimina le righe con questi ``ID`` della sessione; restituisce quante."""
+        with sqlite3.connect(self.path) as connection:
+            return sum(connection.execute(f'DELETE FROM {self.TABLE} WHERE "ID" = ? AND sessione = ?',
+                                          (row_id, session)).rowcount for row_id in ids)
 
     def rows(self, session: str | None = None) -> list[dict]:
         query = f"SELECT * FROM {self.TABLE}" + (" WHERE sessione = ?" if session else "") + " ORDER BY rowid"
