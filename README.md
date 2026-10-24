@@ -382,10 +382,29 @@ nella quota e nell'EV. Formati:
 
 Un Combo Builder unisce due mercati di famiglie diverse (gol+corner,
 cartellini+corner, cartellini+gol). La sua probabilità è quella congiunta dai
-run simulati (`result["joint_pairs"]`), non il prodotto. La sua quota è
-stimata come prodotto delle quote: quella vera di Eurobet di solito è più
-bassa. Con l'incollata Eurobet valgono solo i mercati con il flag «Combo
-Builder».
+run simulati (`result["joint_pairs"]`), non il prodotto. Con l'incollata
+Eurobet valgono solo i mercati con il flag «Combo Builder».
+
+Quota di un Combo Builder:
+- **reale**: quella scritta nel campo «Quota CB Eurobet» (sotto ogni multipla,
+  oppure in «Quote reali dei Combo Builder» per le 3 combo più probabili di
+  ogni partita, anche quelle escluse come trappole); EV e quota totale usano
+  quella;
+- **stimata**: altrimenti prodotto delle due quote × `sconto_cb` di
+  `config/oggi.json` (0,85), con avviso.
+
+Nel registro la Note della riga Multipla dice per ogni combo «quota CB reale
+2.80 / prodotto 3.35» oppure «quota CB stimata …». Con almeno 20 combo a quota
+reale la pagina Prestazioni mostra lo sconto medio osservato (reale/prodotto)
+per aggiornare `sconto_cb`.
+
+Sopra le due versioni della multipla lunga una riga le confronta: «Più valore:
+probabilità X% (1 su N), EV Y% — rispetto a più probabile …».
+
+«Apri scheda» porta nella pagina Partita anche le segnalazioni da osservatore e
+la risposta di Claude della partita (tab Claude). La scheda ha il campo
+«Segnalazioni da osservatore»: si applica alla simulazione, si somma alle
+correzioni di Claude e va in Note nel registro.
 
 Ogni multipla mostra probabilità, quota, quota equa, EV, «passa circa 1 volta
 su N» e gli avvisi per le gambe con EV negativo. Ogni gamba si può sostituire
