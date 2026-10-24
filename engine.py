@@ -1033,6 +1033,32 @@ def financial_analysis(
     }
 
 
+# Famiglie dei Combo Builder (fase S): due mercati di famiglie diverse della stessa partita.
+COMBO_FAMILIES = {
+    "gol": tuple([f"{side} {line} gol" for line in ("1.5", "2.5", "3.5") for side in ("Over", "Under")]
+                 + ["Goal", "No Goal"] + [f"Multigol {low}-{high}" for low, high in MULTIGOL_RANGES]),
+    "corner": tuple(f"{side} {line:g} corner" for line in (7.5, 8.5, 9.5, 10.5, 11.5, 12.5) for side in ("Over", "Under")),
+    "cartellini": tuple(f"{side} {line:g} cartellini" for line in (2.5, 3.5, 4.5, 5.5, 6.5) for side in ("Over", "Under")),
+}
+COMBO_PAIRS = (("gol", "corner"), ("cartellini", "corner"), ("cartellini", "gol"))
+
+
+def joint_pair_probabilities(events: Mapping[str, np.ndarray]) -> dict[str, float]:
+    """Probabilità congiunta (%) di ogni coppia di famiglie diverse, dagli stessi run simulati (non il prodotto).
+
+    Chiave «A & B» con A della prima famiglia della coppia (vedi ``COMBO_PAIRS``).
+    """
+    joint = {}
+    for first, second in COMBO_PAIRS:
+        for a in COMBO_FAMILIES[first]:
+            if a not in events:
+                continue
+            for b in COMBO_FAMILIES[second]:
+                if b in events:
+                    joint[f"{a} & {b}"] = round(float(np.mean(events[a] & events[b])) * 100.0, 3)
+    return joint
+
+
 def smart_combo(
     events: Mapping[str, np.ndarray],
     odds: Mapping[str, float] | None,
@@ -1562,6 +1588,7 @@ def simulate_match(config: MatchConfig) -> dict[str, Any]:
     result["smart_combo"] = smart_combo(
         events, getattr(config, "odds", None), config.market_anchor.no_value_markets
     )
+    result["joint_pairs"] = joint_pair_probabilities(events)
     result["statistical_report"] = statistical_report(config, result)
     result["dashboard"] = {
         "goals_distribution": {

@@ -338,6 +338,67 @@ verifica storica (`python -m tools.baseline --risultati-esatti`, sezione
 `risultati_esatti` della configurazione e `docs/BASELINE.md`) misura log-loss,
 calibrazione dei singoli risultati e copertura reale del gruppo minimo.
 
+## Pagina Oggi e costruttore di multiple
+
+Nella barra laterale «Pagina» passa da **Partita** (una partita con tutte le tab)
+a **Oggi**: le partite del giorno delle competizioni scelte, con layout pensato
+per il computer (schermata in `docs/screenshot/oggi_desktop_chiaro.png`).
+
+1. «Cerca le partite del giorno» usa l'elenco eventi gratuito.
+2. «Analizza tutte» mostra prima il costo e chiede conferma, poi per ogni partita:
+   - compila i dati automatici;
+   - scarica le quote 1X2 e Over/Under per campionato;
+   - simula.
+
+   Le partite con dati mancanti sono elencate con il motivo e saltate. Ogni
+   partita entra nell'elenco «Partite analizzate» e «Apri scheda» la apre nella
+   pagina Partita.
+3. **Segnalazioni da osservatore**, con un clic nella tabella: partita aperta o
+   bloccata, turnover casa/ospite, motivazione bassa casa/ospite.
+   - Hanno effetti piccoli, in `config/oggi.json`: gol, corner e cartellini
+     tra 0,93 e 1,07.
+   - Ricalcolano subito la partita.
+   - Finiscono in Note («segnalazione: …»), così la pagina Prestazioni può
+     misurarle.
+4. **Veloce**: giocate sopra la soglia EV del proprio mercato (`soglie_ev`),
+   ordinate, ognuna con una frase che spiega il perché, e «Salva nel registro».
+5. **Approfondita**, in più:
+   - quote mirate di corner e cartellini per le partite selezionate (costo e
+     conferma; niente download dove ci sono già le quote Eurobet);
+   - un solo testo per Claude con tutte le partite (ID P1, P2…). La risposta
+     ha un blocco `CORREZIONI_CLAUDE: P1` per partita, con i limiti e la regola
+     delle fonti della fase G.
+
+**Costruttore di multiple.** L'obiettivo predefinito è la probabilità più alta,
+anche con quote basse; l'interruttore passa a «valore». L'unico filtro sono le
+trappole: gambe con EV sotto −5% (configurabile), escluse ed elencate. Ci sono
+anche una quota minima per gamba e un «Bonus multipla %» Eurobet, incluso
+nella quota e nell'EV. Formati:
+- singole e doppie;
+- multipla corta da 3 a 5 gambe;
+- multipla lunga da 12 o 13 gambe: fino a 5 Combo Builder più singole, mai la
+  stessa partita due volte, mostrata in due versioni («più probabile» e «più
+  valore»).
+
+Un Combo Builder unisce due mercati di famiglie diverse (gol+corner,
+cartellini+corner, cartellini+gol). La sua probabilità è quella congiunta dai
+run simulati (`result["joint_pairs"]`), non il prodotto. La sua quota è
+stimata come prodotto delle quote: quella vera di Eurobet di solito è più
+bassa. Con l'incollata Eurobet valgono solo i mercati con il flag «Combo
+Builder».
+
+Ogni multipla mostra probabilità, quota, quota equa, EV, «passa circa 1 volta
+su N» e gli avvisi per le gambe con EV negativo. Ogni gamba si può sostituire
+a mano. «Salva nel registro» salva le singole selezioni più una riga
+«Multipla» (Selezione = «Partita: mercato | …», «&» tra i due mercati di un
+Combo Builder). La pagina Prestazioni le dà l'esito quando tutte le gambe ne
+hanno uno.
+
+**Esiti con Claude.** Nella pagina Prestazioni «Prepara verifica esiti per
+Claude» crea un unico testo con tutte le partite che hanno corner o cartellini
+senza esito (utile per le coppe). La risposta, con un blocco `ESITI_CLAUDE: E1`
+per partita e la fonte, compila solo gli esiti mancanti; la fonte va in Note.
+
 ## Partite analizzate ed Excel della giornata
 
 Ogni partita simulata entra da sola nell'elenco **Partite analizzate** della
@@ -349,7 +410,7 @@ barra laterale. Ogni voce conserva:
 
 La chiave è data|casa - ospite, quindi rianalizzare la stessa partita aggiorna
 la voce. Un clic sul nome riapre la partita con tutto compilato e la risimula;
-«✕» la toglie dall'elenco (le righe del registro restano).
+la × accanto la toglie dall'elenco (le righe del registro restano).
 
 Il registro della sessione accumula le selezioni di tutte le partite, senza
 doppioni grazie all'`ID`. La tab Registro mostra tutte le righe, con:

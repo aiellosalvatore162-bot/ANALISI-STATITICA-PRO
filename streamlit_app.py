@@ -60,6 +60,18 @@ ARBITRO: Gialli medi 4.5 | Falli medi 24
 
 st.set_page_config(page_title="Simulpro · Analisi on-demand", page_icon="⚽", layout="wide")
 st.warning(RESTART_WARNING, icon="💾")
+with st.sidebar:
+    page = st.radio("Pagina", ["Partita", "Oggi"], horizontal=True, key="page",
+                    help="Partita: una partita con tutte le tab. Oggi: le partite del giorno, analisi in blocco e multiple.")
+if page == "Oggi":
+    from ui_today import render_today
+
+    with st.sidebar:
+        render_credits()
+    render_today()
+    with st.sidebar:  # dopo la pagina: l'elenco include le partite appena analizzate
+        render_sidebar()
+    st.stop()
 
 
 @st.cache_data(ttl=24 * 60 * 60, show_spinner=False)

@@ -12,7 +12,7 @@ import streamlit as st
 from dashboard import GLOSSARY, missing_as_dash
 from performance import (
     MIN_SELECTIONS, RegistryError, bankroll, calibration_table, clv_by_market, collect_results, component_comparison,
-    edge_verdicts, fill_from_results, read_registry, scores_over_time, updated_workbook,
+    FillReport, edge_verdicts, fill_from_results, read_registry, scores_over_time, settle_multiples, updated_workbook,
 )
 
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -57,22 +57,70 @@ def _fill_section(registry, original: bytes, signature: str) -> pd.DataFrame:
             st.session_state["performance_fill_warnings"] = warnings + list(dict.fromkeys(st.session_state["performance_source_warnings"]))
     if open_rows and report is None:
         report = _odds_api_fill(frame, signature)
-    if report is None:
-        return frame
-    for warning in st.session_state.get("performance_fill_warnings", []):
-        st.warning(warning)
-    if report.changes:
-        st.success(f"Compilati {report.outcomes} esiti e {report.closings} quote di chiusura (fonte e data in colonna Note)."
-                   + (f" {report.pushes} DNB rimborsate per pareggio: Esito lasciato vuoto." if report.pushes else ""))
-        st.dataframe(missing_as_dash(pd.DataFrame(report.changes).drop(columns=["_riga"])), hide_index=True, width="stretch")
-        st.download_button("Scarica il file aggiornato", updated_workbook(original, registry.sheet, report.changes),
+    current, changes = (report.frame, list(report.changes)) if report is not None else (frame, [])
+    if report is not None:
+        for warning in st.session_state.get("performance_fill_warnings", []):
+            st.warning(warning)
+        if report.changes:
+            st.success(f"Compilati {report.outcomes} esiti e {report.closings} quote di chiusura (fonte e data in colonna Note)."
+                       + (f" {report.pushes} DNB rimborsate per pareggio: Esito lasciato vuoto." if report.pushes else ""))
+            st.dataframe(missing_as_dash(pd.DataFrame(report.changes).drop(columns=["_riga"])), hide_index=True, width="stretch")
+        else:
+            st.info("Nessun esito o quota di chiusura ricavabile dalle fonti.")
+        if report.not_found:
+            st.caption("Partite non trovate (data, nomi o competizione non coperta): " + ", ".join(report.not_found))
+    claude = _claude_outcome_fill(current, signature)
+    if claude is not None and claude.changes:
+        current, changes = claude.frame, changes + claude.changes
+    multiples = settle_multiples(current)
+    if multiples.changes:
+        st.success(f"{multiples.outcomes} multiple con esito dalle loro gambe.")
+        current, changes = multiples.frame, changes + multiples.changes
+    if changes:
+        st.download_button("Scarica il file aggiornato", updated_workbook(original, registry.sheet, changes),
                            file_name="Registro_Previsioni_aggiornato.xlsx", mime=XLSX, key="performance_download",
                            help="Il tuo file con le sole colonne Quota_chiusura, Esito e Note compilate: formule e fogli restano uguali.")
-    else:
-        st.info("Nessun esito o quota di chiusura ricavabile dalle fonti.")
-    if report.not_found:
-        st.caption("Partite non trovate (data, nomi o competizione non coperta): " + ", ".join(report.not_found))
-    return report.frame
+    return current
+
+
+def _claude_outcome_fill(frame: pd.DataFrame, signature: str) -> FillReport | None:
+    """«Prepara verifica esiti per Claude»: un testo con tutte le partite di corner e cartellini ancora senza esito."""
+    from claude_bridge import ResponseError
+    from today import outcome_prompt, outcome_targets, parse_outcomes
+    from ui_data import COPY_HINT
+
+    targets = outcome_targets(frame)
+    if not targets:
+        return None
+    with st.expander(f"Verifica esiti con Claude: {len(targets)} partite con corner o cartellini senza esito "
+                     "(utile per le coppe)", expanded=False):
+        st.caption("I punteggi di The Odds API e football-data.co.uk non coprono corner e cartellini delle coppe: "
+                   "Claude cerca i tabellini sul web e la risposta compila solo gli esiti mancanti, con la fonte in Note.")
+        if st.button("Prepara verifica esiti per Claude", key="performance_claude_prepare"):
+            st.session_state["performance_claude_prompt"] = outcome_prompt(targets)
+        prompt = st.session_state.get("performance_claude_prompt")
+        if prompt:
+            st.caption(COPY_HINT)
+            st.code(prompt, language="text")
+        answer = st.text_area("Incolla la risposta di Claude (blocchi ESITI_CLAUDE)", key="performance_claude_answer", height=160)
+        if not answer.strip():
+            return None
+        try:
+            results, warnings = parse_outcomes(answer, targets)
+        except ResponseError as exc:
+            st.error(str(exc))
+            return None
+        for warning in warnings:
+            st.warning(warning)
+        report, current = FillReport(frame), frame
+        for result in results:
+            step = fill_from_results(current, pd.DataFrame([result]), source=f"Claude ({result['source']})")
+            current = step.frame
+            report.outcomes += step.outcomes
+            report.changes += step.changes
+        report.frame = current
+        st.success(f"{report.outcomes} esiti compilati dalla verifica di Claude.")
+        return report
 
 
 def _odds_api_fill(frame: pd.DataFrame, signature: str):
