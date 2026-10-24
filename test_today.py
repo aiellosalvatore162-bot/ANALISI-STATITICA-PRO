@@ -236,3 +236,58 @@ def test_claude_outcome_check_fills_cup_corners_and_cards_with_source():
     assert by_id.loc["c1", "Esito"] == 1.0 and by_id.loc["c2", "Esito"] == 1.0   # 11 corner; 4 gialli + 1 rosso = 6 punti
     assert "https://www.uefa.com/match" in by_id.loc["c1", "Note"]
     assert pd.isna(by_id.loc["c3", "Esito"])                                        # E1 senza fonte: ignorato
+
+
+# --- Fase S2 -------------------------------------------------------------------------------------------
+
+def test_combo_builder_odds_estimated_with_discount_or_real(analyses):
+    analysis = analyses[0]
+    product = analysis.odds["Over 2.5 gol"] * analysis.odds["Over 8.5 corner"]
+    legs = multiples.candidate_legs("m0", analysis.match.label, analysis.result, analysis.odds, cb_discount=0.85)
+    combo = next(leg for leg in legs if leg.selections == ("Over 2.5 gol", "Over 8.5 corner"))
+    assert combo.estimated_odds and combo.product_odds == pytest.approx(product, abs=1e-3)
+    assert combo.odds == pytest.approx(round(product, 3) * 0.85, abs=1e-3)
+    real = multiples.candidate_legs("m0", analysis.match.label, analysis.result, analysis.odds, cb_discount=0.85,
+                                    cb_real_odds={combo.key: 2.40})
+    combo_real = next(leg for leg in real if leg.selections == combo.selections)
+    assert combo_real.odds == 2.40 and not combo_real.estimated_odds
+    assert combo_real.ev == pytest.approx(combo_real.probability * 2.40 - 1)
+    multiple = multiples.Multiple("x", [combo, combo_real])
+    row = multiples.multiple_row(multiple, day=DAY, time="20:45", competition="", kind="A carta", version="t")
+    assert "quota CB stimata" in row["Note"] and "quota CB reale 2.40 / prodotto" in row["Note"]
+    assert any("inserisci la quota vera" in warning for warning in multiple.leg_warnings())
+
+
+def test_observed_cb_discount_from_registry_notes():
+    from performance import observed_cb_discount
+
+    notes = [f"12 gambe; quota CB reale {2.0 + i / 100:.2f} / prodotto 2.50 [A - B: Over 2.5 gol & Over 9.5 corner]; "
+             "quota CB stimata 2.12 / prodotto 2.50 [C - D: Goal & Over 8.5 corner]" for i in range(21)]
+    frame = pd.DataFrame({"Mercato": ["Multipla"] * 21 + ["Corner"], "Note": notes + ["quota CB reale 9.00 / prodotto 1.00"]})
+    count, mean = observed_cb_discount(frame)
+    assert count == 21 and mean == pytest.approx(sum((2.0 + i / 100) / 2.5 for i in range(21)) / 21)
+    assert observed_cb_discount(frame.iloc[21:]) == (0, None)
+
+
+def test_long_multiple_comparison_line():
+    probable = multiples.Multiple("p", [multiples.Leg("a", "A - B", ("1",), 0.8, 1.2), multiples.Leg("c", "C - D", ("1",), 0.7, 1.3)])
+    value = multiples.Multiple("v", [multiples.Leg("a", "A - B", ("2",), 0.3, 3.8), multiples.Leg("c", "C - D", ("X",), 0.3, 3.5)])
+    line = multiples.comparison_line(probable, value)
+    assert line.startswith("Più valore: probabilità 9.0% (1 su 11), EV +19.7%")
+    assert "rispetto a più probabile (56.0%, 1 su 2, EV -12.6%)" in line and "6.2 volte meno probabile" in line
+    assert "probabilità -47.00 punti" in line and "EV +32.3 punti" in line
+    assert multiples.comparison_line(probable, multiples.Multiple("v", [])) is None
+
+
+def test_claude_block_per_match_reopens_in_the_card(analyses):
+    from claude_bridge import parse_response
+    from match_memory import make_record
+
+    ids = today.match_ids(analyses[:2])
+    answer = "commento\nCORREZIONI_CLAUDE: P2\ngol_casa: 0.95 | motivo: x | fonte: https://a.it\nconfidenza: alta\n"
+    texts, warnings = today.split_multi_response(answer, ids)
+    assert list(texts) == [1] and texts[1].startswith("CORREZIONI_CLAUDE:\ngol_casa: 0.95")
+    assert parse_response(texts[1]).adjustment().goals_home == 0.95 and any("P1" in warning for warning in warnings)
+    record = make_record(analyses[1].result, block=analyses[1].block, odds=analyses[1].odds, day=DAY,
+                         flags=("partita aperta",), claude_answer=texts[1], claude_applied=True)
+    assert record["flags"] == ["partita aperta"] and record["claude_answer"] == texts[1] and record["claude_applied"]
