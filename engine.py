@@ -18,7 +18,11 @@ import numpy as np
 from scipy.optimize import brentq, minimize
 from scipy.stats import binom, poisson
 
-from market_catalog import MARKET_CATALOG, MULTIGOL_RANGES, definition_for_event
+from market_catalog import (
+    CARD_HALF_LINES, CARD_TEAM_BANDS, CARD_TOTAL_BANDS, CORNER_HALF_LINES, CORNER_TEAM_BANDS, CORNER_TOTAL_BANDS,
+    GOAL_LINES, MARKET_CATALOG, MULTIGOL_1T_RANGES, MULTIGOL_2T_RANGES, MULTIGOL_RANGES, TEAM_PAIR_RANGES,
+    definition_for_event, range_label,
+)
 from parser import MatchInput
 
 
@@ -809,7 +813,10 @@ def _event_catalog(
     home_cards: np.ndarray,
     away_cards: np.ndarray,
     team_multigol_ranges: tuple[tuple[int, int], ...] = _DEFAULT_TEAM_MULTIGOL_RANGES,
+    half_counts: tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray] | None = None,
 ) -> dict[str, np.ndarray]:
+    """Eventi del catalogo dallo stesso campione. ``half_counts`` = corner casa/ospite e punti cartellini
+    casa/ospite del primo tempo (fase Q): senza, i mercati di corner e cartellini per tempo non ci sono."""
     total = home + away
     first_total = first_home + first_away
     second_total = second_home + second_away
@@ -844,7 +851,7 @@ def _event_catalog(
         "12 secondo tempo": second_home != second_away,
     }
     for prefix, values in (("", total), ("1T ", first_total), ("2T ", second_total)):
-        for threshold in (0.5, 1.5, 2.5, 3.5, 4.5):
+        for threshold in GOAL_LINES:
             events[f"Over {threshold:g} gol {prefix}".strip()] = values > threshold
             events[f"Under {threshold:g} gol {prefix}".strip()] = values < threshold
     for team_name, values in (("Casa", home), ("Ospite", away)):
@@ -853,6 +860,38 @@ def _event_catalog(
             events[f"{team_name} Under {threshold:g} gol"] = values < threshold
     for low, high in MULTIGOL_RANGES:
         events[f"Multigol {low}-{high}"] = (total >= low) & (total <= high)
+    for half, values, ranges in (("1T", first_total, MULTIGOL_1T_RANGES), ("2T", second_total, MULTIGOL_2T_RANGES)):
+        for low, high in ranges:
+            events[f"Multigol {half} {range_label(low, high)}"] = (values >= low) & (values <= high)
+    for home_low, home_high in TEAM_PAIR_RANGES:
+        home_in = (home >= home_low) & (home <= home_high)
+        for away_low, away_high in TEAM_PAIR_RANGES:
+            events[f"Multigol Casa {home_low}-{home_high} + Ospite {away_low}-{away_high}"] = home_in & (away >= away_low) & (away <= away_high)
+    for low, high in CORNER_TOTAL_BANDS:
+        events[f"Corner totali {range_label(low, high)}"] = (corners >= low) & (corners <= high)
+    for team_name, values in (("casa", home_corners), ("ospite", away_corners)):
+        for low, high in CORNER_TEAM_BANDS:
+            events[f"Corner {team_name} {range_label(low, high)}"] = (values >= low) & (values <= high)
+    for low, high in CARD_TOTAL_BANDS:
+        events[f"Cartellini totali {range_label(low, high)}"] = (cards >= low) & (cards <= high)
+    for team_name, values in (("casa", home_cards), ("ospite", away_cards)):
+        for low, high in CARD_TEAM_BANDS:
+            events[f"Cartellini {team_name} {range_label(low, high)}"] = (values >= low) & (values <= high)
+    if half_counts is not None:
+        corner_first_home, corner_first_away, card_first_home, card_first_away = half_counts
+        halves = {"1T": (corner_first_home, corner_first_away, card_first_home, card_first_away),
+                  "2T": (home_corners - corner_first_home, away_corners - corner_first_away,
+                         home_cards - card_first_home, away_cards - card_first_away)}
+        for half, (corner_home_half, corner_away_half, card_home_half, card_away_half) in halves.items():
+            for threshold in CORNER_HALF_LINES:
+                events[f"Over {threshold:g} corner {half}"] = corner_home_half + corner_away_half > threshold
+                events[f"Under {threshold:g} corner {half}"] = corner_home_half + corner_away_half < threshold
+            for threshold in CARD_HALF_LINES[half]:
+                events[f"Over {threshold:g} cartellini {half}"] = card_home_half + card_away_half > threshold
+                events[f"Under {threshold:g} cartellini {half}"] = card_home_half + card_away_half < threshold
+        events.update({"1 corner 1T": corner_first_home > corner_first_away, "X corner 1T": corner_first_home == corner_first_away,
+                       "2 corner 1T": corner_first_home < corner_first_away, "1 cartellini 1T": card_first_home > card_first_away,
+                       "X cartellini 1T": card_first_home == card_first_away, "2 cartellini 1T": card_first_home < card_first_away})
     for team_name, values in (("Casa", home), ("Ospite", away)):
         for low, high in team_multigol_ranges:
             events[f"Multigol {team_name} {low}-{high}"] = (values >= low) & (values <= high)
@@ -881,7 +920,7 @@ def _event_catalog(
         events[f"Over {threshold:g} cartellini"] = cards > threshold
         events[f"Under {threshold:g} cartellini"] = cards < threshold
     for team_name, values in (("Casa", home_cards), ("Ospite", away_cards)):
-        for threshold in (1.5, 2.5, 3.5, 4.5):
+        for threshold in (0.5, 1.5, 2.5, 3.5, 4.5):
             events[f"{team_name} Over {threshold:g} cartellini"] = values > threshold
             events[f"{team_name} Under {threshold:g} cartellini"] = values < threshold
     events.update({
@@ -908,6 +947,13 @@ def _event_catalog(
     for low, high in MULTIGOL_RANGES:
         events[f"1 + Multigol {low}-{high}"] = events["1"] & events[f"Multigol {low}-{high}"]
         events[f"2 + Multigol {low}-{high}"] = events["2"] & events[f"Multigol {low}-{high}"]
+    # Combo del catalogo non elencate sopra (fase Q: 1X2/DC + U/O completi, GG/NG + U/O): unione logica delle gambe.
+    for definition in MARKET_CATALOG:
+        if definition.combo_legs and definition.event_key not in events and all(leg in events for leg in definition.combo_legs):
+            mask = events[definition.combo_legs[0]]
+            for leg in definition.combo_legs[1:]:
+                mask = mask & events[leg]
+            events[definition.event_key] = mask
     return events
 
 
@@ -1643,8 +1689,9 @@ def _events_for_scores(
     events = _event_catalog(
         goals_home, goals_away, first_home, first_away,
         goals_home - first_home, goals_away - first_away,
-        *counts,
+        *counts[:4],
         _team_multigol_ranges(getattr(config, "odds", None)),
+        half_counts=tuple(counts[4:8]) if len(counts) >= 8 else None,
     )
     for market in getattr(config, "odds", {}) or {}:
         if " + " not in market or market in events:
@@ -1744,7 +1791,20 @@ def simulate_match(config: MatchConfig) -> dict[str, Any]:
     home_cards = card_points(home_yellows, home_reds, rule, home_double)
     away_cards = card_points(away_yellows, away_reds, rule, away_double)
     cards = home_cards + away_cards
-    counts = (home_corners, away_corners, home_cards, away_cards)
+    # Fase Q (6b): corner e cartellini del primo tempo. Con il motore a blocchi acceso dal suo percorso;
+    # altrimenti con la quota del primo tempo stimata su StatsBomb (non verificabile: niente dati per tempo).
+    half_rng = np.random.default_rng([config.seed, 3])
+    corner_share, card_share = config.timeline.first_half_shares() if hasattr(config.timeline, "first_half_shares") else (0.49, 0.39)
+    if timeline_details.get("active"):
+        corners_first_home, corners_first_away = path["corners_first_home"], path["corners_first_away"]
+        card_share = np.clip(path["card_first_share"], 0.0, 1.0)
+    else:
+        corners_first_home = half_rng.binomial(home_corners, corner_share)
+        corners_first_away = half_rng.binomial(away_corners, corner_share)
+    cards_first_home = card_points(half_rng.binomial(home_yellows, card_share), half_rng.binomial(home_reds, card_share), rule)
+    cards_first_away = card_points(half_rng.binomial(away_yellows, card_share), half_rng.binomial(away_reds, card_share), rule)
+    counts = (home_corners, away_corners, home_cards, away_cards,
+              corners_first_home, corners_first_away, cards_first_home, cards_first_away)
 
     events = _events_for_scores(config, (goals_home, goals_away, first_home, first_away), counts)
     components = {"finale": _event_percentages(events), "modello": None, "mercato": None}
