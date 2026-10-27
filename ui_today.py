@@ -119,6 +119,7 @@ def render_today() -> None:
     if not analyses:
         return
     _render_overview(analyses, settings)
+    _render_team_cards_switch(settings)
     if mode == "Approfondita":
         _render_deep(api, analyses, settings)
     from ui_quick import render_quick_search
@@ -257,6 +258,30 @@ def _save(rows: list[dict]) -> None:
                + " Le trovi nella tab Registro della pagina Partita e nell'Excel della giornata.")
 
 
+# --- Cartellini per squadra (fase T) ---------------------------------------------------------------------
+
+def _render_team_cards_switch(settings: dict) -> None:
+    """1X2 cartellini e cartellini per squadra in liste e multiple: solo con verifica superata o per scelta manuale."""
+    from today import team_cards_status
+
+    allowed, why = team_cards_status(settings)
+    include = st.toggle("Includi 1X2 cartellini e cartellini per squadra in liste e multiple", value=allowed,
+                        key="team_cards_manual", help=f"Verifica fuori campione: {why}.")
+    st.session_state["include_team_cards"] = include
+    if include and not allowed:
+        st.caption(f"Inclusi per tua scelta, anche se la verifica non è superata: {why}.")
+    elif not include:
+        st.caption(f"1X2 cartellini e cartellini per squadra esclusi da liste e multiple ({why if not allowed else 'scelta manuale'}).")
+
+
+def _team_cards_filter(legs: list) -> list:
+    from today import team_card_market
+
+    if st.session_state.get("include_team_cards"):
+        return legs
+    return [leg for leg in legs if not any(team_card_market(selection) for selection in leg.selections)]
+
+
 # --- Report dell'Analista ---------------------------------------------------------------------------------
 
 def _render_analyst(analyses: list[Analysis], settings: dict) -> None:
@@ -346,7 +371,7 @@ def _render_dual(analyses: list[Analysis], settings: dict) -> None:
         if not analysis.ok:
             continue
         key = analysis.match.event_id
-        legs = candidate_legs(str(index), analysis.match.label, analysis.result, analysis.odds)
+        legs = _team_cards_filter(candidate_legs(str(index), analysis.match.label, analysis.result, analysis.odds))
         sim_leg = simulator_pick(legs, trap_ev=trap, min_odds=min_odds)
         simulator = pick_for(sim_leg.selections[0], analysis.result, sim_leg.odds) if sim_leg else None
         options = observer_options(analysis.result, analysis.odds)
@@ -403,7 +428,7 @@ def _render_quick(analyses: list[Analysis], settings: dict) -> None:
     from prediction_log import TYPES
 
     st.subheader("Giocate con valore")
-    picks = value_picks(analyses, settings)
+    picks = value_picks(analyses, settings, include_team_cards=bool(st.session_state.get("include_team_cards")))
     if not picks:
         st.info("Nessuna giocata sopra la soglia EV del proprio mercato (soglie in config/oggi.json).")
         return
@@ -520,7 +545,7 @@ def _leg_pool(analyses: list[Analysis], settings: dict) -> list[Leg]:
         combinable = paste.combinable() if paste is not None and not paste.empty else None
         legs += candidate_legs(str(index), analysis.match.label, analysis.result, analysis.odds, combinable,
                                cb_discount=float(settings.get("sconto_cb", 0.85)), cb_real_odds=real)
-    return legs
+    return _team_cards_filter(legs)
 
 
 def _leg_table(multiple: Multiple) -> pd.DataFrame:

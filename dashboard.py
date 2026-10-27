@@ -474,7 +474,8 @@ def value_states(result: Mapping) -> list[dict]:
         if ev > 0 and not row.get("value_excluded") and not row.get("suspicious_value"):
             color, verdict = "green", f"Conviene · EV {ev:+.1f}%"
         elif ev > 0:
-            reason = "valore sospetto, verifica i dati" if row.get("suspicious_value") else "valore non segnalato su questo mercato"
+            reason = ("disaccordo forte col bookmaker, verifica" if row.get("count_disagreement") else
+                      "valore sospetto, verifica i dati" if row.get("suspicious_value") else "valore non segnalato su questo mercato")
             color, verdict = "grey", f"Da verificare · EV {ev:+.1f}% ({reason})"
         else:
             color, verdict = "red", f"Non conviene · EV {ev:+.1f}%"
