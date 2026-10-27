@@ -25,6 +25,8 @@ class ParsedTeam:
     corners_for: float
     corners_against: float
     cards_for: float
+    # Facoltativo (fase T): gialli presi dagli avversari contro la squadra.
+    cards_provoked: Optional[float] = None
 
 
 @dataclass(frozen=True)
@@ -49,7 +51,7 @@ class MatchInputError(ValueError):
 _NUMBER = r"[-+]?(?:\d+(?:[.,]\d+)?|[.,]\d+)"
 _TEAM_LINE = re.compile(
     rf"^(?P<label>Attacco|Difesa|Elo|Forma|xG\s+Fatti|xG\s+Subiti|"
-    rf"Corner\s+pro/sub|Cartellini\s+pro)\s*:\s*(?P<value>.+?)\s*$",
+    rf"Corner\s+pro/sub|Cartellini\s+provocati|Cartellini\s+pro)\s*:\s*(?P<value>.+?)\s*$",
     re.IGNORECASE,
 )
 _REF_LINE = re.compile(
@@ -271,6 +273,13 @@ def _team(
         cards_for = 1.0
         warnings.append(f"{label}: Cartellini pro mancante, fallback neutro 1.0")
 
+    provoked = section.get("cartellini provocati")
+    cards_provoked = None
+    if provoked:
+        cards_provoked = _number(provoked, f"{label} Cartellini provocati")
+        if not 0.0 <= cards_provoked <= 10.0:
+            raise MatchInputError(f"{label} Cartellini provocati: usare una media per partita tra 0 e 10")
+
     return ParsedTeam(
         name=section["name"],
         attack=values["attacco"],
@@ -282,6 +291,7 @@ def _team(
         corners_for=corners_for,
         corners_against=corners_against,
         cards_for=cards_for,
+        cards_provoked=cards_provoked,
     )
 
 

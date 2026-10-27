@@ -20,6 +20,10 @@
   "soglia_disaccordo_forte": 0.45,
   "min_weekend_suggerimento": 4,
   "min_selezioni_mercato_suggerimento": 5,
+  "cartellini_squadra": {
+    "ece_massimo": 0.03,
+    "nota": "1X2 cartellini e Over/Under cartellini per squadra entrano in liste e multiple solo se l'ECE fuori campione di ognuno (config/goal_model.json, divisione_cartellini) è entro questa soglia, salvo scelta manuale."
+  },
   "obiettivo": "probabilità",
   "multipla_corta_gambe": 4,
   "multipla_lunga_gambe": 12,

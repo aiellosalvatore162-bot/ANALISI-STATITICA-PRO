@@ -150,6 +150,38 @@ def combined_adjustment(flags: Iterable[str], claude: ClaudeResponse | None,
     return ClaudeAdjustment(**values)
 
 
+# --- Cartellini per squadra (fase T) ------------------------------------------------------------------
+
+_TEAM_CARD = re.compile(r"^(?:(?:Casa|Ospite) (?:Over|Under) \d+\.5 cartellini|[1X2] cartellini)$")
+
+
+def team_card_market(selection: str) -> bool:
+    """1X2 cartellini e Over/Under cartellini per squadra (divisione tra le squadre)."""
+    return bool(_TEAM_CARD.match(selection))
+
+
+def team_cards_status(settings: Mapping[str, Any] | None = None, verification: Mapping[str, Any] | None = None) -> tuple[bool, str]:
+    """Ammessi se la verifica fuori campione (``python -m tools.card_split --salva``) dà ECE entro la soglia per ogni voce."""
+    import json
+
+    from engine import GOAL_MODEL_PATH
+
+    settings = settings or load_settings()
+    limit = float(settings.get("cartellini_squadra", {}).get("ece_massimo", 0.03))
+    if verification is None:
+        try:
+            verification = json.loads(GOAL_MODEL_PATH.read_text(encoding="utf-8")).get("divisione_cartellini", {})
+        except (OSError, ValueError):
+            verification = {}
+    values = {key: value for key, value in (verification.get("ece_fuori_campione") or {}).items() if key != "media"}
+    if not verification.get("attiva") or not values:
+        return False, "divisione dei cartellini non verificata (python -m tools.card_split --salva)"
+    worst = max(values, key=values.get)
+    if values[worst] > limit:
+        return False, f"ECE fuori campione {values[worst]:.3f} su {worst}, oltre la soglia {limit:.3f}"
+    return True, f"ECE fuori campione al massimo {values[worst]:.3f} ({worst}), entro la soglia {limit:.3f}"
+
+
 # --- Giocate di valore (modalità veloce) -------------------------------------------------------------
 
 THRESHOLD_GROUPS = {"Over 1.5": "Gol", "Under 1.5": "Gol", "Over 2.5": "Gol", "Under 2.5": "Gol", "Over 3.5": "Gol",
@@ -182,9 +214,15 @@ class Pick:
     suspicious: bool = False
 
 
-def value_picks(analyses: Sequence[Analysis], settings: Mapping[str, Any] | None = None) -> list[Pick]:
-    """Giocate con valore sopra la soglia EV del proprio mercato, dalla più alta, ognuna con il perché."""
+def value_picks(analyses: Sequence[Analysis], settings: Mapping[str, Any] | None = None, *,
+                include_team_cards: bool | None = None) -> list[Pick]:
+    """Giocate con valore sopra la soglia EV del proprio mercato, dalla più alta, ognuna con il perché.
+
+    1X2 cartellini e cartellini per squadra solo se ammessi (``team_cards_status``) o scelti a mano.
+    """
     settings = settings or load_settings()
+    if include_team_cards is None:
+        include_team_cards = team_cards_status(settings)[0]
     picks = []
     for index, analysis in enumerate(analyses):
         if not analysis.ok:
@@ -192,6 +230,8 @@ def value_picks(analyses: Sequence[Analysis], settings: Mapping[str, Any] | None
         for row in analysis.result["financial"]["markets"]:
             threshold = ev_threshold(row["market"], settings)
             if threshold is None or not row.get("is_value") or row["ev_pct"] < threshold:
+                continue
+            if team_card_market(row["market"]) and not include_team_cards:
                 continue
             picks.append(Pick(index, analysis.match.label, row["market"], row["simulated_probability_pct"], row["odds"],
                               row["ev_pct"], threshold, explain(row, analysis), bool(row.get("suspicious_value"))))

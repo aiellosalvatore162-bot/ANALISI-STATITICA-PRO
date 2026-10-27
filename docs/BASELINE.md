@@ -604,3 +604,98 @@ Dispersione (rapporto varianza/media dei residui; 1 = Poisson):
 | Punti cartellini Over 5.5 | 0.5951 | 0.5913 | 0.0399 | 0.0217 |
 | Punti cartellini: log-verosimiglianza negativa (binomiale negativa / Poisson) | 2.2679 / 2.2770 | 2.2590 / 2.2664 | | |
 
+## Cartellini per squadra: divisione tra casa e ospite (fase T)
+
+Generato il 27/10/2026 con `python -m tools.card_split`. Totale gialli invariato (fase M); si modella solo la quota della squadra di casa. Punti Eurobet (giallo 1, rosso 2). Taratura sul 2024-26, fuori campione 2019-24 e 2026-27 (stesso schema della fase M). Una componente resta accesa solo se migliora sia la log-loss media sia l'ECE media fuori campione (unione dei due insiemi).
+
+### Componenti provate, nell'ordine
+
+| Passo | Log-loss media | ECE media | Brier media | Tenuta |
+|---|---|---|---|---|
+| prima (divisione attuale) | 0.62674 | 0.02963 | 0.41298 | sì |
+| a) ritmo + provocati, con shrinkage | 0.61491 | 0.02901 | 0.40340 | sì |
+| b) sfavorita (differenza Elo) | 0.61233 | 0.02915 | 0.40133 | no |
+| b) sfavorita (1X2 di mercato senza margine) | 0.61069 | 0.02414 | 0.40005 | sì |
+| c) casa/trasferta | 0.61002 | 0.02455 | 0.39951 | no |
+| d) fattore comune: divisione più dispersa (beta-binomiale) | 0.61069 | 0.02413 | 0.40005 | no |
+| d) fattore comune: bilanciamento (binomiale moltiplicativa) | 0.60908 | 0.01534 | 0.39916 | sì |
+| e) arbitro sulla divisione | 0.60908 | 0.01552 | 0.39916 | no |
+
+Parametri scelti: {"home": 0.0, "rate_weight": 0.13867465795530382, "provoked_weight": 0.40399673261415386, "underdog_weight": 0.7064553010509802, "referee_weight": 0.0, "concentration": 0.0, "balance": 0.15331340427512674, "shrink": true, "underdog": "mercato"}
+
+### 2019-24 (6899 partite): prima / dopo
+
+| Mercato | Log-loss prima | Log-loss dopo | ECE prima | ECE dopo |
+|---|---|---|---|---|
+| 1X2 cartellini | 1.0905 | 1.0492 | 0.0627 | 0.0113 |
+| Casa Over 0.5 | 0.3778 | 0.3682 | 0.0126 | 0.0156 |
+| Ospite Over 0.5 | 0.3265 | 0.3140 | 0.0434 | 0.0191 |
+| Casa Over 1.5 | 0.6544 | 0.6369 | 0.0252 | 0.0094 |
+| Ospite Over 1.5 | 0.6240 | 0.6073 | 0.0248 | 0.0281 |
+| Casa Over 2.5 | 0.6423 | 0.6269 | 0.0112 | 0.0217 |
+| Ospite Over 2.5 | 0.6683 | 0.6585 | 0.0318 | 0.0041 |
+| media | 0.6263 | 0.6087 | 0.0303 | 0.0156 |
+
+### 2026-27 (254 partite): prima / dopo
+
+| Mercato | Log-loss prima | Log-loss dopo | ECE prima | ECE dopo |
+|---|---|---|---|---|
+| 1X2 cartellini | 1.0706 | 1.0300 | 0.0555 | 0.0182 |
+| Casa Over 0.5 | 0.3975 | 0.3885 | 0.0282 | 0.0194 |
+| Ospite Over 0.5 | 0.3928 | 0.3897 | 0.0333 | 0.0106 |
+| Casa Over 1.5 | 0.6880 | 0.6556 | 0.0433 | 0.0402 |
+| Ospite Over 1.5 | 0.6557 | 0.6284 | 0.0484 | 0.0321 |
+| Casa Over 2.5 | 0.6138 | 0.5960 | 0.0437 | 0.0597 |
+| Ospite Over 2.5 | 0.6564 | 0.6471 | 0.0883 | 0.0338 |
+| media | 0.6392 | 0.6193 | 0.0487 | 0.0306 |
+
+### Previsto / reale per fascia (fuori campione, 5 fasce uguali): prima → dopo
+
+| Mercato | Fascia | Partite | Prevista prima | Prevista dopo | Reale |
+|---|---|---|---|---|---|
+| 1 cartellini | 1 | 1431 | 23.1% | 24.5% | 30.9% |
+| 1 cartellini | 2 | 1430 | 33.4% | 31.0% | 30.2% |
+| 1 cartellini | 3 | 1431 | 40.5% | 36.4% | 35.8% |
+| 1 cartellini | 4 | 1430 | 47.8% | 42.0% | 35.5% |
+| 1 cartellini | 5 | 1431 | 59.5% | 49.9% | 39.9% |
+| X cartellini | 1 | 1431 | 16.0% | 19.3% | 19.6% |
+| X cartellini | 2 | 1430 | 17.7% | 20.3% | 22.6% |
+| X cartellini | 3 | 1431 | 18.6% | 21.0% | 22.6% |
+| X cartellini | 4 | 1430 | 19.5% | 21.7% | 23.1% |
+| X cartellini | 5 | 1431 | 21.1% | 23.1% | 22.3% |
+| 2 cartellini | 1 | 1431 | 23.0% | 28.6% | 38.0% |
+| 2 cartellini | 2 | 1430 | 33.1% | 36.7% | 40.1% |
+| 2 cartellini | 3 | 1431 | 40.0% | 42.6% | 43.8% |
+| 2 cartellini | 4 | 1430 | 47.5% | 48.1% | 47.6% |
+| 2 cartellini | 5 | 1431 | 59.2% | 55.0% | 47.9% |
+| Casa Over 0.5 | 1 | 1431 | 75.8% | 78.7% | 79.9% |
+| Casa Over 0.5 | 2 | 1430 | 83.6% | 85.1% | 85.5% |
+| Casa Over 0.5 | 3 | 1431 | 86.9% | 87.7% | 87.5% |
+| Casa Over 0.5 | 4 | 1430 | 89.4% | 89.7% | 89.4% |
+| Casa Over 0.5 | 5 | 1431 | 92.4% | 92.0% | 92.7% |
+| Ospite Over 0.5 | 1 | 1431 | 75.7% | 80.6% | 84.9% |
+| Ospite Over 0.5 | 2 | 1430 | 83.6% | 86.8% | 88.6% |
+| Ospite Over 0.5 | 3 | 1431 | 86.7% | 89.3% | 89.9% |
+| Ospite Over 0.5 | 4 | 1430 | 89.3% | 91.1% | 91.6% |
+| Ospite Over 0.5 | 5 | 1431 | 92.4% | 93.2% | 94.7% |
+| Casa Over 1.5 | 1 | 1431 | 45.2% | 48.0% | 51.6% |
+| Casa Over 1.5 | 2 | 1430 | 57.2% | 58.3% | 60.3% |
+| Casa Over 1.5 | 3 | 1431 | 63.4% | 63.5% | 61.0% |
+| Casa Over 1.5 | 4 | 1430 | 68.5% | 67.7% | 64.6% |
+| Casa Over 1.5 | 5 | 1431 | 75.5% | 73.1% | 72.5% |
+| Ospite Over 1.5 | 1 | 1431 | 45.1% | 51.0% | 57.8% |
+| Ospite Over 1.5 | 2 | 1430 | 57.0% | 61.6% | 63.6% |
+| Ospite Over 1.5 | 3 | 1431 | 62.9% | 66.8% | 68.6% |
+| Ospite Over 1.5 | 4 | 1430 | 68.3% | 70.9% | 72.3% |
+| Ospite Over 1.5 | 5 | 1431 | 75.4% | 76.2% | 77.7% |
+| Casa Over 2.5 | 1 | 1431 | 22.3% | 23.6% | 23.5% |
+| Casa Over 2.5 | 2 | 1430 | 32.7% | 32.7% | 34.1% |
+| Casa Over 2.5 | 3 | 1431 | 39.2% | 38.1% | 34.9% |
+| Casa Over 2.5 | 4 | 1430 | 45.1% | 42.8% | 38.6% |
+| Casa Over 2.5 | 5 | 1431 | 54.2% | 49.6% | 48.6% |
+| Ospite Over 2.5 | 1 | 1431 | 22.3% | 26.2% | 29.7% |
+| Ospite Over 2.5 | 2 | 1430 | 32.6% | 36.0% | 37.4% |
+| Ospite Over 2.5 | 3 | 1431 | 38.7% | 41.7% | 40.4% |
+| Ospite Over 2.5 | 4 | 1430 | 44.9% | 46.6% | 45.8% |
+| Ospite Over 2.5 | 5 | 1431 | 54.1% | 53.7% | 54.4% |
+

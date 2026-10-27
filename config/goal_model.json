@@ -640,5 +640,92 @@
       "devig_method": "proporzionale"
     },
     "nota": "Fase N: peso del mercato 0.8 dichiarato di default, non tarato (nessuna quota storica di corner e cartellini). Media del mercato dalle linee Over/Under x.5 senza margine con la stessa distribuzione della simulazione; finale = mercato^0.8 · modello^0.2. Senza linee quotate: solo modello."
+  },
+  "divisione_cartellini": {
+    "data": "2026-10-27",
+    "attiva": true,
+    "peso_mercato": 0.8,
+    "nota": "Sfavorita = P(2) − P(1): nello storico dalle quote 1X2 di chiusura senza margine, nell'app dai gol simulati (ancorati alle quote quando ci sono). Ritmo e provocati con shrinkage verso la media di lega (5 partite) nello storico; nell'app i valori del blocco. Peso mercato 0.8 dichiarato: nessuna quota cartellini nello storico.",
+    "parametri": {
+      "home": 0.0,
+      "rate_weight": 0.13867465795530382,
+      "provoked_weight": 0.40399673261415386,
+      "underdog_weight": 0.7064553010509802,
+      "referee_weight": 0.0,
+      "concentration": 0.0,
+      "balance": 0.15331340427512674
+    },
+    "scelta_sfavorita": "mercato",
+    "passi": [
+      {
+        "passo": "prima (divisione attuale)",
+        "tenuta": true,
+        "log_loss": 0.62674,
+        "ece": 0.02963
+      },
+      {
+        "passo": "a) ritmo + provocati, con shrinkage",
+        "tenuta": true,
+        "log_loss": 0.61491,
+        "ece": 0.02901
+      },
+      {
+        "passo": "b) sfavorita (differenza Elo)",
+        "tenuta": false,
+        "log_loss": 0.61233,
+        "ece": 0.02915
+      },
+      {
+        "passo": "b) sfavorita (1X2 di mercato senza margine)",
+        "tenuta": true,
+        "log_loss": 0.61069,
+        "ece": 0.02414
+      },
+      {
+        "passo": "c) casa/trasferta",
+        "tenuta": false,
+        "log_loss": 0.61002,
+        "ece": 0.02455
+      },
+      {
+        "passo": "d) fattore comune: divisione più dispersa (beta-binomiale)",
+        "tenuta": false,
+        "log_loss": 0.61069,
+        "ece": 0.02413
+      },
+      {
+        "passo": "d) fattore comune: bilanciamento (binomiale moltiplicativa)",
+        "tenuta": true,
+        "log_loss": 0.60908,
+        "ece": 0.01534
+      },
+      {
+        "passo": "e) arbitro sulla divisione",
+        "tenuta": false,
+        "log_loss": 0.60908,
+        "ece": 0.01552
+      }
+    ],
+    "ece_fuori_campione": {
+      "1X2 cartellini": 0.0103,
+      "Casa Over 0.5": 0.0155,
+      "Ospite Over 0.5": 0.0185,
+      "Casa Over 1.5": 0.0086,
+      "Ospite Over 1.5": 0.0283,
+      "Casa Over 2.5": 0.0217,
+      "Ospite Over 2.5": 0.0045,
+      "media": 0.0153
+    },
+    "log_loss_fuori_campione": {
+      "1X2 cartellini": 1.0486,
+      "Casa Over 0.5": 0.3689,
+      "Ospite Over 0.5": 0.3167,
+      "Casa Over 1.5": 0.6375,
+      "Ospite Over 1.5": 0.608,
+      "Casa Over 2.5": 0.6258,
+      "Ospite Over 2.5": 0.6581,
+      "media": 0.6091
+    },
+    "partite_fuori_campione": 7153
   }
 }

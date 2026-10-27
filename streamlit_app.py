@@ -7,7 +7,7 @@ import pandas as pd
 import streamlit as st
 
 import dashboard
-from engine import config_from_input, final_goal_rates, simulate_match
+from engine import COUNT_DISAGREEMENT_TEXT, config_from_input, final_goal_rates, simulate_match
 from historical import (
     HistoricalDataError,
     fetch_public_match_history,
@@ -52,6 +52,15 @@ def _count_anchoring_note(result: dict) -> None:
                        f"finale {details['final_mean']:.2f}. {details['reason']}")
         else:
             st.caption(f"{label} {details['model_mean']:.2f}. {details['reason']}")
+    split = result.get("card_split") or {}
+    if split.get("active"):
+        text = (f"Cartellini tra le squadre (1X2 cartellini, linee per squadra): quota di casa {split['p']:.1%}"
+                + (f" (modello {split['p_model']:.1%}, spostata verso il mercato)" if split.get("anchored") else "")
+                + f". {split.get('reason', '')}")
+        if split.get("anchored"):
+            st.caption(text)
+        else:
+            st.warning(text + " Le probabilità di 1X2 cartellini e cartellini per squadra sono del solo modello.")
 EXAMPLE = """CASA: Inter
 Attacco: 1.34 | Difesa: 1.25 | Elo: 1835 | Forma: W-W-D-W-W | xG Fatti: 2.15 | xG Subiti: 0.85 | Corner pro/sub: 5.8/4.2 | Cartellini pro: 1.60
 
@@ -662,7 +671,12 @@ def _card(
         if financial.get("value_excluded") and float(ev) > 0:
             badge_class = "neutral"
             badge_text = f"● EV {float(ev):+.1f}% · VALORE non segnalato su questo mercato (storicamente in perdita)"
-        if financial.get("suspicious_value"):
+        if financial.get("count_disagreement"):
+            gap = financial["count_disagreement"]
+            badge_class = "suspicious"
+            badge_text = (f"⚠ {COUNT_DISAGREEMENT_TEXT} (modello {gap['model']:.1f}% · mercato senza margine "
+                          f"{gap['market']:.1f}%) · EV {float(ev):+.1f}%")
+        elif financial.get("suspicious_value"):
             badge_class = "suspicious"
             badge_text += f" · valore sospetto: verifica i dati (scarto modello/mercato {financial['model_market_gap_pct']:.1f} punti)"
         badge = f'<span class="vbadge {badge_class}">{esc(badge_text)}</span>'

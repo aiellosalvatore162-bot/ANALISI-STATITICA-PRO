@@ -52,6 +52,8 @@ TEAM_FIELDS = (
     ("attack", "Attacco"), ("defense", "Difesa"), ("elo", "Elo"), ("form", "Forma"),
     ("xg_for", "xG Fatti"), ("xg_against", "xG Subiti"), ("corners", "Corner pro/sub"), ("cards_for", "Cartellini pro"),
 )
+# Campi facoltativi del blocco: scritti se disponibili, mai obbligatori (fase T).
+OPTIONAL_TEAM_FIELDS = (("cards_provoked", "Cartellini provocati"),)
 ODDS_FIELDS = (("1", "Quota 1"), ("X", "Quota X"), ("2", "Quota 2"),
                ("Over 2.5 gol", "Quota Over 2.5"), ("Under 2.5 gol", "Quota Under 2.5"))
 
@@ -428,9 +430,10 @@ def render_block(sheet: MatchSheet) -> str:
     lines = [f"# Scheda compilata da {sheet.origin} per la partita del {_date(sheet.match_date)}"
              + (f" ({sheet.competition})" if sheet.competition else "")]
     for label, name, fields in (("CASA", sheet.home, sheet.home_fields), ("OSPITE", sheet.away, sheet.away_fields)):
-        values = [f"{text}: {_format(key, fields[key].value)}" for key, text in TEAM_FIELDS
+        values = [f"{text}: {_format(key, fields[key].value)}" for key, text in (*TEAM_FIELDS, *OPTIONAL_TEAM_FIELDS)
                   if key in fields and not fields[key].missing]
-        lines += [f"{label}: {name}", " | ".join(values), _sources_comment(fields, TEAM_FIELDS), ""]
+        optional = tuple(item for item in OPTIONAL_TEAM_FIELDS if item[0] in fields and not fields[item[0]].missing)
+        lines += [f"{label}: {name}", " | ".join(values), _sources_comment(fields, (*TEAM_FIELDS, *optional)), ""]
     referee = sheet.referee_fields
     parts = []
     if not referee["yellow"].missing:
