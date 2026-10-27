@@ -418,6 +418,40 @@ Claude» crea un unico testo con tutte le partite che hanno corner o cartellini
 senza esito (utile per le coppe). La risposta, con un blocco `ESITI_CLAUDE: E1`
 per partita e la fonte, compila solo gli esiti mancanti; la fonte va in Note.
 
+## Motore statistico v2 (fase P)
+
+Ogni punto è un'opzione in `config/goal_model.json`, accesa solo se migliora
+fuori campione (log-loss appaiata giù di oltre 2 errori standard ed ECE non
+peggiore; stagioni 2019-24 e 2026-27, taratura 2024-26). Base comune delle
+verifiche: `tools/v2common.py` (cache in `data/cache/fase_p/`). Tabelle
+complete in `docs/BASELINE.md`.
+
+| Punto | Comando | Esito |
+|---|---|---|
+| 1. Forza corretta per il calendario (`ratings.py`) | `python -m tools.strength_check --salva` | spenta (`forza_calendario`): migliora molto il solo modello, non la probabilità finale ancorata |
+| 2. Assenze pesate (`absences.py`) | `python -m tools.player_check --salva` | spenta (`assenze`): le quote prezzano già le assenze; il fattore resta visibile |
+| 3. Incertezza dei parametri | `python -m tools.model_v2 --incertezza --salva` | spenta (`incertezza_parametri`): σ migliore = 0 |
+| 4. Ricalibrazione finale per mercato | `python -m tools.recalibration_check --salva` | accesa solo per «Over 3.5 cartellini» (`ricalibrazione`) |
+| 5. Peso del mercato per campionato e tipo | `python -m tools.model_v2 --peso-mercato --salva` | spenta (`peso_mercato_campionato`) |
+| 6. Riposo (coppe non nei dati storici) | `python -m tools.model_v2 --contesto --salva` | spenta (`contesto_riposo`) |
+| 7. Soglia di valore = errore tipico | `python -m tools.value_thresholds --salva` | soglie stimate salvate ma spente (`soglie_valore`): rendimento non misurabile |
+| 7b. Marcatori v2 (`scorers.py`) | `python -m tools.player_check --salva` | adottata e verificata (`marcatori`) |
+
+**Assenti.** Nella tab Gol, sotto «Marcatori», la sezione «Assenze pesate»
+calcola per ogni assente la produzione offensiva (npxG + xA) persa al netto del
+sostituto tipico dello stesso ruolo. Il fattore resta tra 0,85 e 1,05. Claude
+può indicare gli assenti nel suo blocco (`assenti_casa:`,
+`assenti_ospite:`, con fonte) e la sezione li precompila. Il fattore cambia la
+simulazione solo se l'opzione `assenze` è accesa (oggi no).
+
+**Marcatori v2.** Usano gli xG senza rigori (npxG), avvicinati a un riferimento
+per ruolo (difensore 0,032, centrocampista 0,095, attaccante 0,207 dei gol della
+squadra) con 10,8 xG fittizi, così chi ha pochi minuti resta vicino al proprio
+ruolo. Il rigorista (chi ha segnato più rigori) prende in più il 7,6% dei gol
+della squadra. Sono verificati sullo storico partita per partita di Understat
+(`python -m tools.player_data 2025 2026`, una volta, con pause tra le
+richieste).
+
 ## Schede tattiche, incroci di stile e nuovi mercati (fase Q)
 
 **Schede tattiche.** Nella pagina Oggi, sezione «Schede tattiche»: scegli le

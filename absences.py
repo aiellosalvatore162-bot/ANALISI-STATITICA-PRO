@@ -19,7 +19,7 @@ BENCH_SHARE = 0.4
 ROLES = ("difensore", "centrocampista", "attaccante")
 # Riferimenti di ruolo (npxG + xA per 90) quando la rosa non ha riserve dello stesso ruolo: medie dei 5 campionati
 # Understat 2025/26 (ricalcolate da ``tools/player_check.py``).
-LEAGUE_ROLE_RATE = {"difensore": 0.08, "centrocampista": 0.22, "attaccante": 0.45}
+LEAGUE_ROLE_RATE = {"difensore": 0.107, "centrocampista": 0.239, "attaccante": 0.456}
 
 
 def role_of(position: str) -> str | None:

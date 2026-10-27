@@ -242,10 +242,22 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   `performance.tactical_comparison`. Nuovi mercati 6b in `market_catalog.py` (verifica:
   `python -m tools.new_markets`; corner e cartellini per tempo non verificabili). Goleade:
   `python -m tools.goleade --salva` (sezione `goleade`, spenta), riga «Goleada» della Panoramica.
+- Fase P (motore v2): ogni punto è una sezione di `config/goal_model.json` con `attiva`, verificata con la
+  regola severa sul campione comune `tools/v2common.py` (cache `data/cache/fase_p/`). Forza Dixon-Coles per il
+  calendario in `ratings.py` (`forza_calendario`, `python -m tools.strength_check`, builder modo «ingressi»);
+  incertezza, pesi del mercato per campionato/tipo (`engine.anchor_goal_rates_split`, `MatchConfig.league`) e
+  riposo (`MatchConfig.rest_days`) in `tools/model_v2.py`; ricalibrazione finale per mercato
+  (`tools/recalibration_check.py`, metodo in validazione incrociata, correzione di Holm; `engine.apply_recalibration`
+  anche sull'EV); soglie EV = errore tipico (`tools/value_thresholds.py`, `soglie_valore`, usate da
+  `today.ev_threshold` e da `is_value`). Opzioni lette in `engine.ModelV2Params` (`MatchConfig.v2`). Assenze
+  pesate in `absences.py` (righe `assenti_casa`/`assenti_ospite` del blocco di Claude, sezione «Assenze pesate»
+  della tab Gol), marcatori v2 in `scorers.py` (sezione `marcatori`); storico giocatori con
+  `python -m tools.player_data 2025 2026` e verifica con `python -m tools.player_check --salva`. Accese oggi:
+  ricalibrazione di «Over 3.5 cartellini» e marcatori v2 (verificati); il resto è spento.
 - Le fonti remote devono degradare con un avviso (come `historical.py` ricade
   al 100% manuale), mai bloccare la simulazione manuale.
 
-## Stato del progetto (27/10/2026, dopo la fase Q)
+## Stato del progetto (27/10/2026, dopo la fase P)
 
 - Fasi completate e unite a `main`: modello gol log-lineare (1), ancoraggio al
   mercato (2), mercati secondari (C2), livello dati (D), football-data.org,
@@ -261,7 +273,8 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   (S2), doppio pronostico Simulatore/Osservatore/Unita (U), report dell'Analista
   del giorno (W), ricerca rapida, schedine salvate, marcatori e chiavi del match (X),
   cartellini per squadra (T), motore minuto per minuto come opzione spenta (O, parte 1), schede
-  tattiche, cambio allenatore, incroci di stile (spenti), nuovi mercati e goleade (Q).
+  tattiche, cambio allenatore, incroci di stile (spenti), nuovi mercati e goleade (Q), motore statistico
+  v2 con opzioni verificate una per una (P).
 - Test: `python -m pytest -q` (solo fixture salvate, nessuna rete); 2 `xfail`
   noti (PSG-Barcellona, Napoli-Bodø, input stimati).
 

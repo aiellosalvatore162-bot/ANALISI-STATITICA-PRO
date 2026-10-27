@@ -914,3 +914,267 @@ Generato il 27/10/2026 con `python -m tools.new_markets`. 7153 partite 2019-24 e
 
 Non verificabili con i dati storici disponibili: Corner per tempo (Over/Under 1T e 2T, 1X2 corner 1T); Cartellini per tempo (Over/Under 1T e 2T, 1X2 cartellini 1T); Fasce cartellini per squadra (divisione verificata nella fase T solo per le linee). Le quote dei tempi per corner (0,493) e cartellini (0,386) vengono dai pesi dei blocchi stimati su StatsBomb Open Data 2015/16 (fase O) e restano dichiarate come non verificate.
 
+
+# Fase P – Motore statistico v2 (27/10/2026)
+
+Ogni punto è un'opzione di config/goal_model.json, accesa solo con la regola severa fuori campione.
+
+## Forza corretta per il calendario (fase P, punto 1)
+
+Generato il 27/10/2026 con `python -m tools.strength_check`. Forze Dixon-Coles di tutte le squadre stimate insieme, solo con le partite precedenti (730 giorni, settimana per settimana), risposta = peso·gol + (1 − peso)·xG Understat (xG presenti nel 100% delle partite storiche). Griglia scelta sul 2024-26 con i gol ancorati al mercato: migliore ξ = 0.001/giorno, peso dei gol 0.0; modo scelto sul 2024-26: **ingressi** (taratura: attuale 1.6397, diretto 1.6403, ingressi 1.6395).
+
+Fuori campione (2019-24 e 2026-27), log-loss 1X2 + Over/Under 2.5 per partita:
+
+| Variante | Partite | Log-loss prima | Log-loss dopo | Differenza (± 2 e.s.) | ECE | Esito |
+|---|---|---|---|---|---|---|
+| finale ancorato, diretto | 7152 | 1.6318 | 1.6324 | +0.00057 ± 0.00095 | 0.0127 → 0.0140 | **spenta** |
+| finale ancorato, ingressi | 7152 | 1.6318 | 1.6316 | -0.00028 ± 0.00033 | 0.0127 → 0.0125 | **spenta** |
+| solo modello, diretto (informativo) | 7152 | 1.6614 | 1.7020 | +0.04059 ± 0.00919 | 0.0093 → 0.0609 | *non migliora* |
+| solo modello, ingressi (informativo) | 7152 | 1.6614 | 1.6528 | -0.00863 ± 0.00329 | 0.0093 → 0.0070 | *migliora* |
+
+Griglia (taratura 2024-26, modo diretto):
+
+| ξ/giorno | Peso gol | Log-loss | ECE |
+|---|---|---|---|
+| 0.0005 | 1.0 | 1.6405 | 0.0139 |
+| 0.0005 | 0.5 | 1.6404 | 0.0141 |
+| 0.0005 | 0.0 | 1.6403 | 0.0125 |
+| 0.001 | 1.0 | 1.6406 | 0.0131 |
+| 0.001 | 0.5 | 1.6404 | 0.0132 |
+| 0.001 | 0.0 | 1.6403 | 0.0126 |
+| 0.002 | 1.0 | 1.6407 | 0.0132 |
+| 0.002 | 0.5 | 1.6404 | 0.0126 |
+| 0.002 | 0.0 | 1.6403 | 0.0124 |
+| 0.004 | 1.0 | 1.6410 | 0.0148 |
+| 0.004 | 0.5 | 1.6406 | 0.0132 |
+| 0.004 | 0.0 | 1.6403 | 0.0124 |
+
+Esito: **spenta** (modo ingressi).
+
+
+## Marcatori v2 e assenze pesate (fase P, punti 7b e 2)
+
+Generato il 27/10/2026 con `python -m tools.player_check`. Storico partita per partita Understat 2025/26 e 2026/27 (5 campionati, statistiche fino alla partita precedente).
+
+### Marcatori
+
+Parametri v2 stimati fino al 31/12/2025 (14391 righe giocatore-partita): quota a priori difensore 0.032, centrocampista 0.095, attaccante 0.207; xG fittizi 10.79; quota dei gol su rigore 0.076. Verifica dal 01/01/2026 (26003 righe).
+
+| Variante | Partite | Log-loss prima | Log-loss dopo | Differenza (± 2 e.s.) | ECE | Esito |
+|---|---|---|---|---|---|---|
+| attuale → v2 | 26003 | 0.2751 | 0.2716 | -0.00347 ± 0.00135 | 0.0078 → 0.0021 | **accesa** |
+
+Esito: v2 **adottata**; marcatori **verificati** (soglia ECE 0.015).
+
+| Ruolo | Minuti medi | Righe | P media attuale | P media v2 | Frequenza reale |
+|---|---|---|---|---|---|
+| attaccante | < 30' | 656 | 8.3% | 7.5% | 11.4% |
+| attaccante | 30-60' | 2787 | 13.7% | 13.5% | 14.9% |
+| attaccante | 60'+ | 3091 | 22.6% | 22.5% | 22.8% |
+| centrocampista | < 30' | 597 | 3.7% | 3.4% | 4.5% |
+| centrocampista | 30-60' | 3650 | 6.3% | 6.3% | 6.6% |
+| centrocampista | 60'+ | 6469 | 8.7% | 9.3% | 8.8% |
+| difensore | < 30' | 155 | 2.2% | 1.3% | 2.6% |
+| difensore | 30-60' | 1549 | 3.2% | 2.5% | 2.5% |
+| difensore | 60'+ | 7049 | 5.0% | 4.3% | 4.0% |
+
+### Assenze pesate
+
+Produzione per 90 minuti (npxG + xA) per ruolo nei dati: difensore 0.107, centrocampista 0.239, attaccante 0.456.
+1335 partite con quote; almeno un'assenza pesata nel 98%; fattore medio 0.994, minimo 0.850. Nessun parametro stimato: tutte le partite sono fuori campione per il fattore.
+
+| Variante | Partite | Log-loss prima | Log-loss dopo | Differenza (± 2 e.s.) | ECE | Esito |
+|---|---|---|---|---|---|---|
+| finale ancorato × fattore assenze | 1335 | 1.6465 | 1.6497 | +0.00322 ± 0.00366 | 0.0122 → 0.0153 | **spenta** |
+| solo modello × fattore assenze (informativo) | 1335 | 1.6657 | 1.6678 | +0.00204 ± 0.00377 | 0.0101 → 0.0123 | *non migliora* |
+
+
+## Incertezza dei parametri (fase P, punto 3)
+
+Generato il 27/10/2026 con `python -m tools.model_v2 --incertezza`. In ogni simulazione la media (gol di ciascuna squadra; corner totali; gialli e rossi) è moltiplicata per exp(σZ − σ²/2): stessa media, più dispersione. σ scelto sul 2024-26 (griglia 0, 0.05, 0.1, 0.15, 0.2, 0.25), verifica fuori campione con la regola severa (gol: 1X2 + Over/Under 2.5; corner: Over 8.5-10.5; cartellini in punti: Over 3.5-5.5).
+
+| Variante | Partite | Log-loss prima | Log-loss dopo | Differenza (± 2 e.s.) | ECE | Esito |
+|---|---|---|---|---|---|---|
+| gol, σ scelto = 0 | 7152 | 1.6318 | 1.6318 | +0.00000 ± 0.00000 | 0.0127 → 0.0127 | **spenta** |
+| gol, σ = 0.1 imposto (confronto) | 7152 | 1.6318 | 1.6320 | +0.00012 ± 0.00013 | 0.0127 → 0.0136 | **spenta** |
+| corner, σ scelto = 0 | 7152 | 0.6681 | 0.6681 | +0.00000 ± 0.00000 | 0.0098 → 0.0098 | **spenta** |
+| corner, σ = 0.1 imposto (confronto) | 7152 | 0.6681 | 0.6683 | +0.00022 ± 0.00021 | 0.0098 → 0.0115 | **spenta** |
+| cartellini, σ scelto = 0 | 7152 | 0.6249 | 0.6249 | +0.00000 ± 0.00000 | 0.0237 → 0.0237 | **spenta** |
+| cartellini, σ = 0.1 imposto (confronto) | 7152 | 0.6249 | 0.6252 | +0.00037 ± 0.00011 | 0.0237 → 0.0246 | **spenta** |
+
+Log-loss sul 2024-26 per σ:
+
+| Mercati | σ = 0 | σ = 0.05 | σ = 0.1 | σ = 0.15 | σ = 0.2 | σ = 0.25 |
+|---|---|---|---|---|---|---|
+| gol | 1.6397 | 1.6397 | 1.6399 | 1.6401 | 1.6405 | 1.6410 |
+| corner | 0.6705 | 0.6705 | 0.6706 | 0.6709 | 0.6716 | 0.6727 |
+| cartellini | 0.6331 | 0.6331 | 0.6332 | 0.6333 | 0.6336 | 0.6340 |
+
+## Peso del mercato per campionato e tipo (fase P, punto 5)
+
+Generato il 27/10/2026 con `python -m tools.model_v2 --peso-mercato`. Ancoraggio separato del totale gol (media geometrica di λ e μ) e della supremazia (λ/μ); peso per campionato stimato sul 2024-26 (griglia 0,50-1,00) e riavvicinato a 0.9 con 1000 partite fittizie. Corner e cartellini: nessuna quota storica, peso non stimabile (resta 0,8 dichiarato).
+
+| Campionato | Partite 2024-26 | Totale: stima → usato | Supremazia: stima → usato |
+|---|---|---|---|
+| D1 | 597 | 1.0 → 0.937 | 1.0 → 0.937 |
+| E0 | 750 | 0.75 → 0.836 | 1.0 → 0.943 |
+| I1 | 750 | 0.6 → 0.771 | 1.0 → 0.943 |
+| SP1 | 755 | 1.0 → 0.943 | 1.0 → 0.943 |
+
+| Variante | Partite | Log-loss prima | Log-loss dopo | Differenza (± 2 e.s.) | ECE | Esito |
+|---|---|---|---|---|---|---|
+| pesi per campionato e tipo | 7152 | 1.6318 | 1.6315 | -0.00030 ± 0.00040 | 0.0127 → 0.0131 | **spenta** |
+
+## Contesto: giorni di riposo (fase P, punto 6)
+
+Generato il 27/10/2026 con `python -m tools.model_v2 --contesto`. Riposo dalla partita di campionato precedente (2-7 giorni), effetto dopo l'ancoraggio al mercato: gol attesi casa × exp(a·(riposo casa − riposo ospite)/7 + b·(corto ospite − corto casa)). Stima sul 2024-26: a = -0.158, b = -0.001; partite con almeno una squadra a riposo corto: 15.4%. Le partite di coppa nei 4 giorni precedenti non sono nei dati storici (football-data.co.uk ha solo il campionato): non verificabili, escluse.
+
+| Variante | Partite | Log-loss prima | Log-loss dopo | Differenza (± 2 e.s.) | ECE | Esito |
+|---|---|---|---|---|---|---|
+| riposo | 7152 | 1.6318 | 1.6321 | +0.00022 ± 0.00078 | 0.0127 → 0.0133 | **spenta** |
+
+
+## Ricalibrazione finale per mercato (fase P, punti 4 e 0b)
+
+Generato il 27/10/2026 con `python -m tools.recalibration_check`. Mappa (Platt o isotonica, scelta in validazione incrociata tra 2024-25 e 2025-26) stimata sul 2024-26, verificata sul 2019-24 e 2026-27 per mercato con la regola severa e, poiché i mercati sono tanti, con la correzione di Holm per i confronti multipli. Accese: 1 su 45 (Over 3.5 cartellini).
+
+| Mercato | Metodo | Partite | Log-loss prima | dopo | Differenza (± 2 e.s.) | ECE prima → dopo | Prevista prima / dopo / reale | Esito |
+|---|---|---|---|---|---|---|---|---|
+| 1 | isotonica | 7152 | 0.6011 | 0.6016 | +0.00050 ± 0.00125 | 0.0143 → 0.0081 | 43.4% / 42.4% / 43.5% | **spenta** |
+| X | platt | 7152 | 0.5554 | 0.5552 | -0.00013 ± 0.00042 | 0.0028 → 0.0053 | 25.3% / 25.4% / 25.2% | **spenta** |
+| 2 | platt | 7152 | 0.5398 | 0.5398 | +0.00002 ± 0.00092 | 0.0137 → 0.0162 | 31.3% / 32.5% / 31.3% | **spenta** |
+| 1X | platt | 7152 | 0.5398 | 0.5398 | +0.00002 ± 0.00092 | 0.0137 → 0.0162 | 68.7% / 67.5% / 68.7% | **spenta** |
+| X2 | isotonica | 7152 | 0.6011 | 0.6016 | +0.00052 ± 0.00125 | 0.0143 → 0.0098 | 56.6% / 57.6% / 56.5% | **spenta** |
+| 12 | platt | 7152 | 0.5554 | 0.5552 | -0.00013 ± 0.00042 | 0.0028 → 0.0053 | 74.7% / 74.6% / 74.8% | **spenta** |
+| Over 1.5 gol | platt | 7152 | 0.5133 | 0.5133 | +0.00000 ± 0.00024 | 0.0052 → 0.0045 | 78.2% / 77.8% / 78.0% | **spenta** |
+| Over 2.5 gol | platt | 7152 | 0.6667 | 0.6668 | +0.00010 ± 0.00021 | 0.0158 → 0.0153 | 53.5% / 53.9% / 53.7% | **spenta** |
+| Over 3.5 gol | platt | 7152 | 0.5989 | 0.5987 | -0.00013 ± 0.00076 | 0.0139 → 0.0111 | 31.8% / 30.8% / 31.6% | **spenta** |
+| Goal | isotonica | 7152 | 0.6782 | 0.6776 | -0.00069 ± 0.00107 | 0.0129 → 0.0087 | 52.9% / 54.6% / 54.6% | **spenta** |
+| Multigol 1-3 | isotonica | 7152 | 0.6509 | 0.6504 | -0.00044 ± 0.00146 | 0.0169 → 0.0052 | 60.5% / 62.7% / 62.1% | **spenta** |
+| Multigol 2-4 | isotonica | 7152 | 0.6632 | 0.6639 | +0.00068 ± 0.00071 | 0.0042 → 0.0081 | 61.8% / 62.7% / 61.9% | **spenta** |
+| Multigol 2-5 | platt | 7152 | 0.6011 | 0.6013 | +0.00022 ± 0.00055 | 0.0046 → 0.0117 | 70.7% / 71.7% / 70.8% | **spenta** |
+| Multigol 1-2 | platt | 7152 | 0.6588 | 0.6586 | -0.00018 ± 0.00076 | 0.0129 → 0.0089 | 38.8% / 40.3% / 40.0% | **spenta** |
+| 1 + Over 1.5 | isotonica | 7152 | 0.5708 | 0.5717 | +0.00086 ± 0.00153 | 0.0077 → 0.0148 | 35.8% / 33.8% / 34.7% | **spenta** |
+| 1 + Over 2.5 | isotonica | 7152 | 0.5347 | 0.5356 | +0.00091 ± 0.00119 | 0.0060 → 0.0088 | 28.3% / 27.2% / 27.6% | **spenta** |
+| 1 + Over 3.5 | platt | 7152 | 0.3787 | 0.3790 | +0.00030 ± 0.00140 | 0.0098 → 0.0108 | 15.9% / 14.2% / 14.9% | **spenta** |
+| X + Over 1.5 | platt | 7152 | 0.4801 | 0.4797 | -0.00042 ± 0.00125 | 0.0130 → 0.0077 | 17.6% / 19.6% / 18.9% | **spenta** |
+| X + Over 2.5 | platt | 7152 | 0.2468 | 0.2462 | -0.00065 ± 0.00171 | 0.0104 → 0.0073 | 5.7% / 7.4% / 6.8% | **spenta** |
+| X + Over 3.5 | platt | 7152 | 0.2468 | 0.2462 | -0.00065 ± 0.00171 | 0.0104 → 0.0073 | 5.7% / 7.4% / 6.8% | **spenta** |
+| 2 + Over 1.5 | platt | 7152 | 0.4869 | 0.4873 | +0.00035 ± 0.00047 | 0.0124 → 0.0137 | 24.8% / 25.0% / 24.4% | **spenta** |
+| 2 + Over 2.5 | platt | 7152 | 0.4344 | 0.4355 | +0.00108 ± 0.00073 | 0.0102 → 0.0162 | 19.5% / 19.6% / 19.3% | **spenta** |
+| 2 + Over 3.5 | platt | 7152 | 0.2833 | 0.2837 | +0.00038 ± 0.00090 | 0.0088 → 0.0091 | 10.2% / 9.2% / 10.0% | **spenta** |
+| Goal + Over 2.5 | isotonica | 7152 | 0.6679 | 0.6677 | -0.00020 ± 0.00106 | 0.0017 → 0.0086 | 41.1% / 42.4% / 42.5% | **spenta** |
+| Goal + Over 3.5 | platt | 7152 | 0.5647 | 0.5645 | -0.00024 ± 0.00039 | 0.0111 → 0.0091 | 26.5% / 26.5% / 26.8% | **spenta** |
+| Esatti 1-0/2-0/2-1 | platt | 7152 | 0.5353 | 0.5338 | -0.00152 ± 0.00143 | 0.0214 → 0.0102 | 23.1% / 24.0% / 24.6% | **spenta (Holm)** |
+| Esatti 0-1/0-2/1-2 | platt | 7152 | 0.4601 | 0.4607 | +0.00060 ± 0.00158 | 0.0156 → 0.0200 | 18.4% / 20.5% / 19.0% | **spenta** |
+| Esatti 0-0/1-1 | platt | 7152 | 0.4671 | 0.4665 | -0.00070 ± 0.00119 | 0.0115 → 0.0046 | 19.5% / 18.0% / 18.4% | **spenta** |
+| Esatti 1-1/2-2 | platt | 7152 | 0.4620 | 0.4616 | -0.00039 ± 0.00113 | 0.0122 → 0.0100 | 16.5% / 18.3% / 17.7% | **spenta** |
+| Esatti 2-1/3-1/3-2 | isotonica | 7152 | 0.4156 | 0.4157 | +0.00019 ± 0.00105 | 0.0047 → 0.0099 | 14.7% / 15.7% / 15.2% | **spenta** |
+| Esatti 1-0/0-1/0-0 | platt | 7152 | 0.5133 | 0.5133 | +0.00000 ± 0.00024 | 0.0052 → 0.0045 | 21.8% / 22.2% / 22.0% | **spenta** |
+| Favorita 4+ gol | platt | 7152 | 0.3247 | 0.3258 | +0.00108 ± 0.00192 | 0.0081 → 0.0158 | 12.2% / 9.8% / 11.3% | **spenta** |
+| Favorita vince di 3+ | platt | 7152 | 0.3835 | 0.3829 | -0.00058 ± 0.00185 | 0.0133 → 0.0138 | 15.9% / 13.3% / 14.3% | **spenta** |
+| Totale 5+ gol | platt | 7152 | 0.4220 | 0.4226 | +0.00055 ± 0.00110 | 0.0072 → 0.0122 | 16.4% / 14.8% / 16.0% | **spenta** |
+| 1 1T | isotonica | 7152 | 0.6006 | 0.6008 | +0.00011 ± 0.00122 | 0.0074 → 0.0064 | 34.9% / 34.2% / 33.7% | **spenta** |
+| X 1T | isotonica | 7152 | 0.6677 | 0.6687 | +0.00100 ± 0.00108 | 0.0034 → 0.0153 | 39.8% / 39.5% / 40.3% | **spenta** |
+| 2 1T | isotonica | 7152 | 0.5362 | 0.5367 | +0.00053 ± 0.00108 | 0.0092 → 0.0108 | 25.3% / 26.1% / 26.0% | **spenta** |
+| Over 0.5 gol 1T | platt | 7152 | 0.5871 | 0.5871 | -0.00004 ± 0.00060 | 0.0077 → 0.0063 | 70.9% / 72.0% / 71.6% | **spenta** |
+| Over 1.5 gol 1T | platt | 7152 | 0.6438 | 0.6445 | +0.00072 ± 0.00056 | 0.0100 → 0.0185 | 35.8% / 34.7% / 36.5% | **spenta** |
+| Over 8.5 corner | platt | 7152 | 0.6544 | 0.6543 | -0.00005 ± 0.00006 | 0.0127 → 0.0119 | 61.5% / 61.5% / 62.4% | **spenta** |
+| Over 9.5 corner | platt | 7152 | 0.6872 | 0.6870 | -0.00023 ± 0.00063 | 0.0092 → 0.0035 | 49.7% / 51.0% / 50.7% | **spenta** |
+| Over 10.5 corner | platt | 7152 | 0.6627 | 0.6627 | -0.00001 ± 0.00057 | 0.0075 → 0.0038 | 38.4% / 39.5% / 39.1% | **spenta** |
+| Over 3.5 cartellini | platt | 7152 | 0.6263 | 0.6236 | -0.00274 ± 0.00097 | 0.0292 → 0.0143 | 61.7% / 62.9% / 63.0% | **accesa** |
+| Over 4.5 cartellini | platt | 7152 | 0.6570 | 0.6583 | +0.00132 ± 0.00055 | 0.0202 → 0.0166 | 45.7% / 44.7% / 46.4% | **spenta** |
+| Over 5.5 cartellini | platt | 7152 | 0.5913 | 0.5912 | -0.00010 ± 0.00077 | 0.0216 → 0.0212 | 31.6% / 30.2% / 31.6% | **spenta** |
+
+Goleade nel quinto di partite più squilibrate (|λ − μ|), fuori campione (0b):
+
+| Mercato | Partite | Prevista prima | Prevista dopo | Reale |
+|---|---|---|---|---|
+| Favorita 4+ gol | 1431 | 25.7% | 21.5% | 23.1% |
+| Favorita vince di 3+ | 1431 | 32.9% | 27.5% | 28.7% |
+| Totale 5+ gol | 1431 | 24.4% | 22.3% | 23.7% |
+
+
+## Soglia di valore per mercato (fase P, punto 7)
+
+Generato il 27/10/2026 con `python -m tools.value_thresholds`. Soglia = errore relativo tipico della probabilità finale fuori campione (2019-24 e 2026-27), in punti di EV.
+
+| Mercato | Soglia attuale (oggi.json) | Errore tipico stimato |
+|---|---|---|
+| 1X2 | 3.0 | 6 |
+| Doppia chance | 2.0 | 3.2 |
+| DNB | 2.0 | 5.3 |
+| Gol | 3.0 | 3.4 |
+| Primo tempo | 4.0 | 4.3 |
+| Corner | 5.0 | 3.1 |
+| Cartellini | 5.0 | 7.6 |
+| Combo | 4.0 | 4.8 |
+| Risultati esatti | 8.0 | 9.8 |
+
+Verifica sulle quote di chiusura (1 e 2, Over/Under 2.5; il pareggio resta escluso come sempre):
+
+| Soglie | Giocate | Rendimento medio (± e.s.) |
+|---|---|---|
+| attuali | 7 | +28.86% ± 84.81% |
+| stimate | 3 | +25.00% ± 125.00% |
+
+Esito: **restano le soglie attuali** (meno di 100 giocate: le probabilità finali sono ancorate alle stesse quote di chiusura, quindi l'EV sulla chiusura supera di rado la soglia e il rendimento non è misurabile; le soglie stimate restano disponibili in configurazione).
+
+
+## fase P: motore v2 (ricalibrazione Over 3.5 cartellini, marcatori v2)
+
+Generato il 27/10/2026 con `python -m tools.baseline`. Campionati: Serie A, Premier League, Liga, Bundesliga (football-data.co.uk).
+
+### taratura 2024-25/2025-26 (2852 partite)
+
+| Mercato | Log-loss modello | Log-loss mercato | Brier modello | Brier mercato | ECE modello | ECE mercato |
+|---|---|---|---|---|---|---|
+| 1X2 | 0.9858 | 0.9698 | 0.5879 | 0.5769 | 0.0091 | 0.0097 |
+| Over 2.5 | 0.6806 | 0.6701 | 0.4877 | 0.4775 | 0.0016 | 0.0140 |
+| GG | 0.6855 | — | 0.4924 | — | 0.0039 | — |
+
+- Favorite nette (mercato ≥ 70%, 314 partite): probabilità media mercato 76.4%, modello 74.5%.
+- Segnali VALORE 1X2 alle quote di chiusura: 1.06 per partita (1: 858, X: 962, 2: 1205); rendimento medio puntando 1 su ciascuno: -10.0%.
+- Errore medio assoluto sulla media corner: 2.70; cartellini gialli: 1.66.
+
+Calibrazione 1X2 del modello (tutte le classi):
+
+| Fascia | n | Prevista | Osservata |
+|---|---|---|---|
+| 0%-10% | 281 | 0.071 | 0.082 |
+| 10%-20% | 1118 | 0.157 | 0.140 |
+| 20%-30% | 3400 | 0.260 | 0.259 |
+| 30%-40% | 1451 | 0.343 | 0.340 |
+| 40%-50% | 944 | 0.449 | 0.480 |
+| 50%-60% | 649 | 0.546 | 0.542 |
+| 60%-70% | 411 | 0.645 | 0.618 |
+| 70%-80% | 216 | 0.742 | 0.764 |
+| 80%-90% | 79 | 0.834 | 0.861 |
+| 90%-100% | 7 | 0.918 | 0.714 |
+
+### fuori campione 2026-27 (254 partite)
+
+| Mercato | Log-loss modello | Log-loss mercato | Brier modello | Brier mercato | ECE modello | ECE mercato |
+|---|---|---|---|---|---|---|
+| 1X2 | 0.9433 | 0.9373 | 0.5573 | 0.5543 | 0.0483 | 0.0282 |
+| Over 2.5 | 0.6577 | 0.6394 | 0.4655 | 0.4486 | 0.0281 | 0.0668 |
+| GG | 0.6785 | — | 0.4856 | — | 0.0195 | — |
+
+- Favorite nette (mercato ≥ 70%, 31 partite): probabilità media mercato 78.1%, modello 73.6%.
+- Segnali VALORE 1X2 alle quote di chiusura: 1.13 per partita (1: 86, X: 108, 2: 94); rendimento medio puntando 1 su ciascuno: -9.3%.
+- Errore medio assoluto sulla media corner: 2.90; cartellini gialli: 1.61.
+
+Calibrazione 1X2 del modello (tutte le classi):
+
+| Fascia | n | Prevista | Osservata |
+|---|---|---|---|
+| 0%-10% | 23 | 0.073 | 0.000 |
+| 10%-20% | 93 | 0.160 | 0.097 |
+| 20%-30% | 315 | 0.260 | 0.276 |
+| 30%-40% | 118 | 0.342 | 0.314 |
+| 40%-50% | 100 | 0.445 | 0.370 |
+| 50%-60% | 54 | 0.550 | 0.630 |
+| 60%-70% | 34 | 0.639 | 0.794 |
+| 70%-80% | 18 | 0.740 | 0.944 |
+| 80%-90% | 7 | 0.849 | 0.857 |
+
