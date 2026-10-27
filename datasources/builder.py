@@ -30,7 +30,8 @@ from datasources.style import (
     ProfileStore, StyleProfile, assign_archetype, footballdata_metrics, league_profiles, load_archetypes,
     understat_league_metrics, understat_team_metrics,
 )
-from datasources.stats import FieldValue, RefereeProfile, TeamProfile, missing, referee_profile, team_match_rows, team_profile
+from datasources.stats import (CoachChange, FieldValue, RefereeProfile, TeamProfile, missing, referee_profile,
+                               team_match_rows, team_profile)
 from tools.dataset import elo_table, match_elos as elo_table_per_match
 
 
@@ -272,8 +273,11 @@ class DataProvider:
     # --- Costruzione della scheda --------------------------------------------------------
 
     def build(self, home: str, away: str, *, match_date: date | None = None, competition: str | None = None,
-              referee: str | None = None, odds: dict[str, float] | None = None) -> MatchSheet:
+              referee: str | None = None, odds: dict[str, float] | None = None,
+              coaches: dict[str, CoachChange] | None = None) -> MatchSheet:
+        """``coaches`` (facoltativo, per lato "home"/"away"): cambio allenatore dalle schede tattiche."""
         self.warnings = []
+        coaches = coaches or {}
         match_date = match_date or self.today
         leagues = {side: self.competition_of(team) for side, team in (("home", home), ("away", away))}
         if self.max_age <= timedelta(0):
@@ -299,7 +303,7 @@ class DataProvider:
             profiles[side] = team_profile(
                 team, team_match_rows(matches.data), understat, as_of=match_date, venue=side,
                 matches=self.matches, half_life=self.half_life,
-                footballdata_updated=matches.updated, understat_updated=us_updated,
+                footballdata_updated=matches.updated, understat_updated=us_updated, coach=coaches.get(side),
             )
             self.warnings.extend(profiles[side].warnings)
 

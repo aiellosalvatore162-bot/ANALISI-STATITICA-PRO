@@ -49,11 +49,32 @@ def recency_weights(count: int, half_life: float) -> np.ndarray:
     return 0.5 ** (ages / max(half_life, 1e-9))
 
 
-def weighted_mean(values: pd.Series, half_life: float) -> float:
+def weighted_mean(values: pd.Series, half_life: float, extra: pd.Series | None = None) -> float:
+    """Media pesata per recenza; ``extra`` (stesso indice) moltiplica i pesi, ad es. per il cambio allenatore."""
     values = pd.to_numeric(values, errors="coerce").dropna()
     if values.empty:
         return float("nan")
-    return float(np.average(values.to_numpy(float), weights=recency_weights(len(values), half_life)))
+    weights = recency_weights(len(values), half_life)
+    if extra is not None:
+        weights = weights * extra.reindex(values.index).fillna(1.0).to_numpy(float)
+    return float(np.average(values.to_numpy(float), weights=weights))
+
+
+@dataclass(frozen=True)
+class CoachChange:
+    """Fase Q: allenatore arrivato il ``since``. Le gare precedenti pesano ``pre_weight``; con meno di
+    ``trust_matches`` gare del nuovo allenatore i valori si avvicinano alla media del campionato."""
+
+    since: date
+    pre_weight: float = 0.3
+    trust_matches: int = 8
+
+    def weights(self, rows: pd.DataFrame) -> pd.Series:
+        return pd.Series(np.where(rows["date"] < pd.Timestamp(self.since), self.pre_weight, 1.0), index=rows.index)
+
+    def trust(self, rows: pd.DataFrame) -> float:
+        new = int((rows["date"] >= pd.Timestamp(self.since)).sum())
+        return min(1.0, new / max(self.trust_matches, 1))
 
 
 def team_match_rows(matches: pd.DataFrame) -> pd.DataFrame:
@@ -104,8 +125,12 @@ def team_profile(
     half_life: float = 5.0,
     footballdata_updated: datetime | None = None,
     understat_updated: datetime | None = None,
+    coach: CoachChange | None = None,
 ) -> TeamProfile:
-    """Statistiche della squadra nelle ultime ``matches`` gare in casa o in trasferta prima di ``as_of``."""
+    """Statistiche della squadra nelle ultime ``matches`` gare in casa o in trasferta prima di ``as_of``.
+
+    Con ``coach`` (allenatore cambiato) le gare precedenti pesano meno e, finché il nuovo allenatore ha
+    poche gare nel campionato, i valori sono riavvicinati alla media della lega."""
     warnings: list[str] = []
     before = rows[rows["date"] < pd.Timestamp(as_of)] if not rows.empty else rows
     name = match_team(team, before["team"].unique()) if not before.empty else None
@@ -124,6 +149,15 @@ def team_profile(
         warnings.append(f"{name}: solo {len(venue_rows)} partite in {venue_label} disponibili (richieste {matches}).")
 
     league_venue = league_rows[league_rows["venue"] == venue]
+    coach_weights = coach.weights(venue_rows) if coach is not None else None
+    trust = coach.trust(team_rows) if coach is not None else 1.0
+    coach_note = ""
+    if coach is not None:
+        new_matches = int((team_rows["date"] >= pd.Timestamp(coach.since)).sum())
+        if new_matches < coach.trust_matches:
+            warnings.append(f"{name}: Allenatore nuovo da {new_matches} partite (dal {coach.since:%d/%m/%Y}).")
+        coach_note = (f"; allenatore dal {coach.since:%d/%m/%Y}: gare precedenti ×{coach.pre_weight:g}"
+                      + (f", riavvicinato alla media della lega ({trust:.0%} squadra)" if trust < 1 else ""))
 
     def scale(column: str) -> float:
         overall = pd.to_numeric(league_rows[column], errors="coerce").mean()
@@ -133,22 +167,26 @@ def team_profile(
     def stat(column: str, label: str, normalize: bool = True, digits: int = 2) -> FieldValue:
         if len(venue_rows) < 3:
             return missing(f"meno di 3 partite in {venue_label}", "football-data.co.uk")
-        value = weighted_mean(venue_rows[column], half_life)
+        value = weighted_mean(venue_rows[column], half_life, coach_weights)
         if not np.isfinite(value):
             return missing(f"{label} non presente nei CSV", "football-data.co.uk")
+        if trust < 1:
+            value = trust * value + (1 - trust) * float(pd.to_numeric(league_venue[column], errors="coerce").mean())
         factor = scale(column) if normalize else 1.0
-        note = f"{len(venue_rows)} gare in {venue_label}, pesate per recenza"
+        note = f"{len(venue_rows)} gare in {venue_label}, pesate per recenza" + coach_note
         if normalize:
             note += f"; riportato alla media generale della lega (×{factor:.3f})"
         return FieldValue(round(value * factor, digits), "football-data.co.uk", footballdata_updated, last_match, note)
 
     fields: dict[str, FieldValue] = {}
     if len(venue_rows) >= 3:
-        goals_for = weighted_mean(venue_rows["goals_for"], half_life)
-        goals_against = weighted_mean(venue_rows["goals_against"], half_life)
+        goals_for = weighted_mean(venue_rows["goals_for"], half_life, coach_weights)
+        goals_against = weighted_mean(venue_rows["goals_against"], half_life, coach_weights)
         league_for = league_venue["goals_for"].mean()
         league_against = league_venue["goals_against"].mean()
-        note = f"{len(venue_rows)} gare in {venue_label}, rapporto con la media {venue_label} della lega"
+        goals_for = trust * goals_for + (1 - trust) * league_for
+        goals_against = trust * goals_against + (1 - trust) * league_against
+        note = f"{len(venue_rows)} gare in {venue_label}, rapporto con la media {venue_label} della lega" + coach_note
         fields["attack"] = FieldValue(round(float(np.clip(goals_for / league_for, 0.2, 3.0)), 2),
                                       "football-data.co.uk", footballdata_updated, last_match, note)
         fields["defense"] = (
