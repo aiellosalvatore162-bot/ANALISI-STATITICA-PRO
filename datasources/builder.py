@@ -270,6 +270,46 @@ class DataProvider:
                 cups.append(upcoming.assign(competition=name))
         return pd.concat([fixtures, *cups], ignore_index=True) if cups else fixtures
 
+    def _schedule_strengths(self, profiles: dict, leagues: dict, league_rows: dict, match_date: date) -> None:
+        """Fase P, punto 1 (opzione ``forza_calendario``, modo «ingressi»): Attacco e Difesa dalle forze Dixon-Coles
+        di tutto il campionato (decadimento temporale, gol e xG Understat) al posto delle medie in casa/trasferta."""
+        import json
+
+        import ratings
+        from engine import GOAL_MODEL_PATH
+
+        section = json.loads(GOAL_MODEL_PATH.read_text(encoding="utf-8")).get("forza_calendario") if GOAL_MODEL_PATH.exists() else None
+        params = ratings.params_from_config(section)
+        if not params.active or params.mode != "ingressi":
+            return
+        for side, league in leagues.items():
+            if league is None or league not in league_rows or profiles[side].fields.get("attack") is None:
+                continue
+            history = league_rows[league].copy()
+            understat, _ = self.understat_matches(league)
+            if not understat.empty:
+                home_rows = understat[understat["venue"] == "home"]
+                lookup = {(team, day): (xg_for, xg_against) for team, day, xg_for, xg_against in
+                          home_rows[["team", "date", "xg_for", "xg_against"]].itertuples(index=False)}
+                names = {team: match_team(team, list(home_rows["team"].unique())) for team in history["home_team"].unique()}
+                values = [lookup.get((names.get(team), pd.Timestamp(day).normalize()), (np.nan, np.nan))
+                          for team, day in zip(history["home_team"], history["date"])]
+                history["home_xg"], history["away_xg"] = [value[0] for value in values], [value[1] for value in values]
+            fitted = ratings.fit(history, match_date, params)
+            team = match_team(profiles[side].team, list(fitted.attack)) if fitted else None
+            if team is None:
+                self.warnings.append(f"{profiles[side].team}: forza Dixon-Coles non stimabile, restano le medie.")
+                continue
+            attack, defence = fitted.ratios(team)
+            note = (f"forza Dixon-Coles del campionato (ξ {params.decay_per_day:g}/giorno, peso gol {params.goal_weight:g}, "
+                    f"{fitted.matches.get(team, 0):.1f} partite pesate)")
+            previous = profiles[side].fields["attack"]
+            profiles[side].fields["attack"] = FieldValue(round(float(np.clip(attack, 0.2, 3.0)), 2), previous.source,
+                                                         previous.updated, previous.last_match, note)
+            previous = profiles[side].fields["defense"]
+            profiles[side].fields["defense"] = FieldValue(round(float(np.clip(defence, 0.2, 3.0)), 2), previous.source,
+                                                          previous.updated, previous.last_match, note)
+
     # --- Costruzione della scheda --------------------------------------------------------
 
     def build(self, home: str, away: str, *, match_date: date | None = None, competition: str | None = None,
@@ -307,6 +347,7 @@ class DataProvider:
             )
             self.warnings.extend(profiles[side].warnings)
 
+        self._schedule_strengths(profiles, leagues, league_rows, match_date)
         elo = self._elo(home, away, match_date, leagues)
         sheet_fields = {}
         for side in ("home", "away"):
