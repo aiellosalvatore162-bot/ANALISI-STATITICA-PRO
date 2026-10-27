@@ -159,7 +159,7 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
 - Fase K: memoria delle partite analizzate in `match_memory.py` (voce per
   partita con blocco, quote dei campi, incollata Eurobet, risposta di Claude,
   segnalazioni e riassunto; chiave data|casa - ospite) e Excel della giornata
-  (fogli Registro A–S, Analisi, Doppio pronostico, Schede tattiche, Tecnico nascosto in JSON
+  (fogli Registro A–S, Analisi, Doppio pronostico, Report Analista, Schede tattiche, Tecnico nascosto in JSON
   diviso in celle da 30.000 caratteri); interfaccia in `ui_memory.py`
   (`st.session_state["analyzed_matches"]`, barra laterale disegnata in fondo
   allo script, riapertura con `auto_simulate`, «Riprendi da file»). Il registro
@@ -187,10 +187,18 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   `min_weekend_suggerimento` weekend), sezione in `ui_today._render_dual`, misure
   in `ui_performance._dual_section`, foglio «Doppio pronostico» dell'Excel della
   giornata (`st.session_state["dual_choices"]`).
+- Fase W: report dell'Analista in `analyst.py` (blocchi «PARTITA: Casa -
+  Ospite | competizione | data» + CORREZIONI_CLAUDE letti con
+  `claude_bridge.parse_response`; abbinamento con `datasources.names.match_team`
+  e data ±1 giorno, una partita per blocco, motivi dei mancati abbinamenti),
+  sezione `ui_today._render_analyst`, report in
+  `st.session_state["analyst_reports"]` e nel foglio «Report Analista»
+  dell'Excel della giornata. Esempio di test in
+  `tests/fixtures/analista/report_esempio.md`.
 - Le fonti remote devono degradare con un avviso (come `historical.py` ricade
   al 100% manuale), mai bloccare la simulazione manuale.
 
-## Stato del progetto (27/10/2026, dopo la fase U)
+## Stato del progetto (27/10/2026, dopo la fase W)
 
 - Fasi completate e unite a `main`: modello gol log-lineare (1), ancoraggio al
   mercato (2), mercati secondari (C2), livello dati (D), football-data.org,
@@ -203,7 +211,8 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   con ancoraggio di corner e cartellini (N), risparmio crediti con budget
   mensile (N2), quote Eurobet incollate (N3), registro cumulativo ed Excel della
   giornata (K), pagina Oggi e costruttore di multiple (S), rifiniture delle multiple
-  (S2), doppio pronostico Simulatore/Osservatore/Unita (U).
+  (S2), doppio pronostico Simulatore/Osservatore/Unita (U), report dell'Analista
+  del giorno (W).
 - Test: `python -m pytest -q` (solo fixture salvate, nessuna rete); 2 `xfail`
   noti (PSG-Barcellona, Napoli-Bodø, input stimati).
 

@@ -418,6 +418,35 @@ Claude» crea un unico testo con tutte le partite che hanno corner o cartellini
 senza esito (utile per le coppe). La risposta, con un blocco `ESITI_CLAUDE: E1`
 per partita e la fonte, compila solo gli esiti mancanti; la fonte va in Note.
 
+## Report dell'Analista del giorno
+
+Nella pagina Oggi, «Incolla report dell'Analista» accetta l'intero report
+dell'attività programmata di Claude, anche con testo libero prima, in mezzo e
+dopo. Ogni blocco ha questa forma:
+
+    PARTITA: Casa - Ospite | competizione | gg/mm/aaaa hh:mm
+    commento
+    CORREZIONI_CLAUDE:
+    gol_casa: 0.95 | motivo: ... | fonte: https://...
+    confidenza: media
+    commento: ...
+
+Ogni blocco si abbina a una partita della pagina tramite i nomi delle squadre
+(anche scritti diversamente, es. «Inter» e «Inter Milan») e la data, con un
+giorno di tolleranza. Le correzioni seguono le regole della fase G: limiti,
+fonte obbligatoria, media dell'arbitro avvicinata alla media. Si applicano
+subito e si possono spegnere con l'interruttore.
+
+Le tabelle mostrano:
+- per i blocchi abbinati: la partita del report, la partita abbinata, le
+  correzioni applicate e scartate;
+- per i blocchi non abbinati: il motivo (squadre non trovate, casa/ospite
+  invertite, data diversa, manca CORREZIONI_CLAUDE, partita già abbinata).
+
+Il report resta nella memoria della giornata e nell'Excel della giornata
+(foglio «Report Analista», testo completo nel foglio tecnico); «Apri scheda»
+porta le correzioni nella tab Claude della partita.
+
 ## Doppio pronostico: Simulatore, Osservatore, Unita
 
 Nella pagina Oggi, per ogni partita:
