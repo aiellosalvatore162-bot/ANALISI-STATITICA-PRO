@@ -68,7 +68,8 @@ def team_match_rows(matches: pd.DataFrame) -> pd.DataFrame:
             "goals_for": matches[f"{prefix}_goals"], "goals_against": matches[f"{other}_goals"],
             "ht_goals_for": matches[f"{prefix}_ht_goals"], "ht_goals_against": matches[f"{other}_ht_goals"],
             "corners_for": matches[f"{prefix}_corners"], "corners_against": matches[f"{other}_corners"],
-            "yellows_for": matches[f"{prefix}_yellows"], "fouls_for": matches[f"{prefix}_fouls"],
+            "yellows_for": matches[f"{prefix}_yellows"], "yellows_against": matches[f"{other}_yellows"],
+            "fouls_for": matches[f"{prefix}_fouls"],
             "xg_real_for": matches[f"{prefix}_xg_real"], "xg_real_against": matches[f"{other}_xg_real"],
             "sot_for": matches[f"{prefix}_sot"], "sot_against": matches[f"{other}_sot"],
             "shots_for": matches[f"{prefix}_shots"],
@@ -174,6 +175,8 @@ def team_profile(
     fields["corners_for"] = stat("corners_for", "corner", digits=1)
     fields["corners_against"] = stat("corners_against", "corner", digits=1)
     fields["cards_for"] = stat("yellows_for", "gialli")
+    # Facoltativo (fase T): gialli presi dagli avversari contro la squadra, per la divisione dei cartellini.
+    fields["cards_provoked"] = stat("yellows_against", "gialli provocati")
 
     extra = {
         "goals_for": stat("goals_for", "gol", normalize=False),
