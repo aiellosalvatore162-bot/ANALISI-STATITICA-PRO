@@ -727,5 +727,217 @@
       "media": 0.6091
     },
     "partite_fuori_campione": 7153
+  },
+  "minuto_per_minuto": {
+    "parametri": {
+      "data": "2026-10-27",
+      "blocchi": 18,
+      "bande_minuti": [
+        [
+          0,
+          30
+        ],
+        [
+          30,
+          60
+        ],
+        [
+          60,
+          75
+        ],
+        [
+          75,
+          90
+        ]
+      ],
+      "gol": {
+        "pesi_blocchi": [
+          0.6575,
+          0.6537,
+          0.6644,
+          0.7604,
+          0.7979,
+          0.7986,
+          0.8046,
+          0.8075,
+          2.1827,
+          1.2734,
+          1.0001,
+          1.008,
+          0.939,
+          0.9453,
+          0.9413,
+          0.8564,
+          0.8943,
+          2.015
+        ],
+        "stato": {
+          "-2": [
+            1.1189,
+            1.4555,
+            1.5159,
+            1.4875
+          ],
+          "-1": [
+            1.1559,
+            1.2975,
+            1.3086,
+            1.4131
+          ],
+          "0": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "1": [
+            0.5703,
+            0.6115,
+            0.642,
+            0.6557
+          ],
+          "2": [
+            0.4525,
+            0.4109,
+            0.4154,
+            0.4288
+          ]
+        },
+        "superiorita": {
+          "meno_uomini": 0.6255,
+          "piu_uomini": 1.785
+        }
+      },
+      "corner": {
+        "pesi_blocchi": [
+          0.6948,
+          0.9242,
+          0.8807,
+          0.9024,
+          0.8611,
+          0.8524,
+          0.8394,
+          0.9035,
+          2.0158,
+          0.7883,
+          0.9796,
+          1.0275,
+          0.9427,
+          0.9057,
+          0.9014,
+          0.9296,
+          0.9253,
+          1.7255
+        ],
+        "gamma": 0.7653
+      },
+      "cartellini": {
+        "pesi_blocchi": [
+          0.199,
+          0.3047,
+          0.4522,
+          0.5898,
+          0.6807,
+          0.833,
+          0.8797,
+          1.0075,
+          2.0003,
+          0.7003,
+          0.9215,
+          1.1304,
+          1.1648,
+          1.1083,
+          1.1918,
+          1.0517,
+          1.1992,
+          2.5851
+        ],
+        "parita": [
+          0.8848,
+          1.0045,
+          1.0087,
+          1.2319
+        ]
+      },
+      "espulsioni_pesi_blocchi": [
+        0.2822,
+        0.2822,
+        0.3225,
+        0.5644,
+        0.4838,
+        0.7256,
+        0.6853,
+        0.7861,
+        1.1086,
+        0.8264,
+        0.9071,
+        1.0078,
+        1.1892,
+        1.4714,
+        1.3707,
+        1.5118,
+        1.794,
+        2.6809
+      ],
+      "fonti": {
+        "understat_partite": 3504,
+        "statsbomb_partite": 1551,
+        "understat": "EPL, Liga, Bundesliga, Serie A, Ligue 1, stagioni 2023/24 e 2024/25",
+        "statsbomb": "StatsBomb Open Data 2015/16: Premier League, Liga, Serie A, Bundesliga, Ligue 1"
+      }
+    },
+    "attivo": false,
+    "componenti": {
+      "gol_stato": false,
+      "espulsioni": false,
+      "corner_pressione": false,
+      "cartellini_tempo": false
+    },
+    "verifica": {
+      "data": "2026-10-27",
+      "partite": 1754,
+      "passi": [
+        {
+          "passo": "motore attuale",
+          "tenuta": true,
+          "log_loss": 0.61703,
+          "ece": 0.01792,
+          "differenza": 0.0,
+          "errore_standard": 0.0
+        },
+        {
+          "passo": "gol_stato",
+          "tenuta": false,
+          "log_loss": 0.61962,
+          "ece": 0.02192,
+          "differenza": 0.00259,
+          "errore_standard": 0.00053
+        },
+        {
+          "passo": "espulsioni",
+          "tenuta": false,
+          "log_loss": 0.61749,
+          "ece": 0.0196,
+          "differenza": 0.00046,
+          "errore_standard": 0.00022
+        },
+        {
+          "passo": "corner_pressione",
+          "tenuta": false,
+          "log_loss": 0.61699,
+          "ece": 0.01769,
+          "differenza": -4e-05,
+          "errore_standard": 6e-05
+        },
+        {
+          "passo": "cartellini_tempo",
+          "tenuta": false,
+          "log_loss": 0.61707,
+          "ece": 0.01739,
+          "differenza": 3e-05,
+          "errore_standard": 6e-05
+        }
+      ]
+    }
   }
 }
