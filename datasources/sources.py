@@ -39,6 +39,11 @@ COMPETITIONS = {
 CUP_COMPETITIONS = {"Champions League": "CL"}
 
 
+def league_code(competition: str | None) -> str | None:
+    """Codice football-data.co.uk del campionato (es. «Serie A» → «I1»); None per coppe e nomi sconosciuti."""
+    return (COMPETITIONS.get(competition or "") or {}).get("footballdata")
+
+
 def season_start(day: date) -> int:
     return day.year if day.month >= 7 else day.year - 1
 

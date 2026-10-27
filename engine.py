@@ -7,7 +7,7 @@ used here.
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, fields
+from dataclasses import asdict, dataclass, field, fields
 import json
 import math
 from pathlib import Path
@@ -78,6 +78,10 @@ def load_goal_model(path: Path = GOAL_MODEL_PATH) -> tuple[str, GoalModelParams]
     active = data.get("modello_attivo", "legacy")
     if active not in GOAL_MODELS:
         raise ValueError(f"{path.name}: modello_attivo deve essere uno di {GOAL_MODELS}.")
+    strength = data.get("forza_calendario") or {}
+    if strength.get("attiva") and (strength.get("parametri") or {}).get("mode") == "ingressi" and strength.get("pesi_modello_gol"):
+        # Fase P, punto 1: con Attacco/Difesa dalle forze Dixon-Coles valgono i pesi ristimati con quegli ingressi.
+        return active, GoalModelParams(**strength["pesi_modello_gol"])
     return active, GoalModelParams(**data["parametri"])
 
 
@@ -118,6 +122,102 @@ def load_market_anchor(path: Path = GOAL_MODEL_PATH) -> MarketAnchorParams:
 
 
 DEFAULT_MARKET_ANCHOR = load_market_anchor()
+
+
+@dataclass(frozen=True)
+class ModelV2Params:
+    """Fase P (motore v2): opzioni verificate una per una (``tools/model_v2.py``, ``tools/recalibration_check.py``).
+
+    Ogni parte agisce solo se la sua sezione di ``config/goal_model.json`` ha ``attiva``: pesi del mercato per
+    campionato e tipo (totale/supremazia), riposo, incertezza dei parametri, ricalibrazione finale per mercato.
+    """
+
+    league_weights_active: bool = False
+    league_weights: Mapping[str, tuple[float, float]] = field(default_factory=dict)   # codice → (totale, supremazia)
+    rest_active: bool = False
+    rest_per_day: float = 0.0
+    rest_short: float = 0.0
+    uncertainty_active: bool = False
+    sigma_goals: float = 0.0
+    sigma_corners: float = 0.0
+    sigma_cards: float = 0.0
+    recalibration_active: bool = False
+    recalibration: Mapping[str, Mapping[str, Any]] = field(default_factory=dict)
+    thresholds_active: bool = False
+    thresholds: Mapping[str, float] = field(default_factory=dict)   # punto 7: gruppo di mercato → EV minimo (punti %)
+
+
+def load_model_v2(path: Path = GOAL_MODEL_PATH) -> ModelV2Params:
+    if not path.exists():
+        return ModelV2Params()
+    data = json.loads(path.read_text(encoding="utf-8"))
+    weights = data.get("peso_mercato_campionato", {})
+    rest = data.get("contesto_riposo", {})
+    uncertainty = data.get("incertezza_parametri", {})
+    sigma = uncertainty.get("sigma", {})
+    recalibration = data.get("ricalibrazione", {})
+    thresholds = data.get("soglie_valore", {})
+    return ModelV2Params(
+        league_weights_active=bool(weights.get("attiva")),
+        league_weights={league: (float(row["totale"]), float(row["supremazia"]))
+                        for league, row in (weights.get("pesi") or {}).items()},
+        rest_active=bool(rest.get("attiva")), rest_per_day=float((rest.get("parametri") or {}).get("per_giorno", 0.0)),
+        rest_short=float((rest.get("parametri") or {}).get("riposo_corto", 0.0)),
+        uncertainty_active=bool(uncertainty.get("attiva")), sigma_goals=float(sigma.get("gol", 0.0)),
+        sigma_corners=float(sigma.get("corner", 0.0)), sigma_cards=float(sigma.get("cartellini", 0.0)),
+        recalibration_active=bool(recalibration.get("attiva")), recalibration=dict(recalibration.get("mappe") or {}),
+        thresholds_active=bool(thresholds.get("attiva")), thresholds=dict(thresholds.get("soglie_ev") or {}),
+    )
+
+
+DEFAULT_MODEL_V2 = load_model_v2()
+
+
+def rest_factor(rest_days: tuple[float, float] | None, params: ModelV2Params) -> float:
+    """Fattore sui gol di casa (l'ospite ha l'inverso) dai giorni di riposo, come ``tools.model_v2.rest_factors``."""
+    if not params.rest_active or rest_days is None:
+        return 1.0
+    home, away = (float(np.clip(7.0 if value is None else value, 2, 7)) for value in rest_days)
+    return math.exp(params.rest_per_day * (home - away) / 7.0 + params.rest_short * (float(away <= 3) - float(home <= 3)))
+
+
+def recalibrate(probability_pct: float, mapping: Mapping[str, Any]) -> float:
+    """Mappa finale (Platt o isotonica) da ``tools/recalibration_check.py``, su percentuali."""
+    p = min(max(probability_pct / 100.0, 1e-6), 1 - 1e-6)
+    if mapping.get("metodo") == "platt":
+        q = 1.0 / (1.0 + math.exp(-(mapping["a"] + mapping["b"] * math.log(p / (1 - p)))))
+    else:
+        q = float(np.interp(p, mapping["x"], mapping["y"]))
+    return round(100.0 * q, 2)
+
+
+def value_threshold(selection: str) -> float | None:
+    """Fase P, punto 7: EV minimo (punti %) del mercato della selezione dalle soglie stimate."""
+    from today import ev_threshold
+
+    return ev_threshold(selection)
+
+
+# Complementi tenuti coerenti quando un mercato è ricalibrato (somma 100).
+_COMPLEMENT = re.compile(r"^(Over|Under) (.+)$")
+
+
+def apply_recalibration(percentages: Mapping[str, float], params: ModelV2Params) -> tuple[dict[str, float], list[str]]:
+    """Probabilità finali ricalibrate (solo le mappe accese) con i complementi Over/Under coerenti."""
+    if not params.recalibration_active or not params.recalibration:
+        return dict(percentages), []
+    out, changed = dict(percentages), []
+    for key, mapping in params.recalibration.items():
+        if key not in out:
+            continue
+        out[key] = recalibrate(out[key], mapping)
+        changed.append(key)
+        match = _COMPLEMENT.match(key)
+        if match:
+            other = f"{'Under' if match.group(1) == 'Over' else 'Over'} {match.group(2)}"
+            if other in out:
+                out[other] = round(100.0 - out[key], 2)
+    return out, changed
 
 
 @dataclass(frozen=True)
@@ -413,6 +513,11 @@ class MatchConfig:
     tactical: TacticalFactors | None = None
     tactical_switches: TacticalSwitches = DEFAULT_TACTICAL_SWITCHES
     claude: ClaudeAdjustment | None = None
+    # Fase P: campionato (codice football-data, es. «I1») e giorni di riposo (casa, ospite); usati solo dalle
+    # opzioni accese di ``v2``.
+    league: str | None = None
+    rest_days: tuple[float | None, float | None] | None = None
+    v2: ModelV2Params = DEFAULT_MODEL_V2
 
     def __post_init__(self) -> None:
         if self.goal_model not in GOAL_MODELS:
@@ -711,6 +816,20 @@ def anchor_goal_rates(model_lambda, model_mu, market_lambda, market_mu, params: 
     )
 
 
+def anchor_goal_rates_split(model_lambda, model_mu, market_lambda, market_mu, params: MarketAnchorParams,
+                            weight_total, weight_supremacy):
+    """Fase P, punto 5: come ``anchor_goal_rates`` ma con un peso del mercato per il totale (media geometrica
+    di λ e μ) e uno per la supremazia (λ/μ). Con i due pesi uguali coincide con ``anchor_goal_rates``."""
+    gap_lambda = np.log(model_lambda) - np.log(market_lambda)
+    gap_mu = np.log(model_mu) - np.log(market_mu)
+    total, supremacy = (gap_lambda + gap_mu) / 2.0, (gap_lambda - gap_mu) / 2.0
+    total, supremacy = (1.0 - np.asarray(weight_total)) * total, (1.0 - np.asarray(weight_supremacy)) * supremacy
+    corrections = [np.clip(np.exp(total + supremacy), params.correction_min, params.correction_max),
+                   np.clip(np.exp(total - supremacy), params.correction_min, params.correction_max)]
+    return (np.asarray(market_lambda) * corrections[0], np.asarray(market_mu) * corrections[1],
+            corrections[0], corrections[1])
+
+
 def final_goal_rates(config: MatchConfig) -> tuple[float, float, dict[str, Any]]:
     """Expected goals used by the simulation: model anchored to market odds.
 
@@ -719,6 +838,11 @@ def final_goal_rates(config: MatchConfig) -> tuple[float, float, dict[str, Any]]
     rates after the market blend.
     """
     lambda_, mu, details = _anchored_goal_rates(config)
+    factor = rest_factor(config.rest_days, config.v2)
+    if factor != 1.0:
+        # Fase P, punto 6: riposo, dopo l'ancoraggio al mercato.
+        details = {**details, "rest": {"giorni": config.rest_days, "fattore_casa": factor}}
+        lambda_, mu = lambda_ * factor, mu / factor
     if config.claude is not None:
         details = {**details, "claude": {"lambda_before": lambda_, "mu_before": mu,
                                          "goals_home": config.claude.goals_home, "goals_away": config.claude.goals_away}}
@@ -757,9 +881,17 @@ def _anchored_goal_rates(config: MatchConfig) -> tuple[float, float, dict[str, A
             else "Quote 1X2 assenti: si usa solo il modello."
         )
         return model_lambda, model_mu, {"ledger": ledger, "anchoring": anchoring}
-    lambda_, mu, correction_home, correction_away = anchor_goal_rates(
-        model_lambda, model_mu, market["lambda"], market["mu"], params
-    )
+    league_weights = config.v2.league_weights.get(config.league or "") if config.v2.league_weights_active else None
+    if league_weights is not None:
+        # Fase P, punto 5: peso del mercato del campionato, separato per totale gol e supremazia.
+        lambda_, mu, correction_home, correction_away = anchor_goal_rates_split(
+            model_lambda, model_mu, market["lambda"], market["mu"], params, *league_weights)
+        anchoring["league_weights"] = {"campionato": config.league, "totale": league_weights[0],
+                                       "supremazia": league_weights[1]}
+    else:
+        lambda_, mu, correction_home, correction_away = anchor_goal_rates(
+            model_lambda, model_mu, market["lambda"], market["mu"], params
+        )
     anchoring.update({
         "active": True,
         "reason": f"Gol attesi = mercato^{params.market_weight:g} · modello^{1 - params.market_weight:g}, "
@@ -1041,6 +1173,8 @@ def financial_analysis(
     components: Mapping[str, Mapping[str, float] | None] | None = None,
     suspicious_gap_pct: float = MarketAnchorParams().suspicious_gap_pct,
     no_value_markets: Sequence[str] = MarketAnchorParams().no_value_markets,
+    recalibrated: Mapping[str, float] | None = None,
+    threshold: Callable[[str], float | None] | None = None,
 ) -> dict[str, Any]:
     """Calculate settlement-aware EV and quarter-Kelly stake for user odds.
 
@@ -1062,6 +1196,8 @@ def financial_analysis(
         if not math.isfinite(odd) or odd <= 1.0:
             continue
         probability = _probability(events[market])
+        if recalibrated and market in recalibrated:
+            probability = recalibrated[market] / 100.0  # fase P, punto 4: mappa finale accesa
         confidence_interval = _confidence(events[market])
         definition = definition_for_event(market)
         push_probability = _probability(events[f"{market} push"]) if definition and definition.settlement == "push" else 0.0
@@ -1084,6 +1220,7 @@ def financial_analysis(
             else None
         )
         value_allowed = market not in no_value_markets
+        minimum = threshold(market) if threshold is not None else None
         candidates.append({
             "market": market,
             "odds": odd,
@@ -1105,7 +1242,9 @@ def financial_analysis(
             "recommended_stake_pct": round(full_kelly * 25.0, 2),
             "confidence_interval_95": confidence_interval,
             "reliability_pct": _reliability(confidence_interval),
-            "is_value": ev > 0.0 and value_allowed,
+            # Fase P, punto 7: con le soglie stimate accese serve un EV almeno pari all'errore tipico del mercato.
+            "ev_threshold_pct": minimum,
+            "is_value": ev > 0.0 and value_allowed and ev * 100.0 >= (minimum or 0.0),
             "value_excluded": not value_allowed,
             "model_only_probability_pct": model_only.get(market),
             "market_only_probability_pct": market_only.get(market),
@@ -1644,8 +1783,15 @@ def card_total_mean(config: MatchConfig) -> float:
     return anchoring["final_mean"] * (config.claude.cards if config.claude is not None else 1.0)
 
 
-def _count_samples(rng: np.random.Generator, mean: float, dispersion: float, size: int) -> np.ndarray:
-    """Poisson counts, or negative binomial (gamma-Poisson) when ``dispersion`` > 0."""
+def _count_samples(rng: np.random.Generator, mean: float, dispersion: float, size: int, sigma: float = 0.0) -> np.ndarray:
+    """Poisson counts, or negative binomial (gamma-Poisson) when ``dispersion`` > 0.
+
+    ``sigma`` > 0 (fase P, punto 3): media di ogni simulazione × exp(σZ − σ²/2)."""
+    if sigma > 0.0 and mean > 0.0:
+        mean = mean * np.exp(sigma * rng.standard_normal(size) - sigma ** 2 / 2)
+        if dispersion > 0.0:
+            return rng.poisson(rng.gamma(dispersion, mean / dispersion))
+        return rng.poisson(mean)
     if dispersion > 0.0 and mean > 0.0:
         return rng.poisson(rng.gamma(dispersion, mean / dispersion, size))
     return rng.poisson(mean, size)
@@ -1662,15 +1808,34 @@ def _sample_scores(config: MatchConfig, lambda_: float, mu: float) -> tuple[np.n
         12,
         int(max(poisson.ppf(1.0 - 1e-12, lambda_), poisson.ppf(1.0 - 1e-12, mu))),
     )
-    score_probabilities = dixon_coles_matrix(
-        lambda_, mu, config.dixon_coles_rho, max_goals=max_goals
-    )
-    score_samples = rng.choice(
-        score_probabilities.size,
-        size=config.simulations,
-        p=score_probabilities.ravel(),
-    )
-    goals_home, goals_away = np.unravel_index(score_samples, score_probabilities.shape)
+    sigma = config.v2.sigma_goals if config.v2.uncertainty_active else 0.0
+    if sigma > 0.0:
+        # Fase P, punto 3: in ogni simulazione λ e μ moltiplicati per exp(σZ − σ²/2) (stessa media); le simulazioni
+        # sono divise tra i nodi di Gauss-Hermite in proporzione ai pesi.
+        nodes, weights = np.polynomial.hermite_e.hermegauss(5)
+        weights = np.outer(weights, weights).ravel() / np.outer(weights, weights).sum()
+        sizes = rng.multinomial(config.simulations, weights)
+        homes, aways = [], []
+        for (i, j), size in zip(np.ndindex(5, 5), sizes):
+            matrix = dixon_coles_matrix(lambda_ * math.exp(sigma * nodes[i] - sigma ** 2 / 2),
+                                        mu * math.exp(sigma * nodes[j] - sigma ** 2 / 2), config.dixon_coles_rho,
+                                        max_goals=max_goals + 4)
+            drawn = rng.choice(matrix.size, size=size, p=(matrix / matrix.sum()).ravel())
+            home, away = np.unravel_index(drawn, matrix.shape)
+            homes.append(home)
+            aways.append(away)
+        order = rng.permutation(config.simulations)
+        goals_home, goals_away = np.concatenate(homes)[order], np.concatenate(aways)[order]
+    else:
+        score_probabilities = dixon_coles_matrix(
+            lambda_, mu, config.dixon_coles_rho, max_goals=max_goals
+        )
+        score_samples = rng.choice(
+            score_probabilities.size,
+            size=config.simulations,
+            p=score_probabilities.ravel(),
+        )
+        goals_home, goals_away = np.unravel_index(score_samples, score_probabilities.shape)
     home_share, away_share = first_half_shares(lambda_, mu, config.half_time)
     tactical = _tactical(config, "first_half")
     if tactical is not None:
@@ -1736,7 +1901,8 @@ def simulate_match(config: MatchConfig) -> dict[str, Any]:
     # average conceded, then sample and allocate one match total.
     home_corner_signal, away_corner_signal = corner_signals(config)
     lambda_corners = home_corner_signal + away_corner_signal
-    corners = _count_samples(rng, lambda_corners, config.count_model.corner_dispersion if config.count_model.active else 0.0, config.simulations)
+    corners = _count_samples(rng, lambda_corners, config.count_model.corner_dispersion if config.count_model.active else 0.0,
+                             config.simulations, config.v2.sigma_corners if config.v2.uncertainty_active else 0.0)
     home_corner_share = (
         home_corner_signal / lambda_corners if lambda_corners > 0.0 else 0.5
     )
@@ -1744,7 +1910,8 @@ def simulate_match(config: MatchConfig) -> dict[str, Any]:
     away_corners = corners - home_corners
 
     yellow_mean = card_total_mean(config)
-    yellows = _count_samples(rng, yellow_mean, config.count_model.card_dispersion if config.count_model.active else 0.0, config.simulations)
+    yellows = _count_samples(rng, yellow_mean, config.count_model.card_dispersion if config.count_model.active else 0.0,
+                             config.simulations, config.v2.sigma_cards if config.v2.uncertainty_active else 0.0)
     card_signal_total = max(0.0, config.home.cards_for + config.away.cards_for)
     home_card_share = (
         config.home.cards_for / card_signal_total if card_signal_total > 0.0 else 0.5
@@ -1807,7 +1974,8 @@ def simulate_match(config: MatchConfig) -> dict[str, Any]:
               corners_first_home, corners_first_away, cards_first_home, cards_first_away)
 
     events = _events_for_scores(config, (goals_home, goals_away, first_home, first_away), counts)
-    components = {"finale": _event_percentages(events), "modello": None, "mercato": None}
+    finale, recalibrated = apply_recalibration(_event_percentages(events), config.v2)
+    components = {"finale": finale, "modello": None, "mercato": None}
     exact_scores = {"finale": _score_percentages(goals_home, goals_away), "modello": None, "mercato": None}
     if anchoring["active"]:
         for name, rates in (
@@ -1927,11 +2095,14 @@ def simulate_match(config: MatchConfig) -> dict[str, Any]:
     result["count_anchoring"] = count_anchoring(config)
     result["card_split"] = card_split_details
     result["timeline"] = timeline_details
+    result["recalibrated"] = recalibrated  # fase P, punto 4: mercati con la mappa finale accesa
     result["components"] = components
     result["exact_scores"] = exact_scores
     result["financial"] = financial_analysis(
         events, getattr(config, "odds", None), components,
         config.market_anchor.suspicious_gap_pct, config.market_anchor.no_value_markets,
+        recalibrated={key: components["finale"][key] for key in recalibrated},
+        threshold=value_threshold if config.v2.thresholds_active else None,
     )
     result["count_disagreements"] = flag_count_disagreements(result["financial"], components["finale"],
                                                              getattr(config, "odds", None))
