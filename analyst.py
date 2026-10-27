@@ -23,6 +23,7 @@ import re
 from typing import Iterable, Sequence
 
 from claude_bridge import HEADER, ClaudeResponse, ResponseError, parse_response
+from match_keys import MatchKey, keys_section, parse_keys, swap_text
 
 
 _MATCH = re.compile(r"^[ \t>*#_-]*PARTITA\s*:\s*(?P<body>.+)$", re.IGNORECASE | re.MULTILINE)
@@ -42,6 +43,21 @@ class ReportBlock:
     error: str = ""                   # blocco illeggibile
     matched: int | None = None        # indice della partita abbinata
     reason: str = ""                  # perché non è abbinato
+    keys_text: str = ""               # blocco CHIAVI_MATCH (informativo)
+    swapped: bool = False             # casa e ospite invertite rispetto alla partita della pagina
+    original: tuple[str, str] = ("", "")  # correzioni e chiavi come scritte nel report
+
+    @property
+    def notice(self) -> str:
+        return "squadre invertite nel report: correzioni scambiate" if self.swapped else ""
+
+    @property
+    def full_text(self) -> str:
+        """Correzioni e chiavi nel formato della tab Claude della scheda."""
+        return "\n\n".join(part for part in (self.corrections_text, self.keys_text) if part)
+
+    def keys(self) -> tuple[list[MatchKey], list[str]]:
+        return parse_keys(self.keys_text) if self.keys_text else ([], [])
 
     @property
     def label(self) -> str:
@@ -106,6 +122,8 @@ def parse_report(text: str) -> list[ReportBlock]:
                 block.response = parse_response(block.corrections_text)
             except ResponseError as exc:
                 block.error = str(exc)
+        block.keys_text = keys_section(body)
+        block.original = (block.corrections_text, block.keys_text)
         blocks.append(block)
     return blocks
 
@@ -114,7 +132,7 @@ def _trim(text: str) -> str:
     """Il blocco delle correzioni fino alla prima riga vuota dopo «commento:» (il testo libero che segue resta fuori)."""
     lines, seen_comment = [], False
     for line in text.strip().splitlines():
-        if seen_comment and not line.strip():
+        if (seen_comment and not line.strip()) or line.strip().strip("`*-").strip().upper().startswith("CHIAVI_MATCH"):
             break
         lines.append(line)
         seen_comment = seen_comment or line.strip().lower().lstrip("`*-").strip().startswith("commento:")
@@ -128,17 +146,21 @@ def match_blocks(blocks: Sequence[ReportBlock], targets: Iterable[Target], *, to
     targets = list(targets)
     taken: dict[int, str] = {}
     for block in blocks:
-        block.matched, block.reason = None, ""
+        block.matched, block.reason, block.swapped = None, "", False
+        if block.original != ("", ""):
+            block.corrections_text, block.keys_text = block.original
         if block.error:
             block.reason = block.error
             continue
         candidates = [target for target in targets
                       if match_team(block.home, [target.home]) and match_team(block.away, [target.away])]
         if not candidates:
-            swapped = [target for target in targets
-                       if match_team(block.home, [target.away]) and match_team(block.away, [target.home])]
-            block.reason = ("squadre in ordine inverso rispetto alla partita della pagina (casa/ospite)" if swapped
-                            else "nessuna partita della pagina Oggi con queste squadre")
+            # Casa e ospite invertite nel report: si abbina comunque scambiando le correzioni (e i lati dei duelli).
+            candidates = [target for target in targets
+                          if match_team(block.home, [target.away]) and match_team(block.away, [target.home])]
+            block.swapped = bool(candidates)
+        if not candidates:
+            block.reason = "nessuna partita della pagina Oggi con queste squadre"
             continue
         if block.when is not None:
             dated = [target for target in candidates
@@ -149,6 +171,9 @@ def match_blocks(blocks: Sequence[ReportBlock], targets: Iterable[Target], *, to
                 continue
             candidates = dated
         target = candidates[0]
+        if block.swapped:
+            block.corrections_text, block.keys_text = swap_text(block.corrections_text), swap_text(block.keys_text)
+            block.response = parse_response(block.corrections_text)
         if target.index in taken:
             block.reason = f"partita già abbinata al blocco «{taken[target.index]}»: uso solo il primo"
             continue
@@ -166,5 +191,7 @@ def report_rows(blocks: Sequence[ReportBlock], names: dict[int, str]) -> list[di
         "Correzioni applicate": ", ".join(block.applied()),
         "Correzioni scartate": ", ".join(block.discarded()),
         "Confidenza": (block.response.confidence or "") if block.response else "",
+        "Chiavi del match": len(block.keys()[0]),
+        "Avviso": block.notice,
         "Non abbinato perché": block.reason,
     } for block in blocks]
