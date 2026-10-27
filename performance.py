@@ -147,13 +147,7 @@ def read_registry(source: bytes | str | BytesIO) -> Registry:
     frame["Ora"] = frame["Ora"].map(_time)
     for column in ("Competizione", "Partita", "Mercato", "Selezione", "Tipo", "Versione_modello", "Note", "ID"):
         frame[column] = frame[column].map(lambda value: "" if value is None or pd.isna(value) else str(value).strip())
-    from prediction_log import NEW_MARKETS
-
-    unknown = sorted(set(frame["Mercato"]) - set(MARKETS) - set(NEW_MARKETS) - {""})
-    new = sorted(set(frame["Mercato"]) & set(NEW_MARKETS))
-    if new:
-        warnings.append("Mercati nuovi (fase Q) senza riga nel foglio Riepilogo del tuo file: " + ", ".join(new)
-                        + ". Aggiungi le righe per vederli nei totali di Excel; qui sono già misurati.")
+    unknown = sorted(set(frame["Mercato"]) - set(MARKETS) - {""})
     if unknown:
         warnings.append("Mercati con nome non previsto dal Riepilogo: " + ", ".join(unknown) + ".")
     no_id = frame["ID"] == ""

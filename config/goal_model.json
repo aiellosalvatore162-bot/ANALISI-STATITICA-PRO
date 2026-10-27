@@ -948,5 +948,303 @@
     "dispersione_gol": 499.997,
     "differenza_log_loss": -0.000112,
     "due_errori_standard": 8.7e-05
+  },
+  "soglie_valore": {
+    "data": "2026-10-27",
+    "attiva": false,
+    "soglie_ev": {
+      "1X2": 6.0,
+      "Doppia chance": 3.2,
+      "DNB": 5.3,
+      "Gol": 3.4,
+      "Primo tempo": 4.3,
+      "Corner": 3.1,
+      "Cartellini": 7.6,
+      "Combo": 4.8,
+      "Risultati esatti": 9.8
+    },
+    "verifica": {
+      "prima": {
+        "giocate": 7,
+        "rendimento": 0.28857142857142853,
+        "errore_standard": 0.8481420269973557
+      },
+      "dopo": {
+        "giocate": 3,
+        "rendimento": 0.25,
+        "errore_standard": 1.2500000000000002
+      }
+    }
+  },
+  "incertezza_parametri": {
+    "data": "2026-10-27",
+    "attiva": false,
+    "sigma": {
+      "gol": 0.0,
+      "corner": 0.0,
+      "cartellini": 0.0
+    },
+    "verifica": {
+      "gol": {
+        "sigma": 0.0,
+        "prima": 1.631843,
+        "dopo": 1.631843,
+        "differenza": 0.0,
+        "due_es": 0.0,
+        "ece_prima": 0.012658,
+        "ece_dopo": 0.012658,
+        "tenuta": false,
+        "partite": 7152
+      },
+      "corner": {
+        "sigma": 0.0,
+        "prima": 0.668108,
+        "dopo": 0.668108,
+        "differenza": 0.0,
+        "due_es": 0.0,
+        "ece_prima": 0.009801,
+        "ece_dopo": 0.009801,
+        "tenuta": false,
+        "partite": 7152
+      },
+      "cartellini": {
+        "sigma": 0.0,
+        "prima": 0.624869,
+        "dopo": 0.624869,
+        "differenza": 0.0,
+        "due_es": 0.0,
+        "ece_prima": 0.023697,
+        "ece_dopo": 0.023697,
+        "tenuta": false,
+        "partite": 7152
+      }
+    }
+  },
+  "peso_mercato_campionato": {
+    "data": "2026-10-27",
+    "attiva": false,
+    "pesi": {
+      "D1": {
+        "totale": 0.937,
+        "supremazia": 0.937,
+        "stima_totale": 1.0,
+        "stima_supremazia": 1.0,
+        "partite": 597
+      },
+      "E0": {
+        "totale": 0.836,
+        "supremazia": 0.943,
+        "stima_totale": 0.75,
+        "stima_supremazia": 1.0,
+        "partite": 750
+      },
+      "I1": {
+        "totale": 0.771,
+        "supremazia": 0.943,
+        "stima_totale": 0.6,
+        "stima_supremazia": 1.0,
+        "partite": 750
+      },
+      "SP1": {
+        "totale": 0.943,
+        "supremazia": 0.943,
+        "stima_totale": 1.0,
+        "stima_supremazia": 1.0,
+        "partite": 755
+      }
+    },
+    "verifica": {
+      "prima": 1.631843,
+      "dopo": 1.631539,
+      "differenza": -0.000304,
+      "due_es": 0.000396,
+      "ece_prima": 0.012658,
+      "ece_dopo": 0.0131,
+      "tenuta": false,
+      "partite": 7152
+    }
+  },
+  "contesto_riposo": {
+    "data": "2026-10-27",
+    "attiva": false,
+    "parametri": {
+      "per_giorno": -0.15761,
+      "riposo_corto": -0.00069
+    },
+    "verifica": {
+      "riposo_corto": 0.154438,
+      "prima": 1.631843,
+      "dopo": 1.632062,
+      "differenza": 0.000219,
+      "due_es": 0.000784,
+      "ece_prima": 0.012658,
+      "ece_dopo": 0.013265,
+      "tenuta": false,
+      "partite": 7152
+    }
+  },
+  "ricalibrazione": {
+    "data": "2026-10-27",
+    "attiva": true,
+    "mappe": {
+      "Over 3.5 cartellini": {
+        "metodo": "platt",
+        "a": -0.03392,
+        "b": 1.19101
+      }
+    },
+    "verificati": [
+      "1",
+      "1 + Over 1.5",
+      "1 + Over 2.5",
+      "1 + Over 3.5",
+      "1 1T",
+      "12",
+      "1X",
+      "2",
+      "2 + Over 1.5",
+      "2 + Over 2.5",
+      "2 + Over 3.5",
+      "2 1T",
+      "Esatti 0-0/1-1",
+      "Esatti 0-1/0-2/1-2",
+      "Esatti 1-0/0-1/0-0",
+      "Esatti 1-0/2-0/2-1",
+      "Esatti 1-1/2-2",
+      "Esatti 2-1/3-1/3-2",
+      "Favorita 4+ gol",
+      "Favorita vince di 3+",
+      "Goal",
+      "Goal + Over 2.5",
+      "Goal + Over 3.5",
+      "Multigol 1-2",
+      "Multigol 1-3",
+      "Multigol 2-4",
+      "Multigol 2-5",
+      "Over 0.5 gol 1T",
+      "Over 1.5 gol",
+      "Over 1.5 gol 1T",
+      "Over 10.5 corner",
+      "Over 2.5 gol",
+      "Over 3.5 cartellini",
+      "Over 3.5 gol",
+      "Over 4.5 cartellini",
+      "Over 5.5 cartellini",
+      "Over 8.5 corner",
+      "Over 9.5 corner",
+      "Totale 5+ gol",
+      "X",
+      "X + Over 1.5",
+      "X + Over 2.5",
+      "X + Over 3.5",
+      "X 1T",
+      "X2"
+    ],
+    "nota": "solo i mercati che migliorano fuori campione (regola severa)"
+  },
+  "forza_calendario": {
+    "data": "2026-10-27",
+    "attiva": false,
+    "parametri": {
+      "decay_per_day": 0.001,
+      "goal_weight": 0.0,
+      "mode": "ingressi",
+      "window_days": 730,
+      "prior_matches": 3.0
+    },
+    "verifica": {
+      "diretto": {
+        "prima": 1.631843,
+        "dopo": 1.632417,
+        "differenza": 0.000574,
+        "due_es": 0.000949,
+        "ece_prima": 0.012658,
+        "ece_dopo": 0.013971,
+        "tenuta": false,
+        "partite": 7152
+      },
+      "ingressi": {
+        "prima": 1.631843,
+        "dopo": 1.631565,
+        "differenza": -0.000278,
+        "due_es": 0.000333,
+        "ece_prima": 0.012658,
+        "ece_dopo": 0.012476,
+        "tenuta": false,
+        "partite": 7152
+      }
+    },
+    "pesi_modello_gol": {
+      "base_goals": 1.351833,
+      "home_advantage": 0.209656,
+      "attack_weight": 0.920434,
+      "defense_weight": 0.837479,
+      "attack_xg_share": 0.334086,
+      "defense_xg_share": 0.310987,
+      "elo_k": 0.480504,
+      "form_weight": -0.025296,
+      "dixon_coles_rho": -0.119269
+    }
+  },
+  "assenze": {
+    "data": "2026-10-27",
+    "attiva": false,
+    "limiti": [
+      0.85,
+      1.05
+    ],
+    "riferimento_ruolo": {
+      "difensore": 0.107,
+      "centrocampista": 0.239,
+      "attaccante": 0.456
+    },
+    "verifica": {
+      "finale": {
+        "prima": 1.6464623300064039,
+        "dopo": 1.64968318700692,
+        "differenza": 0.003220857000516115,
+        "due_es": 0.003664018624918688,
+        "ece_prima": 0.012239670067718887,
+        "ece_dopo": 0.015329735640171732,
+        "tenuta": false,
+        "partite": 1335
+      },
+      "solo_modello": {
+        "prima": 1.6657474585365089,
+        "dopo": 1.6677850244982002,
+        "differenza": 0.0020375659616912807,
+        "due_es": 0.0037728417977602154,
+        "ece_prima": 0.010102401316215984,
+        "ece_dopo": 0.012315718545343076,
+        "tenuta": false,
+        "partite": 1335
+      },
+      "partite": 1335,
+      "con_assenze": 0.9797752808988764,
+      "fattore_medio": 0.9941048989816276,
+      "fattore_minimo": 0.85
+    }
+  },
+  "marcatori": {
+    "data": "2026-10-27",
+    "verificato": true,
+    "quota_ruolo": {
+      "difensore": 0.0317,
+      "centrocampista": 0.0947,
+      "attaccante": 0.2066
+    },
+    "xg_fittizi": 10.794,
+    "quota_rigori": 0.0756,
+    "nota": "Calibrazione verificata fuori campione (python -m tools.player_check).",
+    "verifica": {
+      "prima": 0.27505773576663195,
+      "dopo": 0.27158462587870247,
+      "differenza": -0.0034731098879294897,
+      "due_es": 0.0013473108178208891,
+      "ece_prima": 0.007808304681019685,
+      "ece_dopo": 0.002073573354626404,
+      "tenuta": true,
+      "partite": 26003
+    }
   }
 }

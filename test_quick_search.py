@@ -148,13 +148,19 @@ def test_scorer_share_is_shrunk_and_probability_comes_from_the_simulated_goals(n
     top = rows[0]
     assert rows == sorted(rows, key=lambda row: -row["Segna %"]) and top["Titolare"] == "non confermato"
     player = next(p for p in napoli if p.name == top["Giocatore"])
-    per_goal = scorers.share(player, team_xg90) * min(90, player.minutes_per_game) / 90
+    # Fase P: con la sezione «marcatori» della configurazione vale la versione v2 (npxG, ruolo, rigorista).
+    params = scorers.load_params()
+    assert params is not None and params.verified
+    team_npxg90 = sum(p.npxg for p in napoli) / max(p.games for p in napoli)
+    taker = scorers.penalty_taker(napoli)
+    per_goal = scorers.share_v2(player, team_npxg90, params, taker) * min(90, player.minutes_per_game) / 90
     expected = 1 - sum(p * (1 - per_goal) ** g for g, p in distribution.items())
     assert top["Segna %"] == pytest.approx(expected * 100, abs=0.05)
+    assert top["Rigorista"] == ("sì" if top["Giocatore"] == taker else "")
     assert all(row["Segna %"] < 60 for row in rows)
     confirmed = scorers.scorer_rows(napoli, distribution, confirmed=[top["Giocatore"]])
     assert confirmed[0]["Minuti attesi"] == 90 and confirmed[0]["Titolare"] == "confermato"
-    assert "Non verificato" in scorers.CALIBRATION_NOTE
+    assert "verificata" in scorers.calibration_note()
 
 
 def test_scorer_market_margin_from_entered_odds():

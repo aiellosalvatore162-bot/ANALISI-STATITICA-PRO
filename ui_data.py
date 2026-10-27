@@ -415,6 +415,7 @@ def render_claude(result: dict, config, block: str) -> tuple[dict | None, str]:
         return None, ""
     try:
         response = parse_response(answer)
+        st.session_state["claude_absences"] = response.absent  # fase P: assenti per la sezione «Assenze pesate»
     except ResponseError as exc:
         st.error(str(exc))
         return None, ""

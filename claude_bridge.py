@@ -42,6 +42,8 @@ gol_ospite: 1.05 | motivo: <perché> | fonte: https://...
 corner: 1.00 | motivo: <perché> | fonte: https://...
 cartellini: 1.10 | motivo: <perché> | fonte: https://...
 arbitro_gialli_medi: 4.6 | partite: 23 | fonte: https://...
+assenti_casa: <Nome Cognome, Nome Cognome> | fonte: https://...
+assenti_ospite: <Nome Cognome> | fonte: https://...
 confidenza: media
 commento: <una o due frasi>"""
 
@@ -126,6 +128,8 @@ def analysis_prompt(block: str, result: Mapping[str, Any], *, sources: list[dict
         "ai gialli attesi e, nella stessa proporzione, ai rossi attesi.",
         "- Ogni correzione diversa da 1.00 deve avere una fonte con link (https://...): senza fonte viene ignorata.",
         "- Usa arbitro_gialli_medi solo se hai trovato la media dell'arbitro designato, con il numero di partite.",
+        "- assenti_casa e assenti_ospite: solo giocatori che non ci saranno di sicuro (infortunio, squalifica), "
+        "nomi separati da virgole, con fonte; l'app pesa ogni assenza con i dati Understat.",
         "- Ometti le righe per cui non hai informazioni affidabili. confidenza: bassa, media o alta.",
     ])
 
@@ -154,6 +158,8 @@ class ClaudeResponse:
     comment: str = ""
     preamble: str = ""
     warnings: list[str] = field(default_factory=list)
+    # Fase P, punto 2: assenti indicati da Claude («casa»/«ospite» → nomi), solo con una fonte.
+    absent: dict[str, list[str]] = field(default_factory=dict)
 
     def adjustment(self) -> ClaudeAdjustment | None:
         """Fattori accettati per il motore; ``None`` se non c'è nulla da applicare."""
@@ -213,6 +219,13 @@ def parse_response(text: str) -> ClaudeResponse:
             continue
         if key == "commento":
             response.comment = value
+            continue
+        if key in ("assenti_casa", "assenti_ospite"):
+            names = [name.strip() for name in re.split(r"[,;]", value) if name.strip() and name.strip() not in ("-", "—")]
+            if names and _URL.search(attributes.get("fonte", "")):
+                response.absent[key.removeprefix("assenti_")] = names
+            elif names:
+                response.warnings.append(f"{key} senza fonte con link: ignorato.")
             continue
         if key not in BOUNDS and key != "arbitro_gialli_medi":
             if ":" in raw_line:

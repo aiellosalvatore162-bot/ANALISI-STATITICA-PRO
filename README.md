@@ -418,6 +418,40 @@ Claude» crea un unico testo con tutte le partite che hanno corner o cartellini
 senza esito (utile per le coppe). La risposta, con un blocco `ESITI_CLAUDE: E1`
 per partita e la fonte, compila solo gli esiti mancanti; la fonte va in Note.
 
+## Motore statistico v2 (fase P)
+
+Ogni punto è un'opzione in `config/goal_model.json`, accesa solo se migliora
+fuori campione (log-loss appaiata giù di oltre 2 errori standard ed ECE non
+peggiore; stagioni 2019-24 e 2026-27, taratura 2024-26). Base comune delle
+verifiche: `tools/v2common.py` (cache in `data/cache/fase_p/`). Tabelle
+complete in `docs/BASELINE.md`.
+
+| Punto | Comando | Esito |
+|---|---|---|
+| 1. Forza corretta per il calendario (`ratings.py`) | `python -m tools.strength_check --salva` | spenta (`forza_calendario`): migliora molto il solo modello, non la probabilità finale ancorata |
+| 2. Assenze pesate (`absences.py`) | `python -m tools.player_check --salva` | spenta (`assenze`): le quote prezzano già le assenze; il fattore resta visibile |
+| 3. Incertezza dei parametri | `python -m tools.model_v2 --incertezza --salva` | spenta (`incertezza_parametri`): σ migliore = 0 |
+| 4. Ricalibrazione finale per mercato | `python -m tools.recalibration_check --salva` | accesa solo per «Over 3.5 cartellini» (`ricalibrazione`) |
+| 5. Peso del mercato per campionato e tipo | `python -m tools.model_v2 --peso-mercato --salva` | spenta (`peso_mercato_campionato`) |
+| 6. Riposo (coppe non nei dati storici) | `python -m tools.model_v2 --contesto --salva` | spenta (`contesto_riposo`) |
+| 7. Soglia di valore = errore tipico | `python -m tools.value_thresholds --salva` | soglie stimate salvate ma spente (`soglie_valore`): rendimento non misurabile |
+| 7b. Marcatori v2 (`scorers.py`) | `python -m tools.player_check --salva` | adottata e verificata (`marcatori`) |
+
+**Assenti.** Nella tab Gol, sotto «Marcatori», la sezione «Assenze pesate»
+calcola per ogni assente la produzione offensiva (npxG + xA) persa al netto del
+sostituto tipico dello stesso ruolo. Il fattore resta tra 0,85 e 1,05. Claude
+può indicare gli assenti nel suo blocco (`assenti_casa:`,
+`assenti_ospite:`, con fonte) e la sezione li precompila. Il fattore cambia la
+simulazione solo se l'opzione `assenze` è accesa (oggi no).
+
+**Marcatori v2.** Usano gli xG senza rigori (npxG), avvicinati a un riferimento
+per ruolo (difensore 0,032, centrocampista 0,095, attaccante 0,207 dei gol della
+squadra) con 10,8 xG fittizi, così chi ha pochi minuti resta vicino al proprio
+ruolo. Il rigorista (chi ha segnato più rigori) prende in più il 7,6% dei gol
+della squadra. Sono verificati sullo storico partita per partita di Understat
+(`python -m tools.player_data 2025 2026`, una volta, con pause tra le
+richieste).
+
 ## Schede tattiche, incroci di stile e nuovi mercati (fase Q)
 
 **Schede tattiche.** Nella pagina Oggi, sezione «Schede tattiche»: scegli le
@@ -461,9 +495,9 @@ stesso campione simulato, collegati al parser Eurobet, al registro, al
 costruttore di multiple e al foglio Analisi. Verifica fuori campione con
 `python -m tools.new_markets`; corner e cartellini per tempo non sono
 verificabili con i dati storici (quote dei tempi da StatsBomb, dichiarate).
-Nella tabella Riepilogo del tuo file vanno aggiunte le righe: Multigol 1T,
-Multigol 2T, Multigol casa+ospite, Over/Under 4.5+, Corner per tempo,
-Cartellini per tempo, Fasce corner, Fasce cartellini.
+Il Riepilogo del file ha le righe Multigol 1T, Multigol 2T, Multigol
+casa+ospite, Over/Under 4.5+, Corner per tempo, Cartellini per tempo, Fasce
+corner, Fasce cartellini (allineate nella fase P).
 
 **Goleade.** La Panoramica mostra la riga «Goleada» (favorita 4+ gol, vittoria
 con 3+ di scarto). `python -m tools.goleade` misura per fascia di squilibrio:
@@ -694,7 +728,7 @@ Puntata, Tipo, Versione_modello, Quota_chiusura, Esito, Note`.
   sole quote, `Prob_modello` il solo modello, `Prob_stile` la simulazione con lo
   scenario tattico attivo, `Prob_Claude` quella con le correzioni di Claude;
   `Prob_finale` è l'ultima disponibile.
-- `Mercato` usa sempre i 21 nomi della tabella «per mercato» del Riepilogo (l'ultimo è «Multipla»):
+- `Mercato` usa sempre i 29 nomi della tabella «per mercato» del Riepilogo (i 21 della fase H, fino a «Multipla», più gli 8 della fase Q):
   1X2, Doppia chance, DNB, Over 1.5, Under 1.5, Over 2.5, Under 2.5, Over 3.5,
   Under 3.5, Goal/NoGoal, Multigol (totale), Multigol casa, Multigol ospite,
   Primo tempo (1X2 del primo tempo), Over 0.5 1T, Over 1.5 1T, Corner,

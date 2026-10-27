@@ -104,7 +104,9 @@ def analyze(match: TodayMatch, build: Callable[..., Any], odds_fields: Mapping[s
         analysis.skipped = f"blocco non valido: {exc}"
         return analysis
     analysis.odds = dict(parsed.odds)
-    analysis.config = config_from_input(parsed, simulations=simulations)
+    from datasources.sources import league_code
+
+    analysis.config = replace(config_from_input(parsed, simulations=simulations), league=league_code(sheet.competition))
     return simulate(analysis, settings=settings)
 
 
@@ -215,7 +217,11 @@ def ev_threshold(selection: str, settings: Mapping[str, Any] | None = None) -> f
     if market is None:
         return None
     group = THRESHOLD_GROUPS.get(market, market)
-    return float(settings["soglie_ev"].get(group, settings["soglie_ev"].get("Gol", 3.0)))
+    from engine import DEFAULT_MODEL_V2
+
+    # Fase P, punto 7: con le soglie stimate accese (errore tipico del modello per mercato) valgono quelle.
+    thresholds = DEFAULT_MODEL_V2.thresholds if DEFAULT_MODEL_V2.thresholds_active else settings["soglie_ev"]
+    return float(thresholds.get(group, thresholds.get("Gol", 3.0)))
 
 
 @dataclass(frozen=True)
@@ -335,6 +341,7 @@ def multi_analysis_prompt(analyses: Sequence[Analysis], selected: Iterable[int],
         f"{BOUNDS['cartellini'][0]:.2f}-{BOUNDS['cartellini'][1]:.2f}.",
         "- Ogni correzione diversa da 1.00 deve avere una fonte con link (https://...): senza fonte viene ignorata.",
         "- Usa arbitro_gialli_medi solo con la media dell'arbitro designato e il numero di partite.",
+        "- assenti_casa e assenti_ospite: solo assenze sicure (infortunio, squalifica), nomi separati da virgole, con fonte.",
         "- Ometti le righe senza informazioni affidabili. confidenza: bassa, media o alta.",
     ])
 

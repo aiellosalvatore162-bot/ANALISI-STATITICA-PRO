@@ -53,7 +53,7 @@ def test_columns_and_markets_match_the_user_template():
     assert tuple(header[:19]) == COLUMNS
     summary = workbook["Riepilogo"]
     assert tuple(summary.cell(row=row, column=1).value for row in range(9, 9 + len(MARKETS))) == MARKETS
-    assert len(MARKETS) == 21 and MARKETS[-1] == "Multipla"
+    assert len(MARKETS) == 29 and MARKETS[20] == "Multipla" and MARKETS[-1] == "Fasce cartellini"
     after = summary.cell(row=9 + len(MARKETS), column=1).value  # subito dopo l'elenco: vuota o la nota sui Brier
     assert after is None or str(after).startswith("Quale componente")
 

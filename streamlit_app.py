@@ -32,6 +32,7 @@ from ui_memory import RESTART_WARNING, flags_key, remember, remember_claude, ren
 from ui_odds import render_credits, render_odds
 from ui_performance import render_performance
 from ui_tactical import current_effects, render_match as render_match_sheets
+from datasources.sources import league_code
 
 
 # Senza linee corner quotate l'EV dei corner viene solo dal modello.
@@ -577,6 +578,15 @@ sheet_effects = current_effects(parsed_preview.home.name if parsed_preview else 
                                 parsed_preview.away.name if parsed_preview else None)
 render_match_sheets(sheet_effects, (parsed_preview.home.elo, parsed_preview.away.elo)
                     if parsed_preview is not None and hasattr(parsed_preview.home, "elo") else None)
+def _with_absences(factors: dict, home: str, away: str) -> dict:
+    """Fattori delle schede tattiche × assenze pesate (fase P), queste solo se l'opzione «assenze» è accesa."""
+    from ui_scorers import absence_key
+
+    absent = st.session_state.get(absence_key(home, away)) or {}
+    return {**factors, "gol_casa": factors.get("gol_casa", 1.0) * absent.get("home", 1.0),
+            "gol_ospite": factors.get("gol_ospite", 1.0) * absent.get("away", 1.0)}
+
+
 def _anchor_signature(parsed: MatchInput | None) -> tuple:
     """Quote che cambiano l'ancoraggio senza toccare i campi: scala Eurobet di corner/cartellini e quote sharp."""
     if parsed is None:
@@ -597,6 +607,8 @@ current_signature = (
     tuple(st.session_state.get(flags_key(parsed_preview.home.name, parsed_preview.away.name)) or [])
     if parsed_preview is not None else (),
     repr((sheet_effects.home, sheet_effects.away)),
+    repr(st.session_state.get(f"absence_factors::{parsed_preview.home.name} - {parsed_preview.away.name}"))
+    if parsed_preview is not None else "",
 )
 
 # «auto_simulate»: partita riaperta dall'elenco delle partite analizzate.
@@ -618,8 +630,10 @@ if st.button("Esegui simulazione", type="primary", width="stretch") or st.sessio
         flags = list(st.session_state.get(flags_key(parsed.home.name, parsed.away.name)) or [])
         config = config.__class__(**{**config.__dict__, "odds": merged_odds, "anchor_odds": anchor,
                                      "tactical": tactical_factors, "tactical_switches": tactical_switches,
-                                     "claude": combined_adjustment(flags, None, tactical=sheet_effects.factors)})
-        config = config.__class__(**{**config.__dict__, "timeline": sheet_effects.timeline(config.timeline)})
+                                     "claude": combined_adjustment(flags, None, tactical=_with_absences(
+                                         sheet_effects.factors, parsed.home.name, parsed.away.name))})
+        config = config.__class__(**{**config.__dict__, "timeline": sheet_effects.timeline(config.timeline),
+                                     "league": league_code((st.session_state.get("match_meta") or {}).get("competition"))})
         st.session_state["result_flags"] = flags
         st.session_state["anchor_sources"] = anchor_sources
         result = simulate_match(config)
@@ -888,11 +902,12 @@ def _value_details(result: dict) -> None:
 
 
 def _goals_tab(result: dict, financial_rows: dict) -> None:
-    from ui_scorers import render_scorers
+    from ui_scorers import render_absences, render_scorers
 
     st.html(dashboard.grid([dashboard.goals_card(result), dashboard.team_goals_card(result),
                             dashboard.multigol_card(result), dashboard.first_half_card(result)], wide=True))
     render_scorers(result)
+    render_absences(result)
     with st.expander("Over / Under, Goal / No Goal e Multigol: tutte le schede", expanded=False):
         _cards_section("Over / Under gol", result["markets"]["over_under"],
                        {key: key.replace("_", " ") for key in result["markets"]["over_under"]},
