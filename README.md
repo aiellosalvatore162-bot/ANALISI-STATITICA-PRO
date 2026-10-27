@@ -461,9 +461,9 @@ stesso campione simulato, collegati al parser Eurobet, al registro, al
 costruttore di multiple e al foglio Analisi. Verifica fuori campione con
 `python -m tools.new_markets`; corner e cartellini per tempo non sono
 verificabili con i dati storici (quote dei tempi da StatsBomb, dichiarate).
-Nella tabella Riepilogo del tuo file vanno aggiunte le righe: Multigol 1T,
-Multigol 2T, Multigol casa+ospite, Over/Under 4.5+, Corner per tempo,
-Cartellini per tempo, Fasce corner, Fasce cartellini.
+Il Riepilogo del file ha le righe Multigol 1T, Multigol 2T, Multigol
+casa+ospite, Over/Under 4.5+, Corner per tempo, Cartellini per tempo, Fasce
+corner, Fasce cartellini (allineate nella fase P).
 
 **Goleade.** La Panoramica mostra la riga «Goleada» (favorita 4+ gol, vittoria
 con 3+ di scarto). `python -m tools.goleade` misura per fascia di squilibrio:
@@ -694,7 +694,7 @@ Puntata, Tipo, Versione_modello, Quota_chiusura, Esito, Note`.
   sole quote, `Prob_modello` il solo modello, `Prob_stile` la simulazione con lo
   scenario tattico attivo, `Prob_Claude` quella con le correzioni di Claude;
   `Prob_finale` è l'ultima disponibile.
-- `Mercato` usa sempre i 21 nomi della tabella «per mercato» del Riepilogo (l'ultimo è «Multipla»):
+- `Mercato` usa sempre i 29 nomi della tabella «per mercato» del Riepilogo (i 21 della fase H, fino a «Multipla», più gli 8 della fase Q):
   1X2, Doppia chance, DNB, Over 1.5, Under 1.5, Over 2.5, Under 2.5, Over 3.5,
   Under 3.5, Goal/NoGoal, Multigol (totale), Multigol casa, Multigol ospite,
   Primo tempo (1X2 del primo tempo), Over 0.5 1T, Over 1.5 1T, Corner,
