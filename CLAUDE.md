@@ -208,10 +208,22 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   `claude_bridge.parse_response` si ferma prima delle chiavi), scheda
   `dashboard.keys_card` nella Panoramica. Report con squadre invertite:
   abbinato scambiando correzioni e duelli (`match_keys.swap_text`).
+- Fase T: divisione dei cartellini tra le squadre (`engine.CardSplitParams`,
+  sezione `divisione_cartellini` di `config/goal_model.json`, `attiva`), verificata
+  e scelta con `python -m tools.card_split [--salva] [--output docs/BASELINE.md]`
+  (taratura 2024-26, fuori campione 2019-24 e 2026-27; una componente resta solo se
+  migliora log-loss ED ECE medie). Accese: ritmo + provocati con shrinkage,
+  sfavorita = P(2) − P(1), bilanciamento (binomiale moltiplicativa); spente: Elo,
+  casa, beta-binomiale, arbitro. Matematica unica `engine.card_points_joint` /
+  `split_log_pmf` (usata anche dallo strumento). Campo facoltativo del blocco
+  «Cartellini provocati». Ancoraggio a 1X2 cartellini e linee per squadra con
+  peso 0.8 dichiarato. `engine.flag_count_disagreements`: scarto > 10 punti su
+  corner/cartellini = avviso e niente verde. Liste e multiple di Oggi escludono
+  i cartellini per squadra se l'ECE supera `cartellini_squadra.ece_massimo`.
 - Le fonti remote devono degradare con un avviso (come `historical.py` ricade
   al 100% manuale), mai bloccare la simulazione manuale.
 
-## Stato del progetto (27/10/2026, dopo la fase X)
+## Stato del progetto (27/10/2026, dopo la fase T)
 
 - Fasi completate e unite a `main`: modello gol log-lineare (1), ancoraggio al
   mercato (2), mercati secondari (C2), livello dati (D), football-data.org,
@@ -225,7 +237,8 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   mensile (N2), quote Eurobet incollate (N3), registro cumulativo ed Excel della
   giornata (K), pagina Oggi e costruttore di multiple (S), rifiniture delle multiple
   (S2), doppio pronostico Simulatore/Osservatore/Unita (U), report dell'Analista
-  del giorno (W), ricerca rapida, schedine salvate, marcatori e chiavi del match (X).
+  del giorno (W), ricerca rapida, schedine salvate, marcatori e chiavi del match (X),
+  cartellini per squadra (T).
 - Test: `python -m pytest -q` (solo fixture salvate, nessuna rete); 2 `xfail`
   noti (PSG-Barcellona, Napoli-Bodø, input stimati).
 

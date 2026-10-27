@@ -418,6 +418,42 @@ Claude» crea un unico testo con tutte le partite che hanno corner o cartellini
 senza esito (utile per le coppe). La risposta, con un blocco `ESITI_CLAUDE: E1`
 per partita e la fonte, compila solo gli esiti mancanti; la fonte va in Note.
 
+## Cartellini per squadra (fase T)
+
+La fase M aveva tarato solo il totale dei cartellini. La divisione tra le squadre
+(1X2 cartellini, Over/Under cartellini per squadra) ora ha un suo modello,
+verificato fuori campione con `python -m tools.card_split`: stessi insiemi della
+fase M (taratura 2024-26, fuori campione 2019-24 e 2026-27), punti Eurobet.
+
+Ogni componente resta accesa solo se migliora sia la log-loss sia l'ECE medie
+fuori campione. Su 1X2 cartellini e linee per squadra 0.5/1.5/2.5:
+- **a) ritmo + cartellini «provocati»** (gialli presi dagli avversari contro la
+  squadra), con shrinkage: accesa;
+- **b) sfavorita**: con la differenza Elo spenta, con P(2) − P(1) accesa;
+- **c) casa/trasferta**: spenta (log-loss meglio, ECE peggio);
+- **d) fattore comune**: la beta-binomiale è spenta, il bilanciamento
+  (binomiale moltiplicativa, le divisioni equilibrate più probabili) è acceso;
+- **e) arbitro sulla divisione**: spento.
+
+Risultato: ECE media da 0,030 a 0,015, log-loss media da 0,627 a 0,609; ECE di
+1X2 cartellini da 0,063 a 0,020 (2019-24). Le tabelle complete sono in
+`docs/BASELINE.md`. Parametri in `config/goal_model.json`
+(`divisione_cartellini`, `attiva`).
+
+Nel blocco c'è il campo facoltativo «Cartellini provocati: x», compilato in
+automatico da football-data.co.uk; senza quel campo il termine viene escluso.
+Con le quote 1X2 cartellini o Over/Under cartellini per squadra incollate
+(Eurobet), la divisione si sposta verso il mercato senza margine con peso 0.8
+dichiarato (non ci sono quote cartellini nello storico). Senza quote compare
+l'avviso «non ancorato».
+
+Su corner e cartellini, se modello e mercato senza margine differiscono di più
+di 10 punti compare «disaccordo forte col bookmaker: probabile errore del
+modello, verifica» e niente semaforo verde. Nella pagina Oggi 1X2 cartellini e
+cartellini per squadra entrano in liste e multiple solo se l'ECE fuori campione
+di ogni voce è entro 0,03 (`cartellini_squadra` in `config/oggi.json`), oppure
+per scelta manuale con l'interruttore.
+
 ## Ricerca rapida, schedine salvate, marcatori e chiavi del match
 
 **Ricerca rapida** (pagina Oggi, senza AI). Scrivi frasi come «dammi 6 over 2.5
