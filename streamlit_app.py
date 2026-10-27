@@ -537,9 +537,9 @@ with st.container(border=True):
     quote_categories = {
         "Esiti": ("1x2", "double_chance", "draw_no_bet", "first_half_1x2", "first_half_double_chance", "second_half_1x2", "second_half_double_chance"),
         "Goal": ("goal_no_goal", "first_half_goal_no_goal", "over_under", "first_half_over_under", "team_goals", "team_scoring"),
-        "Multigol e somme": ("multigol_complete", "team_multigol", "goal_sums"),
-        "Corner": ("corners", "corner_1x2", "team_corners"),
-        "Cartellini": ("cards", "card_1x2", "team_cards"),
+        "Multigol e somme": ("multigol_complete", "team_multigol", "multigol_half", "team_multigol_pairs", "goal_sums"),
+        "Corner": ("corners", "corner_1x2", "team_corners", "corners_half", "corner_bands"),
+        "Cartellini": ("cards", "card_1x2", "team_cards", "cards_half", "card_bands"),
         "Combo": ("combos", "both_teams"),
     }
     odds_input: dict[str, float] = {}
@@ -741,6 +741,7 @@ def _overview_tab(result: dict, financial_rows: dict) -> None:
     st.html(dashboard.legend())
     st.html(dashboard.grid([dashboard.outcome_card(result), dashboard.goals_card(result), dashboard.value_card(result)]))
     st.html(dashboard.solid_picks_box(result))
+    st.html(dashboard.goleada_line(result))
     keys, _ = parse_keys(st.session_state.get("claude_answer") or "")
     if keys:
         st.html(dashboard.keys_card(keys))

@@ -31,6 +31,9 @@ ANALYSIS_KEYS = (
     "1 1T", "X 1T", "2 1T", "Over 0.5 gol 1T", "Over 1.5 gol 1T",
     "Over 8.5 corner", "Over 9.5 corner", "Over 10.5 corner",
     "Over 3.5 cartellini", "Over 4.5 cartellini", "Over 5.5 cartellini",
+    # Fase Q (6b)
+    "Over 4.5 gol", "Over 5.5 gol", "Goal + Over 2.5", "Multigol 1T 1-2", "Multigol 2T 1-3",
+    "Over 4.5 corner 1T", "Over 1.5 cartellini 1T", "Corner totali 9-11", "Cartellini totali 4",
 )
 ANALYSIS_SHEET, REGISTRY_SHEET, TACTICAL_SHEET, TECHNICAL_SHEET = "Analisi", "Registro", "Schede tattiche", "Tecnico"
 DUAL_SHEET = "Doppio pronostico"

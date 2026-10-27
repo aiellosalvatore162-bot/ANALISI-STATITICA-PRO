@@ -33,6 +33,9 @@ PROBABILITY_COLUMNS = ("Prob_finale", "Prob_mercato", "Prob_modello", "Prob_stil
 MARKETS = ("1X2", "Doppia chance", "DNB", "Over 1.5", "Under 1.5", "Over 2.5", "Under 2.5", "Over 3.5", "Under 3.5",
            "Goal/NoGoal", "Multigol", "Multigol casa", "Multigol ospite", "Primo tempo", "Over 0.5 1T", "Over 1.5 1T",
            "Corner", "Cartellini", "Combo", "Risultati esatti", "Multipla")
+# Fase Q (6b): famiglie nuove, ancora senza riga nel foglio Riepilogo del file dell'utente (da aggiungere a mano).
+NEW_MARKETS = ("Multigol 1T", "Multigol 2T", "Multigol casa+ospite", "Over/Under 4.5+", "Corner per tempo",
+               "Cartellini per tempo", "Fasce corner", "Fasce cartellini")
 TYPES = ("Reale", "A carta")
 # Selezioni proposte di default quando non ci sono quote inserite.
 DEFAULT_SELECTIONS = ("1", "X", "2", "Over 1.5 gol", "Over 2.5 gol", "Under 2.5 gol", "Goal", "No Goal",
@@ -59,8 +62,24 @@ def market_of(selection: str) -> str | None:
     Le linee senza un nome nella tabella del Riepilogo (es. Over 4.5, Goal 1T) restano non registrabili.
     """
     key = selection.strip()
+    if key.startswith("Multigol Casa ") and " + Ospite " in key:
+        return "Multigol casa+ospite"
     if " + " in key:
         return "Combo"
+    if key.startswith("Multigol 1T "):
+        return "Multigol 1T"
+    if key.startswith("Multigol 2T "):
+        return "Multigol 2T"
+    if re.fullmatch(r"(?:Over|Under) [456]\.5 gol", key):
+        return "Over/Under 4.5+"
+    if key.startswith("Corner totali ") or key.startswith(("Corner casa ", "Corner ospite ")):
+        return "Fasce corner"
+    if key.startswith(("Cartellini totali ", "Cartellini casa ", "Cartellini ospite ")):
+        return "Fasce cartellini"
+    if "corner" in key and key.endswith((" 1T", " 2T")):
+        return "Corner per tempo"
+    if "cartellini" in key and key.endswith((" 1T", " 2T")):
+        return "Cartellini per tempo"
     if _EXACT_GROUP.match(key):
         return "Risultati esatti"
     if key in _FIXED_MARKETS:
