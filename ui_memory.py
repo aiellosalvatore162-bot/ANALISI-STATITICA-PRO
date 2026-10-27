@@ -114,7 +114,7 @@ def _forget(record_id: str) -> None:
 def day_file_bytes() -> bytes:
     return day_workbook(registry_log().rows(session_id()), list(_store().values()),
                         st.session_state.get("tactical_sheets", []), st.session_state.get("dual_choices", []),
-                        st.session_state.get("analyst_reports", []))
+                        st.session_state.get("analyst_reports", []), st.session_state.get("saved_slips", []))
 
 
 def render_download(key: str) -> None:
@@ -163,6 +163,10 @@ def restore(content: bytes) -> None:
         known = {row.get("ID") for row in st.session_state.get("tactical_sheets", [])}
         st.session_state["tactical_sheets"] = st.session_state.get("tactical_sheets", []) + \
             [row for row in day.tactical_rows if row.get("ID") not in known]
+    if day.slips:
+        names = {slip.get("name") for slip in day.slips}
+        st.session_state["saved_slips"] = [slip for slip in st.session_state.get("saved_slips", [])
+                                           if slip.get("name") not in names] + day.slips
     if day.reports:
         known = {report.get("id") for report in day.reports}
         st.session_state["analyst_reports"] = [report for report in st.session_state.get("analyst_reports", [])
