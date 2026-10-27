@@ -9,7 +9,7 @@ import pytest
 import engine
 from datasources.cache import SourceCache
 from match_memory import (
-    DUAL_SHEET, ANALYSIS_SHEET, REGISTRY_SHEET, TACTICAL_SHEET, TECHNICAL_SHEET, analysis_rows, day_workbook, make_record, match_id,
+    DUAL_SHEET, REPORT_SHEET, ANALYSIS_SHEET, REGISTRY_SHEET, TACTICAL_SHEET, TECHNICAL_SHEET, analysis_rows, day_workbook, make_record, match_id,
     read_day_workbook, summary_label, upsert,
 )
 from prediction_log import COLUMNS, PredictionLog, SaveInfo, prediction_rows
@@ -59,7 +59,7 @@ def test_three_matches_in_sequence_give_three_matches_in_the_file(day):
     store, registry = day
     content = day_workbook(registry, store.values())
     workbook = load_workbook(__import__("io").BytesIO(content))
-    assert workbook.sheetnames == [REGISTRY_SHEET, ANALYSIS_SHEET, DUAL_SHEET, TACTICAL_SHEET, TECHNICAL_SHEET]
+    assert workbook.sheetnames == [REGISTRY_SHEET, ANALYSIS_SHEET, DUAL_SHEET, REPORT_SHEET, TACTICAL_SHEET, TECHNICAL_SHEET]
     assert workbook[TECHNICAL_SHEET].sheet_state == "hidden"
     analysis = list(workbook[ANALYSIS_SHEET].iter_rows(values_only=True))
     assert len(analysis) == 1 + 3
