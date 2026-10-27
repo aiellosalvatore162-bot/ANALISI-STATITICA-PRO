@@ -82,6 +82,9 @@ def render_today() -> None:
     st.caption("Partite del giorno delle competizioni scelte: «Analizza tutte» compila i dati automatici, scarica le "
                "quote 1X2 e Over/Under per campionato e simula ogni partita. Le partite con dati mancanti sono "
                "segnalate e saltate.")
+    from ui_quick import render_slips
+
+    render_slips()
     if not api.configured:
         st.info("Serve ODDS_API_KEY in .streamlit/secrets.toml per l'elenco partite e le quote del giorno.")
         return
@@ -118,6 +121,9 @@ def render_today() -> None:
     _render_overview(analyses, settings)
     if mode == "Approfondita":
         _render_deep(api, analyses, settings)
+    from ui_quick import render_quick_search
+
+    render_quick_search(analyses, settings)
     _render_analyst(analyses, settings)
     _render_dual(analyses, settings)
     _render_quick(analyses, settings)
@@ -295,7 +301,7 @@ def _render_analyst(analyses: list[Analysis], settings: dict) -> None:
             if not analysis.ok or (block is None and index not in previous):
                 continue
             use = block is not None and apply and block.response is not None
-            analysis.claude_text = block.corrections_text if use else ""
+            analysis.claude_text = block.full_text if use else ""  # correzioni e chiavi del match
             simulate(analysis, claude=block.response if use else None, keep_claude=False, settings=settings)
             _remember(analysis)
         st.session_state["analyst_applied"] = [index for index, block in by_index.items() if apply and block.response]
@@ -600,6 +606,10 @@ def _render_multiple(multiple: Multiple, pool: list[Leg], analyses: list[Analysi
         if key in overrides and st.button("Torna alla proposta del sistema", key=f"{key}_reset"):
             overrides.pop(key)
             st.rerun()
+    from ui_quick import render_save_slip
+
+    dates = {str(index): analysis.match.commence_time.astimezone().date() for index, analysis in enumerate(analyses)}
+    render_save_slip(multiple.legs, dates, key, f"{multiple.name} {date.today():%d/%m}")
     if st.button("Salva nel registro (gambe e riga Multipla)", key=f"{key}_save"):
         rows = []
         for leg in multiple.legs:

@@ -45,7 +45,7 @@ def test_date_tolerance_and_reversed_teams():
     genoa, juve, reversed_ = analyst.match_blocks(blocks, TARGETS)
     assert genoa.matched is None and genoa.reason == "data diversa: report 28/10/2026, pagina 25/10/2026"
     assert juve.matched == 3
-    assert reversed_.matched is None and "ordine inverso" in reversed_.reason
+    assert reversed_.matched == 0 and reversed_.notice == "squadre invertite nel report: correzioni scambiate"
 
 
 def test_phase_g_rules_bounds_sources_and_referee(blocks):
@@ -80,3 +80,25 @@ def test_report_is_saved_in_the_day_file(blocks):
     assert len(sheet) == 1 + 6 and sheet[2][2] == "AS Roma - Napoli" and sheet[2][4] == "AS Roma - Napoli"
     assert sheet[4][8] == "nessuna partita della pagina Oggi con queste squadre"
     assert read_day_workbook(content).reports == [report]
+
+
+def test_reversed_block_swaps_goal_corrections_and_duels():
+    text = ("PARTITA: Fiorentina - Inter | Serie A | 25/10/2026 18:00\n"
+            "CORREZIONI_CLAUDE:\n"
+            "gol_casa: 0.94 | motivo: assenze Fiorentina | fonte: https://a.it/1\n"
+            "gol_ospite: 1.05 | motivo: Inter in forma | fonte: https://a.it/2\n"
+            "confidenza: media\ncommento: prova\n\n"
+            "CHIAVI_MATCH:\n"
+            "duello: Dodo vs Dimarco | effetto: tanti cross dalla fascia | mercato: corner | fonte: https://a.it/3\n")
+    block = analyst.match_blocks(analyst.parse_report(text), TARGETS)[0]
+    assert block.matched == 0 and block.swapped
+    adjustment = block.response.adjustment()
+    assert adjustment.goals_home == 1.05 and adjustment.goals_away == 0.94   # casa della pagina = Inter
+    keys, _ = block.keys()
+    assert keys[0].duel == "Dimarco vs Dodo" and keys[0].markets == ("corner",)
+    assert "CHIAVI_MATCH" in block.full_text and block.full_text.startswith("CORREZIONI_CLAUDE:")
+    rows = analyst.report_rows([block], {0: "Inter Milan - Fiorentina"})
+    assert rows[0]["Avviso"] == "squadre invertite nel report: correzioni scambiate" and rows[0]["Chiavi del match"] == 1
+    # Abbinare di nuovo non scambia due volte.
+    again = analyst.match_blocks([block], TARGETS)[0]
+    assert again.response.adjustment().goals_home == 1.05

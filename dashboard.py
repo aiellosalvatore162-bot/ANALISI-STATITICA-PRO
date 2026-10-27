@@ -541,6 +541,15 @@ def solid_picks_box(result: Mapping) -> str:
             f'<div class="picks">{"".join(items)}</div></section>')
 
 
+def keys_card(keys: Sequence) -> str:
+    """Chiavi del match: duelli con il mercato collegato (solo informazione, non cambiano le probabilità)."""
+    items = [f'<div class="pick"><div class="family">{esc(", ".join(key.markets))}</div>'
+             f'<div class="market">{esc(key.duel)}</div><div>{esc(key.effect)}</div></div>' for key in keys]
+    return (f'<section class="card"><div class="head">{ICONS["ball"]}<span>Chiavi del match</span></div>'
+            f'<div class="say">Duelli da guardare e mercato collegato, dal report dell\'Analista o dalla risposta di Claude. '
+            f'Sono informazioni: non cambiano le probabilità.</div><div class="picks">{"".join(items)}</div></section>')
+
+
 # --- Risultati esatti ----------------------------------------------------------------------------
 
 def _blend(surface: str, full: str, alpha: float) -> str:

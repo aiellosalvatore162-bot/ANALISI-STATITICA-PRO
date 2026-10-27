@@ -193,6 +193,8 @@ def parse_response(text: str) -> ClaudeResponse:
     seen: set[str] = set()
     for raw_line in text[position + len(HEADER):].splitlines():
         line = raw_line.strip().strip("`*-").strip()
+        if line.upper().startswith("CHIAVI_MATCH"):
+            break  # chiavi del match (match_keys.py): informative, lette a parte
         if not line:
             continue
         parts = [part.strip() for part in line.split("|")]

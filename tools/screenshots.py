@@ -160,7 +160,7 @@ def capture_oggi(url: str) -> list[Path]:
                 _wait_idle(page)
             page.get_by_role("button", name="Analizza tutte").click()
             # La prima volta i dati delle squadre si scaricano tutti: può volerci qualche minuto.
-            page.get_by_text("Costruttore di multiple").wait_for(timeout=1_200_000)
+            page.get_by_role("heading", name="Costruttore di multiple").wait_for(timeout=1_200_000)
             _wait_idle(page, timeout=600_000)
             page.get_by_role("tab", name="Multipla lunga (12-13)").click()
             _settle(page)
@@ -169,6 +169,15 @@ def capture_oggi(url: str) -> list[Path]:
             page.wait_for_timeout(800)
             path = OUTPUT / f"oggi_desktop_{'chiaro' if theme == 'light' else 'scuro'}.png"
             page.screenshot(path=str(path), full_page=True)
+            saved.append(path)
+            # Ricerca rapida: un preset e la sezione dalla sua intestazione a quella successiva.
+            page.get_by_role("button", name="6 over 2.5 per stasera").click()
+            _settle(page)
+            top = page.get_by_role("heading", name="Ricerca rapida").bounding_box()["y"] - 12
+            bottom = page.get_by_role("heading", name="Report dell'Analista").bounding_box()["y"] - 8
+            path = OUTPUT / f"ricerca-rapida_desktop_{'chiaro' if theme == 'light' else 'scuro'}.png"
+            page.screenshot(path=str(path), full_page=True,
+                            clip={"x": 0, "y": top, "width": viewport["width"], "height": max(200, bottom - top)})
             saved.append(path)
             context.close()
         browser.close()

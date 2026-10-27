@@ -17,6 +17,7 @@ from historical import (
     run_walk_forward,
 )
 from eurobet import anchor_odds
+from match_keys import parse_keys
 from multiples import load_settings as load_today_settings
 from today import combined_adjustment
 from market_catalog import MARKET_CATALOG, MARKET_GROUPS, definition_for_event, definitions_for_group
@@ -726,6 +727,10 @@ def _overview_tab(result: dict, financial_rows: dict) -> None:
     st.html(dashboard.legend())
     st.html(dashboard.grid([dashboard.outcome_card(result), dashboard.goals_card(result), dashboard.value_card(result)]))
     st.html(dashboard.solid_picks_box(result))
+    keys, _ = parse_keys(st.session_state.get("claude_answer") or "")
+    if keys:
+        st.html(dashboard.keys_card(keys))
+        st.caption("Fonti delle chiavi: " + " · ".join(f"[{key.duel}]({key.source})" for key in keys))
     anchoring = result.get("market_anchoring", {})
     with st.expander("Dettagli tecnici: gol attesi, ancoraggio, affidabilità", expanded=False):
         metrics = st.columns(3)
@@ -860,8 +865,11 @@ def _value_details(result: dict) -> None:
 
 
 def _goals_tab(result: dict, financial_rows: dict) -> None:
+    from ui_scorers import render_scorers
+
     st.html(dashboard.grid([dashboard.goals_card(result), dashboard.team_goals_card(result),
                             dashboard.multigol_card(result), dashboard.first_half_card(result)], wide=True))
+    render_scorers(result)
     with st.expander("Over / Under, Goal / No Goal e Multigol: tutte le schede", expanded=False):
         _cards_section("Over / Under gol", result["markets"]["over_under"],
                        {key: key.replace("_", " ") for key in result["markets"]["over_under"]},
