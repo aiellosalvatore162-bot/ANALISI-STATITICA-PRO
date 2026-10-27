@@ -313,6 +313,10 @@ def load_card_split(path: Path = GOAL_MODEL_PATH) -> CardSplitParams:
 
 DEFAULT_CARD_SPLIT = load_card_split()
 
+import timeline as _timeline  # noqa: E402  (motore minuto per minuto, fase O)
+
+DEFAULT_TIMELINE = _timeline.load(GOAL_MODEL_PATH)
+
 
 @dataclass(frozen=True)
 class TacticalSwitches:
@@ -401,6 +405,7 @@ class MatchConfig:
     card_rule: CardRule = DEFAULT_CARD_RULE
     count_anchor: CountAnchorParams = DEFAULT_COUNT_ANCHOR
     card_split: CardSplitParams = DEFAULT_CARD_SPLIT
+    timeline: Any = DEFAULT_TIMELINE  # timeline.TimelineParams (fase O); attivo solo se verificato
     tactical: TacticalFactors | None = None
     tactical_switches: TacticalSwitches = DEFAULT_TACTICAL_SWITCHES
     claude: ClaudeAdjustment | None = None
@@ -1702,12 +1707,34 @@ def simulate_match(config: MatchConfig) -> dict[str, Any]:
         # Fase T: quota di casa dal modello della divisione (sfavorita = P(2) − P(1) dei gol simulati).
         underdog = float(np.mean(goals_home < goals_away) - np.mean(goals_home > goals_away))
         home_card_share, card_split_details = card_split_share(config, underdog, yellow_mean)
+    timeline_details = {"active": False}
+    timeline_reds = None
+    if config.timeline.active:
+        # Fase O: percorso a blocchi di 5 minuti; medie invariate (gol λ, μ; corner e cartellini delle fasi M/N/T).
+        first_share_home, first_share_away = first_half_shares(lambda_, mu, config.half_time)
+        path = _timeline.sample(
+            np.random.default_rng([config.seed, 2]), config.simulations, lambda_=lambda_, mu=mu,
+            first_share_home=first_share_home, first_share_away=first_share_away,
+            corner_home=home_corner_signal, corner_away=away_corner_signal,
+            corner_dispersion=config.count_model.corner_dispersion if config.count_model.active else 0.0,
+            yellow_mean=yellow_mean, card_dispersion=config.count_model.card_dispersion if config.count_model.active else 0.0,
+            red_mean=config.count_model.card_red_ratio * yellow_mean, card_share=home_card_share,
+            params=config.timeline, scores=(goals_home, goals_away))
+        goals_home, goals_away, first_home, first_away = path["goals_home"], path["goals_away"], path["first_home"], path["first_away"]
+        second_home, second_away = goals_home - first_home, goals_away - first_away
+        home_corners, away_corners, yellows = path["corners_home"], path["corners_away"], path["yellows"]
+        if path["reds_home"] is not None:
+            timeline_reds = (path["reds_home"], path["reds_away"])
+        timeline_details = {"active": True, "components": list(config.timeline.components)}
     home_yellows = _split_samples(rng, yellows, home_card_share, config.card_split)
     away_yellows = yellows - home_yellows
     # Reds after the yellows, so the yellow samples do not depend on the rule.
-    reds = rng.poisson(config.count_model.card_red_ratio * yellow_mean, config.simulations)
-    home_reds = rng.binomial(reds, home_card_share)
-    away_reds = reds - home_reds
+    if timeline_reds is not None:
+        home_reds, away_reds = timeline_reds
+    else:
+        reds = rng.poisson(config.count_model.card_red_ratio * yellow_mean, config.simulations)
+        home_reds = rng.binomial(reds, home_card_share)
+        away_reds = reds - home_reds
     rule = config.card_rule
     if rule.double_yellow_extra:
         home_double = rng.binomial(home_reds, rule.double_yellow_share)
@@ -1839,6 +1866,7 @@ def simulate_match(config: MatchConfig) -> dict[str, Any]:
     result["market_anchoring"] = anchoring
     result["count_anchoring"] = count_anchoring(config)
     result["card_split"] = card_split_details
+    result["timeline"] = timeline_details
     result["components"] = components
     result["exact_scores"] = exact_scores
     result["financial"] = financial_analysis(

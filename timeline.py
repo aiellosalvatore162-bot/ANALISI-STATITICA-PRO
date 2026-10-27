@@ -1,0 +1,199 @@
+"""Motore minuto per minuto (fase O): ogni simulazione avanza a blocchi di 5 minuti.
+
+I ritmi di gol, corner e cartellini dipendono dal minuto, dal punteggio e dalle espulsioni con le regole
+stimate da ``python -m tools.minute_model`` (sezione ``minuto_per_minuto`` di ``config/goal_model.json``).
+Le medie già tarate restano quelle: le basi dei gol si riscalano su una simulazione pilota finché i gol
+attesi tornano ``λ`` e ``μ`` (e la quota del primo tempo quella tarata); corner e cartellini restano
+binomiali negative con la media moltiplicata per un fattore di percorso di media 1. Cambiano la
+distribuzione nel tempo e le correlazioni tra mercati.
+
+Ogni componente è un'opzione (``gol_stato``, ``espulsioni``, ``corner_pressione``, ``cartellini_tempo``)
+e resta accesa solo se migliora fuori campione (``python -m tools.minute_check``).
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+import json
+from pathlib import Path
+from typing import Any, Mapping
+
+import numpy as np
+
+BLOCKS = 18
+BANDS = ((0, 30), (30, 60), (60, 75), (75, 90))
+STATES = (-2, -1, 0, 1, 2)
+COMPONENTS = ("gol_stato", "espulsioni", "corner_pressione", "cartellini_tempo")
+
+
+def _block_band(block: int) -> int:
+    end = 5 * (block + 1)
+    return next(index for index, (low, high) in enumerate(BANDS) if end <= high)
+
+
+BLOCK_BANDS = np.array([_block_band(block) for block in range(BLOCKS)])
+
+
+@dataclass(frozen=True)
+class TimelineParams:
+    active: bool = False
+    components: tuple[str, ...] = ()
+    goal_weights: tuple[float, ...] = (1.0,) * BLOCKS
+    state: Mapping[int, tuple[float, ...]] = field(default_factory=lambda: {s: (1.0,) * len(BANDS) for s in STATES})
+    fewer_players: float = 1.0
+    more_players: float = 1.0
+    corner_weights: tuple[float, ...] = (1.0,) * BLOCKS
+    corner_gamma: float = 1.0
+    card_weights: tuple[float, ...] = (1.0,) * BLOCKS
+    card_level: tuple[float, ...] = (1.0,) * len(BANDS)
+    red_weights: tuple[float, ...] = (1.0,) * BLOCKS
+
+    def uses(self, component: str) -> bool:
+        return self.active and component in self.components
+
+    def with_components(self, components) -> "TimelineParams":
+        from dataclasses import replace
+
+        return replace(self, active=bool(components), components=tuple(components))
+
+
+def params_from_config(section: Mapping[str, Any]) -> TimelineParams:
+    values = section.get("parametri") or {}
+    if not values:
+        return TimelineParams()
+    goal = values["gol"]
+    return TimelineParams(
+        active=bool(section.get("attivo", False)),
+        components=tuple(name for name, on in (section.get("componenti") or {}).items() if on),
+        goal_weights=tuple(goal["pesi_blocchi"]),
+        state={int(key): tuple(value) for key, value in goal["stato"].items()},
+        fewer_players=float(goal["superiorita"]["meno_uomini"]), more_players=float(goal["superiorita"]["piu_uomini"]),
+        corner_weights=tuple(values["corner"]["pesi_blocchi"]), corner_gamma=float(values["corner"]["gamma"]),
+        card_weights=tuple(values["cartellini"]["pesi_blocchi"]), card_level=tuple(values["cartellini"]["parita"]),
+        red_weights=tuple(values["espulsioni_pesi_blocchi"]),
+    )
+
+
+def load(path: Path) -> TimelineParams:
+    if not path.exists():
+        return TimelineParams()
+    return params_from_config(json.loads(path.read_text(encoding="utf-8")).get("minuto_per_minuto", {}))
+
+
+def _half_weights(weights: np.ndarray, first_share: float) -> np.ndarray:
+    """Pesi dei blocchi con la quota del primo tempo uguale a quella tarata (``primo_tempo``)."""
+    first, second = weights[:9].sum(), weights[9:].sum()
+    scaled = weights.copy()
+    scaled[:9] *= first_share / first
+    scaled[9:] *= (1.0 - first_share) / second
+    return scaled / scaled.sum()
+
+
+def _nb(rng: np.random.Generator, mean: np.ndarray, dispersion: float) -> np.ndarray:
+    mean = np.maximum(mean, 0.0)
+    if dispersion > 0:
+        return rng.poisson(rng.gamma(dispersion, mean / dispersion))
+    return rng.poisson(mean)
+
+
+def _goal_paths(rng, n, base_home, base_away, weights_home, weights_away, params: TimelineParams,
+                red_home_blocks: np.ndarray | None, red_away_blocks: np.ndarray | None,
+                allocated: tuple[np.ndarray, np.ndarray] | None = None) -> dict[str, np.ndarray]:
+    """Percorso della partita blocco per blocco; con ``allocated`` i gol per blocco sono già dati (punteggi Dixon-Coles)."""
+    goals_home = np.zeros(n, dtype=np.int64)
+    goals_away = np.zeros(n, dtype=np.int64)
+    first_home = first_away = None
+    pressure_home = np.zeros(n)
+    pressure_away = np.zeros(n)
+    level_cards = np.zeros(n)
+    reds_home = np.zeros(n, dtype=np.int64)
+    reds_away = np.zeros(n, dtype=np.int64)
+    state_table = np.array([params.state.get(state, (1.0,) * len(BANDS)) for state in STATES])  # 5 × bande
+    corner_weights = np.asarray(params.corner_weights) / np.mean(params.corner_weights)
+    card_weights = np.asarray(params.card_weights) / np.mean(params.card_weights)
+    for block in range(BLOCKS):
+        band = BLOCK_BANDS[block]
+        difference = np.clip(goals_home - goals_away, -2, 2)
+        # Pressione offensiva dallo stato del punteggio (e dalle espulsioni): guida i corner anche quando i gol
+        # restano quelli Dixon-Coles; sui gol si applica solo con «gol_stato».
+        state_home, state_away = state_table[difference + 2, band], state_table[-difference + 2, band]
+        if red_home_blocks is not None:
+            reds_home += red_home_blocks[:, block]
+            reds_away += red_away_blocks[:, block]
+            advantage = np.clip(reds_away - reds_home, -1, 1)
+            red_home = np.where(advantage < 0, params.fewer_players, np.where(advantage > 0, params.more_players, 1.0))
+            red_away = np.where(advantage > 0, params.fewer_players, np.where(advantage < 0, params.more_players, 1.0))
+        else:
+            red_home = red_away = 1.0
+        home_factor = (state_home if params.uses("gol_stato") else 1.0) * red_home * np.ones(n)
+        away_factor = (state_away if params.uses("gol_stato") else 1.0) * red_away * np.ones(n)
+        pressure_home += corner_weights[block] * (state_home * red_home) ** params.corner_gamma
+        pressure_away += corner_weights[block] * (state_away * red_away) ** params.corner_gamma
+        level_cards += card_weights[block] * np.where(goals_home == goals_away, params.card_level[band], 1.0)
+        if allocated is not None:
+            goals_home = goals_home + allocated[0][:, block]
+            goals_away = goals_away + allocated[1][:, block]
+        else:
+            goals_home = goals_home + rng.poisson(base_home * weights_home[block] * home_factor)
+            goals_away = goals_away + rng.poisson(base_away * weights_away[block] * away_factor)
+        if block == 8:
+            first_home, first_away = goals_home.copy(), goals_away.copy()
+    return {"goals_home": goals_home, "goals_away": goals_away, "first_home": first_home, "first_away": first_away,
+            "pressure_home": pressure_home / BLOCKS, "pressure_away": pressure_away / BLOCKS,
+            "level_cards": level_cards / BLOCKS, "reds_home": reds_home, "reds_away": reds_away}
+
+
+def sample(rng: np.random.Generator, n: int, *, lambda_: float, mu: float, first_share_home: float, first_share_away: float,
+           corner_home: float, corner_away: float, corner_dispersion: float, yellow_mean: float, card_dispersion: float,
+           red_mean: float, card_share: float, params: TimelineParams, scores: tuple[np.ndarray, np.ndarray] | None = None,
+           pilot: int = 20_000, passes: int = 3) -> dict[str, np.ndarray]:
+    """Gol per tempo, corner per squadra, gialli totali e (con ``espulsioni``) rossi per squadra, ``n`` simulazioni.
+
+    Senza ``gol_stato`` né ``espulsioni`` i punteggi finali sono ``scores`` (Dixon-Coles del motore) e i gol si
+    distribuiscono nei blocchi con i pesi dei minuti (stessa quota del primo tempo): i mercati gol restano quelli
+    del motore attuale e il percorso serve a corner e cartellini.
+    """
+    weights = np.asarray(params.goal_weights, float)
+    weights_home = _half_weights(weights, first_share_home)
+    weights_away = _half_weights(weights, first_share_away)
+    red_profile = np.asarray(params.red_weights, float) / np.sum(params.red_weights)
+
+    def red_blocks(generator, size):
+        if not params.uses("espulsioni"):
+            return None, None
+        home = generator.poisson(red_mean * card_share * red_profile[None, :], size=(size, BLOCKS))
+        away = generator.poisson(red_mean * (1 - card_share) * red_profile[None, :], size=(size, BLOCKS))
+        return home, away
+
+    base_home, base_away = lambda_, mu
+    if params.uses("gol_stato") or params.uses("espulsioni"):
+        # Le regole di stato cambiano la media: si riscala la base finché i gol attesi tornano λ e μ.
+        pilot_rng = np.random.default_rng([int(rng.integers(1 << 31)), 7])
+        size = min(pilot, n)
+        for _ in range(passes):
+            reds = red_blocks(pilot_rng, size)
+            paths = _goal_paths(pilot_rng, size, base_home, base_away, weights_home, weights_away, params, *reds)
+            base_home *= lambda_ / max(paths["goals_home"].mean(), 1e-9)
+            base_away *= mu / max(paths["goals_away"].mean(), 1e-9)
+    reds = red_blocks(rng, n)
+    allocated = None
+    if not (params.uses("gol_stato") or params.uses("espulsioni")):
+        if scores is None:
+            raise ValueError("Senza regole sui gol servono i punteggi finali (Dixon-Coles) da distribuire nei blocchi.")
+        allocated = (rng.multinomial(scores[0], weights_home), rng.multinomial(scores[1], weights_away))
+    paths = _goal_paths(rng, n, base_home, base_away, weights_home, weights_away, params, *reds, allocated=allocated)
+
+    if params.uses("corner_pressione"):
+        factor_home = paths["pressure_home"] / paths["pressure_home"].mean()
+        factor_away = paths["pressure_away"] / paths["pressure_away"].mean()
+    else:
+        factor_home = factor_away = np.ones(n)
+    home_mean, away_mean = corner_home * factor_home, corner_away * factor_away
+    corners = _nb(rng, home_mean + away_mean, corner_dispersion)
+    corners_home = rng.binomial(corners, np.where(home_mean + away_mean > 0, home_mean / np.maximum(home_mean + away_mean, 1e-12), 0.5))
+    card_factor = paths["level_cards"] / paths["level_cards"].mean() if params.uses("cartellini_tempo") else np.ones(n)
+    yellows = _nb(rng, yellow_mean * card_factor, card_dispersion)
+    return {**{key: paths[key] for key in ("goals_home", "goals_away", "first_home", "first_away")},
+            "corners_home": corners_home, "corners_away": corners - corners_home, "yellows": yellows,
+            "reds_home": paths["reds_home"] if reds[0] is not None else None,
+            "reds_away": paths["reds_away"] if reds[0] is not None else None}
