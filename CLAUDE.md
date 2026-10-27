@@ -220,10 +220,20 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   peso 0.8 dichiarato. `engine.flag_count_disagreements`: scarto > 10 punti su
   corner/cartellini = avviso e niente verde. Liste e multiple di Oggi escludono
   i cartellini per squadra se l'ECE supera `cartellini_squadra.ece_massimo`.
+- Fase O (parte 1): motore minuto per minuto in `timeline.py` (blocchi di 5
+  minuti, `MatchConfig.timeline`, sezione `minuto_per_minuto`: `attivo`,
+  `componenti` gol_stato/espulsioni/corner_pressione/cartellini_tempo,
+  `parametri`). Senza regole sui gol i punteggi restano Dixon-Coles e si
+  distribuiscono nei blocchi. Dati: `python -m tools.minute_data` (Understat
+  2023-25, StatsBomb Open Data 2015/16, cache `data/cache/minuto`), regole:
+  `python -m tools.minute_model --salva`, verifica e scelta:
+  `python -m tools.minute_check --salva` (regola: log-loss giù di oltre 2
+  errori standard appaiati ED ECE non peggiore). Esito attuale: tutto spento.
+  La parte 2 (schede tattiche, incroci di stile, nuovi mercati) non è fatta.
 - Le fonti remote devono degradare con un avviso (come `historical.py` ricade
   al 100% manuale), mai bloccare la simulazione manuale.
 
-## Stato del progetto (27/10/2026, dopo la fase T)
+## Stato del progetto (27/10/2026, dopo la fase O parte 1)
 
 - Fasi completate e unite a `main`: modello gol log-lineare (1), ancoraggio al
   mercato (2), mercati secondari (C2), livello dati (D), football-data.org,
@@ -238,7 +248,7 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   giornata (K), pagina Oggi e costruttore di multiple (S), rifiniture delle multiple
   (S2), doppio pronostico Simulatore/Osservatore/Unita (U), report dell'Analista
   del giorno (W), ricerca rapida, schedine salvate, marcatori e chiavi del match (X),
-  cartellini per squadra (T).
+  cartellini per squadra (T), motore minuto per minuto come opzione spenta (O, parte 1).
 - Test: `python -m pytest -q` (solo fixture salvate, nessuna rete); 2 `xfail`
   noti (PSG-Barcellona, Napoli-Bodø, input stimati).
 

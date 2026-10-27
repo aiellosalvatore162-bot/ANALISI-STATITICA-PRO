@@ -699,3 +699,89 @@ Parametri scelti: {"home": 0.0, "rate_weight": 0.13867465795530382, "provoked_we
 | Ospite Over 2.5 | 4 | 1430 | 44.9% | 46.6% | 45.8% |
 | Ospite Over 2.5 | 5 | 1431 | 54.1% | 53.7% | 54.4% |
 
+## Motore minuto per minuto: regole stimate (fase O)
+
+Generato il 27/10/2026 con `python -m tools.minute_model`. Understat: 3504 partite (EPL, Liga, Bundesliga, Serie A, Ligue 1, stagioni 2023/24 e 2024/25). StatsBomb: 1551 partite (StatsBomb Open Data 2015/16: Premier League, Liga, Serie A, Bundesliga, Ligue 1; Data: StatsBomb Open Data). Effetto fisso di squadra-partita, shrinkage verso 1 ({'stato': 15.0, 'espulsioni': 8.0, 'corner': 15.0, 'cartellini': 15.0}).
+
+### Ritmo degli xG per stato del punteggio (squadra che…), per fascia di minuti: Understat / StatsBomb
+
+| Stato | 0-30' | 30-60' | 60-75' | 75-90' |
+|---|---|---|---|---|
+| perde di 2+ | 1.12 / 1.18 | 1.46 / 1.52 | 1.52 / 1.61 | 1.49 / 1.48 |
+| perde di 1 | 1.16 / 1.14 | 1.30 / 1.28 | 1.31 / 1.29 | 1.41 / 1.45 |
+| pareggia (rif.) | 1.00 / 1.00 | 1.00 / 1.00 | 1.00 / 1.00 | 1.00 / 1.00 |
+| vince di 1 | 0.57 / 0.59 | 0.61 / 0.71 | 0.64 / 0.66 | 0.66 / 0.70 |
+| vince di 2+ | 0.45 / 0.51 | 0.41 / 0.44 | 0.42 / 0.44 | 0.43 / 0.44 |
+
+Espulsioni (ritmo xG di chi è in 10 / della squadra in superiorità): Understat 0.63 / 1.78; StatsBomb 0.65 / 1.56.
+
+Pesi dei blocchi di 5 minuti (gol, Understat): 0.66, 0.65, 0.66, 0.76, 0.80, 0.80, 0.80, 0.81, 2.18, 1.27, 1.00, 1.01, 0.94, 0.95, 0.94, 0.86, 0.89, 2.02
+
+Corner ∝ pressione offensiva^γ: γ = 0.77 (log-verosimiglianza negativa 59133.5 contro 59364.4 con γ = 0; 16555 corner).
+
+Cartellini: moltiplicatore se la partita è in parità, per fascia: 0-30' 0.88, 30-60' 1.00, 60-75' 1.01, 75-90' 1.23; pesi dei blocchi: 0.20, 0.30, 0.45, 0.59, 0.68, 0.83, 0.88, 1.01, 2.00, 0.70, 0.92, 1.13, 1.16, 1.11, 1.19, 1.05, 1.20, 2.59 (7325 cartellini).
+
+
+## Motore minuto per minuto: verifica fuori campione (fase O)
+
+Generato il 27/10/2026 con `python -m tools.minute_check`. 1754 partite di football-data.co.uk (1920: 354. 2021: 399. 2122: 346. 2223: 401. 2627: 254). escluse le stagioni usate per stimare le regole o tarare gli altri parametri (2324. 2425. 2526). Gol ancorati alle quote di chiusura come nell'app; 20.000 simulazioni per partita e variante. Una componente resta accesa solo se la log-loss media scende di più di due errori standard (confronto appaiato partita per partita) e l'ECE media non sale (tolleranza 0.0005).
+
+### Componenti provate, nell'ordine
+
+| Passo | Log-loss media | ECE media | Differenza appaiata (± 2 e.s.) | Tenuta |
+|---|---|---|---|---|
+| motore attuale | 0.61703 | 0.01792 | +0.00000 ± 0.00000 | sì |
+| gol_stato | 0.61962 | 0.02192 | +0.00259 ± 0.00106 | no |
+| espulsioni | 0.61749 | 0.01960 | +0.00046 ± 0.00044 | no |
+| corner_pressione | 0.61699 | 0.01769 | -0.00004 ± 0.00012 | no |
+| cartellini_tempo | 0.61707 | 0.01739 | +0.00003 ± 0.00011 | no |
+
+### Per mercato: motore attuale → scelta finale (motore attuale)
+
+| Mercato | Gruppo | Log-loss prima | Log-loss dopo | ECE prima | ECE dopo |
+|---|---|---|---|---|---|
+| 1X2 | gol | 0.9654 | 0.9654 | 0.0168 | 0.0168 |
+| Over 1.5 | gol | 0.4951 | 0.4951 | 0.0124 | 0.0124 |
+| Over 2.5 | gol | 0.6629 | 0.6629 | 0.0211 | 0.0211 |
+| Over 3.5 | gol | 0.6135 | 0.6135 | 0.0183 | 0.0183 |
+| Goal | gol | 0.6808 | 0.6808 | 0.0098 | 0.0098 |
+| 1X2 1T | tempi | 1.0183 | 1.0183 | 0.0075 | 0.0075 |
+| 1T Over 0.5 | tempi | 0.5907 | 0.5907 | 0.0087 | 0.0087 |
+| 1T Over 1.5 | tempi | 0.6451 | 0.6451 | 0.0110 | 0.0110 |
+| 2T Over 0.5 | tempi | 0.4751 | 0.4751 | 0.0290 | 0.0290 |
+| 2T Over 1.5 | tempi | 0.6760 | 0.6760 | 0.0387 | 0.0387 |
+| Corner Over 8.5 | corner | 0.6604 | 0.6604 | 0.0165 | 0.0165 |
+| Corner Over 9.5 | corner | 0.6869 | 0.6869 | 0.0065 | 0.0065 |
+| Corner Over 10.5 | corner | 0.6605 | 0.6605 | 0.0138 | 0.0138 |
+| Cartellini Over 3.5 | cartellini | 0.6358 | 0.6358 | 0.0211 | 0.0211 |
+| Cartellini Over 4.5 | cartellini | 0.6497 | 0.6497 | 0.0413 | 0.0413 |
+| Cartellini Over 5.5 | cartellini | 0.5757 | 0.5757 | 0.0277 | 0.0277 |
+| Over 2.5 & Corner Over 9.5 | combo | 0.5724 | 0.5724 | 0.0191 | 0.0191 |
+| Over 2.5 & Cartellini Over 4.5 | combo | 0.5167 | 0.5167 | 0.0219 | 0.0219 |
+| Goal & Corner Over 9.5 | combo | 0.5802 | 0.5802 | 0.0116 | 0.0116 |
+| 1 & Over 2.5 | combo | 0.5500 | 0.5500 | 0.0164 | 0.0164 |
+| X & Under 2.5 | combo | 0.4593 | 0.4593 | 0.0200 | 0.0200 |
+| Corner Over 9.5 & Cartellini Over 4.5 | combo | 0.5194 | 0.5194 | 0.0129 | 0.0129 |
+| X & Cartellini Over 4.5 | combo | 0.3679 | 0.3679 | 0.0089 | 0.0089 |
+| 1T Over 0.5 & Over 2.5 | combo | 0.6678 | 0.6678 | 0.0053 | 0.0053 |
+| Under 2.5 & Corner Under 9.5 | combo | 0.5002 | 0.5002 | 0.0316 | 0.0316 |
+
+| Media per gruppo | Log-loss prima | Log-loss dopo | ECE prima | ECE dopo |
+|---|---|---|---|---|
+| media gol | 0.6836 | 0.6836 | 0.0157 | 0.0157 |
+| media tempi | 0.6810 | 0.6810 | 0.0190 | 0.0190 |
+| media corner | 0.6693 | 0.6693 | 0.0122 | 0.0122 |
+| media cartellini | 0.6204 | 0.6204 | 0.0300 | 0.0300 |
+| media combo | 0.5260 | 0.5260 | 0.0164 | 0.0164 |
+| media | 0.6170 | 0.6170 | 0.0179 | 0.0179 |
+
+### Tutte le varianti (log-loss / ECE medie per gruppo)
+
+| Variante | gol | tempi | corner | cartellini | combo | media |
+|---|---|---|---|---|---|---|
+| motore attuale | 0.6836 / 0.0157 | 0.6810 / 0.0190 | 0.6693 / 0.0122 | 0.6204 / 0.0300 | 0.5260 / 0.0164 | 0.6170 / 0.0179 |
+| gol_stato | 0.6896 / 0.0281 | 0.6861 / 0.0241 | 0.6692 / 0.0120 | 0.6205 / 0.0266 | 0.5270 / 0.0190 | 0.6196 / 0.0219 |
+| espulsioni | 0.6848 / 0.0194 | 0.6811 / 0.0197 | 0.6692 / 0.0105 | 0.6208 / 0.0304 | 0.5264 / 0.0191 | 0.6175 / 0.0196 |
+| corner_pressione | 0.6836 / 0.0157 | 0.6810 / 0.0182 | 0.6691 / 0.0136 | 0.6206 / 0.0295 | 0.5258 / 0.0159 | 0.6170 / 0.0177 |
+| cartellini_tempo | 0.6836 / 0.0157 | 0.6810 / 0.0182 | 0.6692 / 0.0119 | 0.6208 / 0.0293 | 0.5260 / 0.0157 | 0.6171 / 0.0174 |
+

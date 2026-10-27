@@ -418,6 +418,40 @@ Claude» crea un unico testo con tutte le partite che hanno corner o cartellini
 senza esito (utile per le coppe). La risposta, con un blocco `ESITI_CLAUDE: E1`
 per partita e la fonte, compila solo gli esiti mancanti; la fonte va in Note.
 
+## Motore minuto per minuto (fase O, parte 1): opzione spenta
+
+`timeline.py` simula ogni partita a blocchi di 5 minuti. Ritmi di gol, corner e
+cartellini dipendono da minuto, punteggio ed espulsioni; le medie tarate
+restano le stesse (gol λ e μ, quota del primo tempo, corner e cartellini delle
+fasi M, N e T). Le regole si stimano con `python -m tools.minute_model` da:
+- **Understat**: 3.504 partite dei 5 campionati principali, 2023/24 e 2024/25;
+  tiri con minuto e xG, espulsioni dei titolari;
+- **StatsBomb Open Data**: 1.551 partite 2015/16 di Premier League, Liga,
+  Serie A, Bundesliga e Ligue 1. Data: StatsBomb Open Data
+  (https://github.com/statsbomb/open-data), usati secondo la loro licenza.
+
+I dati si scaricano una volta con `python -m tools.minute_data` in
+`data/cache/minuto/`, fuori dal repository.
+
+Regole stimate, coerenti tra le due fonti:
+- chi perde di 1 tira circa il 30-45% in più, chi vince di 2 o più circa il
+  55-60% in meno;
+- un'espulsione porta il ritmo di chi resta in 10 a circa 0,63;
+- i corner seguono la pressione offensiva con γ = 0,77;
+- i cartellini sono il 23% in più negli ultimi 15 minuti di una partita in
+  parità.
+
+Verifica fuori campione (`python -m tools.minute_check`, 1.754 partite 2019-23
+e 2026-27, escluse le stagioni usate per stimare o tarare): nessuna componente
+migliora la log-loss media oltre due errori standard.
+- Le regole sui gol peggiorano, perché simulando a blocchi si perde la
+  correzione Dixon-Coles tarata sui punteggi; peggiorano anche le espulsioni.
+- Corner e cartellini restano dentro il rumore Monte Carlo.
+
+Tutte le componenti sono quindi spente in `config/goal_model.json`
+(`minuto_per_minuto`) e il motore resta quello di prima. Tabelle in
+`docs/BASELINE.md`.
+
 ## Cartellini per squadra (fase T)
 
 La fase M aveva tarato solo il totale dei cartellini. La divisione tra le squadre
