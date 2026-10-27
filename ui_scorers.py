@@ -7,7 +7,7 @@ from datetime import date, timedelta
 import pandas as pd
 import streamlit as st
 
-from scorers import CALIBRATION_NOTE, goal_distribution, market_margin, players_from_understat, scorer_rows
+from scorers import calibration_note, goal_distribution, market_margin, players_from_understat, scorer_rows
 
 
 def _players(team: str) -> tuple[list[dict] | None, str]:
@@ -36,7 +36,7 @@ def render_scorers(result: dict) -> None:
     with st.expander("Marcatori: segna in qualsiasi momento (Understat)", expanded=False):
         st.caption("Quota dei gol della squadra di ogni giocatore (xG stagionali, ridotta verso la media se ha pochi minuti) "
                    "× minuti medi per presenza; la probabilità usa la distribuzione dei gol della squadra delle simulazioni.")
-        st.warning(CALIBRATION_NOTE)
+        st.warning(calibration_note())
         home, away = result["input"]["home"]["name"], result["input"]["away"]["name"]
         store = st.session_state.setdefault("scorer_players", {})
         if st.button("Carica i giocatori delle due squadre", key="scorers_load"):
@@ -78,3 +78,47 @@ def render_scorers(result: dict) -> None:
             if margin is not None:
                 st.caption(f"Le quote marcatore inserite implicano il {margin:+.0%} rispetto alle probabilità del modello: "
                            "il margine di questo mercato è alto (spesso 20-40%), un EV positivo è raro.")
+
+
+def absence_key(home: str, away: str) -> str:
+    return f"absence_factors::{home} - {away}"
+
+
+def render_absences(result: dict) -> None:
+    """Fase P, punto 2: assenti della partita (a mano o dal blocco di Claude) pesati con i dati Understat."""
+    from absences import absence_factor, is_active, squad_from_understat
+
+    home, away = result["input"]["home"]["name"], result["input"]["away"]["name"]
+    store = st.session_state.get("scorer_players", {})
+    with st.expander("Assenze pesate (Understat)", expanded=False):
+        active = is_active()
+        st.caption("Quota di produzione offensiva (npxG + xA) degli assenti al netto del sostituto tipico dello stesso "
+                   "ruolo; fattore sui gol attesi della squadra tra 0,85 e 1,05. "
+                   + ("Il fattore entra nella simulazione (verificato fuori campione)." if active else
+                      "Solo informativo: fuori campione non migliora le previsioni, perché le quote di chiusura "
+                      "prezzano già le assenze (docs/BASELINE.md)."))
+        if home not in store and away not in store:
+            st.caption("Carica i giocatori nella sezione «Marcatori» per indicare gli assenti.")
+            return
+        from_claude = st.session_state.get("claude_absences") or {}
+        factors = {}
+        for side, label, team in (("home", "casa", home), ("away", "ospite", away)):
+            players, _ = store.get(team, (None, ""))
+            if not players:
+                continue
+            squad = squad_from_understat(players)
+            names = sorted(player.name for player in squad)
+            key = f"absent_{team}"
+            if key not in st.session_state and from_claude.get(label):
+                from datasources.names import match_team
+
+                st.session_state[key] = [found for found in (match_team(name, names) for name in from_claude[label]) if found]
+            chosen = st.multiselect(f"Assenti {team}", names, key=key,
+                                    help="Precompilati con gli assenti del blocco di Claude, se indicati con fonte.")
+            games = max((int(row.get("games", 0)) for row in players), default=0)
+            factor, details = absence_factor(squad, chosen, games)
+            factors[side] = factor
+            if chosen:
+                st.dataframe(pd.DataFrame(details), hide_index=True, width="stretch")
+                st.caption(f"Fattore sui gol attesi di {team}: {factor:.3f}")
+        st.session_state[absence_key(home, away)] = factors if active else {}
