@@ -34,6 +34,7 @@ ANALYSIS_KEYS = (
 )
 ANALYSIS_SHEET, REGISTRY_SHEET, TACTICAL_SHEET, TECHNICAL_SHEET = "Analisi", "Registro", "Schede tattiche", "Tecnico"
 DUAL_SHEET = "Doppio pronostico"
+REPORT_SHEET = "Report Analista"
 TACTICAL_COLUMNS = ("ID", "Data", "Partita", "Scheda")
 _CHUNK = 30_000  # una cella Excel tiene al massimo 32.767 caratteri
 
@@ -120,7 +121,8 @@ def analysis_rows(records: Iterable[Mapping[str, Any]]) -> list[dict]:
 
 
 def day_workbook(registry_rows: Sequence[Mapping[str, Any]], records: Iterable[Mapping[str, Any]],
-                 tactical_rows: Sequence[Mapping[str, Any]] = (), dual_choices: Sequence[Mapping[str, Any]] = ()) -> bytes:
+                 tactical_rows: Sequence[Mapping[str, Any]] = (), dual_choices: Sequence[Mapping[str, Any]] = (),
+                 reports: Sequence[Mapping[str, Any]] = ()) -> bytes:
     """Un unico file: Registro (A–S), Analisi, Doppio pronostico, Schede tattiche e il foglio tecnico nascosto."""
     from openpyxl import Workbook
 
@@ -160,6 +162,16 @@ def day_workbook(registry_rows: Sequence[Mapping[str, Any]], records: Iterable[M
             for cell in dual[dual.cell(row=1, column=index).column_letter][1:]:
                 cell.number_format = "0.0%"
 
+    report_sheet = workbook.create_sheet(REPORT_SHEET)
+    report_header = ["Report", "Salvato", "Partita del report", "Data del report", "Partita abbinata", "Correzioni applicate",
+                     "Correzioni scartate", "Confidenza", "Non abbinato perché"]
+    report_sheet.append(report_header)
+    for report in reports:
+        for row in report.get("rows", []):
+            report_sheet.append([report.get("id"), report.get("saved_at"), *[row.get(column) for column in report_header[2:]]])
+    for index, width in enumerate((14, 20, 30, 18, 30, 40, 40, 12, 50), start=1):
+        report_sheet.column_dimensions[report_sheet.cell(row=1, column=index).column_letter].width = width
+
     tactical = workbook.create_sheet(TACTICAL_SHEET)
     tactical.append(list(TACTICAL_COLUMNS))
     for row in tactical_rows:
@@ -167,7 +179,7 @@ def day_workbook(registry_rows: Sequence[Mapping[str, Any]], records: Iterable[M
 
     technical = workbook.create_sheet(TECHNICAL_SHEET)
     technical.append(["Tipo", "ID", "JSON (diviso su più colonne se lungo)"])
-    for kind, items in (("partita", records), ("scheda", tactical_rows), ("doppio", dual_choices)):
+    for kind, items in (("partita", records), ("scheda", tactical_rows), ("doppio", dual_choices), ("report", reports)):
         for item in items:
             text = json.dumps(_clean(item), ensure_ascii=False)
             technical.append([kind, item.get("id") or item.get("ID"), *[text[i:i + _CHUNK] for i in range(0, len(text), _CHUNK)]])
@@ -183,6 +195,7 @@ class DayFile:
     records: list[dict] = field(default_factory=list)
     tactical_rows: list[dict] = field(default_factory=list)
     dual_choices: list[dict] = field(default_factory=list)
+    reports: list[dict] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
 
@@ -207,14 +220,15 @@ def read_day_workbook(content: bytes) -> DayFile:
     workbook = load_workbook(BytesIO(content), read_only=True)
     if TECHNICAL_SHEET in workbook.sheetnames:
         for values in workbook[TECHNICAL_SHEET].iter_rows(min_row=2, values_only=True):
-            if not values or values[0] not in ("partita", "scheda", "doppio"):
+            if not values or values[0] not in ("partita", "scheda", "doppio", "report"):
                 continue
             try:
                 item = json.loads("".join(str(part) for part in values[2:] if part is not None))
             except ValueError:
                 result.warnings.append(f"Voce tecnica {values[1]} illeggibile: saltata.")
                 continue
-            {"partita": result.records, "scheda": result.tactical_rows, "doppio": result.dual_choices}[values[0]].append(item)
+            {"partita": result.records, "scheda": result.tactical_rows, "doppio": result.dual_choices,
+             "report": result.reports}[values[0]].append(item)
     elif ANALYSIS_SHEET in workbook.sheetnames:
         result.warnings.append("Foglio tecnico assente: le partite del foglio Analisi non si possono riaprire.")
     workbook.close()
