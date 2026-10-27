@@ -418,6 +418,59 @@ Claude» crea un unico testo con tutte le partite che hanno corner o cartellini
 senza esito (utile per le coppe). La risposta, con un blocco `ESITI_CLAUDE: E1`
 per partita e la fonte, compila solo gli esiti mancanti; la fonte va in Note.
 
+## Ricerca rapida, schedine salvate, marcatori e chiavi del match
+
+**Ricerca rapida** (pagina Oggi, senza AI). Scrivi frasi come «dammi 6 over 2.5
+per stasera», «4 goal più probabili», «3 multigol casa sopra il 70%», «5 over
+8.5 corner» o «doppia chance sicure oggi»; i pulsanti hanno le richieste più
+usate. Vengono riconosciuti:
+- il numero di partite;
+- mercato e linea;
+- la soglia di probabilità («sicure» = 75%);
+- la fascia oraria (oggi, pomeriggio, stasera).
+
+Con le partite analizzate la ricerca costruisce la schedina con l'obiettivo
+predefinito (probabilità più alta), senza trappole. Se la frase non è capita
+mostra esempi validi. Per ogni gamba ci sono probabilità del simulatore, quota,
+EV e, in colonna separata, la frequenza storica recente: «nelle ultime 10
+partite delle due squadre l'Over 2.5 è uscito 7 volte su 10». La frequenza
+viene da football-data.co.uk, solo per i mercati che non dipendono da
+casa/ospite, con l'avviso «campione piccolo» sotto le 8 partite. Schermata in
+`docs/screenshot/ricerca-rapida_desktop_chiaro.png`.
+
+**Schedine salvate.** Dalla ricerca rapida o dal costruttore di multiple,
+«Salva come schedina» chiede un nome (es. «Multipla 31/10»). In «Schedine
+salvate» c'è l'elenco con stato e conteggio («3/6»); lo stato di ogni gamba
+(in attesa / vinta / persa) si cambia a mano oppure con «Cerca esiti», che usa
+i punteggi gratuiti di football-data.co.uk. Le schedine stanno nell'Excel
+della giornata (foglio «Schedine») e tornano con «Riprendi da file».
+
+**Marcatori** (scheda partita, tab Gol). «Carica i giocatori» prende i dati
+Understat della stagione: xG, minuti, presenze. Per ogni giocatore:
+- quota dei gol della squadra quando è in campo, ridotta verso l'8% con un peso
+  di 1 xG (shrinkage);
+- minuti attesi = media per presenza (titolare non confermato; spuntando
+  «titolare confermato» diventano 90);
+- probabilità «segna in qualsiasi momento» = 1 − Σ P(gol squadra = g) ·
+  (1 − quota · minuti/90)^g, con la distribuzione simulata dei gol della
+  squadra.
+
+È **non verificato**: lo storico per partita di ogni giocatore non è
+disponibile. Le quote marcatore si inseriscono a mano per l'EV, con il margine
+implicito del mercato (di solito 20-40%).
+
+**Chiavi del match** (Panoramica). Da 3 a 4 duelli con il mercato collegato,
+letti dal blocco `CHIAVI_MATCH:` del report dell'Analista o della risposta di
+Claude, una riga per duello:
+`duello: A vs B | effetto: … | mercato: cartellini/corner/gol | fonte: https://…`
+Al massimo 4 righe; senza fonte o mercato la riga è scartata. Sono solo
+informative: non cambiano le probabilità.
+
+**Report con squadre invertite.** Se nel report casa e ospite sono invertite
+rispetto alla partita della pagina, il blocco viene abbinato comunque:
+gol_casa e gol_ospite e i lati dei duelli si scambiano, e la tabella mostra
+«squadre invertite nel report: correzioni scambiate».
+
 ## Report dell'Analista del giorno
 
 Nella pagina Oggi, «Incolla report dell'Analista» accetta l'intero report

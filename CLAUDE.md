@@ -159,7 +159,7 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
 - Fase K: memoria delle partite analizzate in `match_memory.py` (voce per
   partita con blocco, quote dei campi, incollata Eurobet, risposta di Claude,
   segnalazioni e riassunto; chiave data|casa - ospite) e Excel della giornata
-  (fogli Registro A–S, Analisi, Doppio pronostico, Report Analista, Schede tattiche, Tecnico nascosto in JSON
+  (fogli Registro A–S, Analisi, Doppio pronostico, Report Analista, Schedine, Schede tattiche, Tecnico nascosto in JSON
   diviso in celle da 30.000 caratteri); interfaccia in `ui_memory.py`
   (`st.session_state["analyzed_matches"]`, barra laterale disegnata in fondo
   allo script, riapertura con `auto_simulate`, «Riprendi da file»). Il registro
@@ -195,10 +195,23 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   `st.session_state["analyst_reports"]` e nel foglio «Report Analista»
   dell'Excel della giornata. Esempio di test in
   `tests/fixtures/analista/report_esempio.md`.
+- Fase X: ricerca rapida in `quick_search.py` (regole sul testo: numero,
+  mercato/linea, soglia, fascia oraria; `build` con anti-trappola), frequenza
+  storica recente in `recent_form.py` (football-data, solo mercati simmetrici,
+  «campione piccolo» sotto 8), schedine salvate in `slips.py`
+  (`st.session_state["saved_slips"]`, foglio «Schedine», esiti con
+  `update_from_results`), interfaccia in `ui_quick.py`. Marcatori in
+  `scorers.py` (quota xG con shrinkage verso `PRIOR_SHARE`, minuti per presenza,
+  distribuzione simulata dei gol della squadra; NON verificato fuori campione),
+  interfaccia `ui_scorers.py` nella tab Gol. Chiavi del match in `match_keys.py`
+  (blocco `CHIAVI_MATCH:`, max 4, fonte obbligatoria, solo informative;
+  `claude_bridge.parse_response` si ferma prima delle chiavi), scheda
+  `dashboard.keys_card` nella Panoramica. Report con squadre invertite:
+  abbinato scambiando correzioni e duelli (`match_keys.swap_text`).
 - Le fonti remote devono degradare con un avviso (come `historical.py` ricade
   al 100% manuale), mai bloccare la simulazione manuale.
 
-## Stato del progetto (27/10/2026, dopo la fase W)
+## Stato del progetto (27/10/2026, dopo la fase X)
 
 - Fasi completate e unite a `main`: modello gol log-lineare (1), ancoraggio al
   mercato (2), mercati secondari (C2), livello dati (D), football-data.org,
@@ -212,7 +225,7 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   mensile (N2), quote Eurobet incollate (N3), registro cumulativo ed Excel della
   giornata (K), pagina Oggi e costruttore di multiple (S), rifiniture delle multiple
   (S2), doppio pronostico Simulatore/Osservatore/Unita (U), report dell'Analista
-  del giorno (W).
+  del giorno (W), ricerca rapida, schedine salvate, marcatori e chiavi del match (X).
 - Test: `python -m pytest -q` (solo fixture salvate, nessuna rete); 2 `xfail`
   noti (PSG-Barcellona, Napoli-Bodø, input stimati).
 
