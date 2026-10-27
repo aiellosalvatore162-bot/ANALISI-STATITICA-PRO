@@ -106,7 +106,10 @@ def analyze(match: TodayMatch, build: Callable[..., Any], odds_fields: Mapping[s
     analysis.odds = dict(parsed.odds)
     from datasources.sources import league_code
 
-    analysis.config = replace(config_from_input(parsed, simulations=simulations), league=league_code(sheet.competition))
+    from datasources.builder import strength_inputs
+
+    analysis.config = replace(config_from_input(parsed, simulations=simulations), league=league_code(sheet.competition),
+                              strength_inputs=strength_inputs(sheet) if hasattr(sheet, "extras") else None)
     return simulate(analysis, settings=settings)
 
 

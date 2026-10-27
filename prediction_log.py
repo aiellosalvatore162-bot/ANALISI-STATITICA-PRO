@@ -152,7 +152,8 @@ def _probability(result: Mapping[str, Any] | None, component: str, selection: st
 
 def prediction_rows(base: Mapping[str, Any], selections: Sequence[str], info: SaveInfo, *,
                     styled: Mapping[str, Any] | None = None, claude: Mapping[str, Any] | None = None,
-                    odds: Mapping[str, float] | None = None, stakes: Mapping[str, float] | None = None) -> list[dict]:
+                    odds: Mapping[str, float] | None = None, stakes: Mapping[str, float] | None = None,
+                    extra_notes: Mapping[str, str] | None = None) -> list[dict]:
     """Una riga per selezione.
 
     ``base`` è la simulazione senza correzioni di stile né di Claude: da qui
@@ -183,7 +184,8 @@ def prediction_rows(base: Mapping[str, Any], selections: Sequence[str], info: Sa
             "Prob_Claude": _probability(claude, "finale", selection),
             "Quota_presa": (odds or {}).get(selection), "Puntata": (stakes or {}).get(selection),
             "Tipo": info.kind, "Versione_modello": info.version, "Quota_chiusura": None, "Esito": None,
-            "Note": note,
+            # Fase Y: note per selezione (es. «eurobet_vs_sharp: +4.2%»).
+            "Note": "; ".join(part for part in (note, (extra_notes or {}).get(selection, "")) if part),
         })
     return rows
 

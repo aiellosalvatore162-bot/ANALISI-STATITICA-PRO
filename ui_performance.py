@@ -307,6 +307,14 @@ def render_performance() -> None:
     st.dataframe(missing_as_dash(component_comparison(frame).round(4)), hide_index=True, width="stretch")
     st.caption("Brier e log-loss più bassi = meglio. Nei confronti a coppie si usano solo le selezioni con entrambe le "
                "probabilità; «migliora davvero» richiede una differenza di Brier negativa oltre due errori standard.")
+    from sharp_value import performance_table
+
+    sharp = performance_table(frame)
+    if not sharp.empty:
+        st.markdown("**Eurobet contro lo sharp**")
+        st.dataframe(missing_as_dash(sharp.round(4)), hide_index=True, width="stretch")
+        st.caption("Dalla nota «eurobet_vs_sharp: +x%». Rendimento = esito × quota − 1 per selezione; CLV = quota presa / "
+                   "quota di chiusura − 1. Un vantaggio reale si vede da un CLV medio positivo e stabile.")
     tactical = tactical_comparison(frame)
     if tactical["Selezioni"].sum():
         st.markdown("**Schede tattiche**")

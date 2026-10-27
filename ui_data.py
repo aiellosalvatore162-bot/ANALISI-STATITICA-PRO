@@ -79,6 +79,10 @@ def use_in_simulator(block: str, *, match_date: date | None = None, competition:
 
 
 def _use_block(sheet: MatchSheet) -> None:
+    from datasources.builder import strength_inputs
+
+    # Fase Y, punto 0: forza corretta per il calendario, usata dal motore solo se mancano le quote 1X2/O-U.
+    st.session_state["auto_strengths"] = {"teams": (sheet.home, sheet.away), "inputs": strength_inputs(sheet)}
     st.session_state["auto_sheet_rows"] = provenance_rows(sheet)
     st.session_state["auto_sheet_warnings"] = sheet.warnings
     use_in_simulator(render_block(sheet), match_date=sheet.match_date, competition=sheet.competition)
@@ -520,7 +524,10 @@ def render_registry(result: dict, config, claude: dict | None = None, claude_not
     if not selections:
         return
     info = SaveInfo(day, time.strip(), competition.strip(), kind, model_version(config, claude=claude is not None), claude_note)
-    rows = prediction_rows(base, selections, info, styled=styled, claude=claude, odds=odds)
+    from ui_eurobet import sharp_notes
+
+    rows = prediction_rows(base, selections, info, styled=styled, claude=claude, odds=odds,
+                           extra_notes=sharp_notes(result["input"]["home"]["name"], result["input"]["away"]["name"]))
     edited = st.data_editor(
         pd.DataFrame(rows), hide_index=True, width="stretch", key=f"registry_editor_{id(result)}",
         disabled=[column for column in rows[0] if column not in ("Quota_presa", "Puntata", "Tipo", "Note")],

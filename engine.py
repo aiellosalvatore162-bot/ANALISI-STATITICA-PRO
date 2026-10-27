@@ -145,6 +145,9 @@ class ModelV2Params:
     recalibration: Mapping[str, Mapping[str, Any]] = field(default_factory=dict)
     thresholds_active: bool = False
     thresholds: Mapping[str, float] = field(default_factory=dict)   # punto 7: gruppo di mercato → EV minimo (punti %)
+    # Fase Y, punto 0: forza corretta per il calendario solo quando mancano le quote 1X2/O-U (modello da solo).
+    strength_model_only: bool = False
+    strength_goal_params: Any = None   # GoalModelParams ristimati con gli ingressi Dixon-Coles
 
 
 def load_model_v2(path: Path = GOAL_MODEL_PATH) -> ModelV2Params:
@@ -157,6 +160,7 @@ def load_model_v2(path: Path = GOAL_MODEL_PATH) -> ModelV2Params:
     sigma = uncertainty.get("sigma", {})
     recalibration = data.get("ricalibrazione", {})
     thresholds = data.get("soglie_valore", {})
+    strength = data.get("forza_calendario", {})
     return ModelV2Params(
         league_weights_active=bool(weights.get("attiva")),
         league_weights={league: (float(row["totale"]), float(row["supremazia"]))
@@ -167,6 +171,8 @@ def load_model_v2(path: Path = GOAL_MODEL_PATH) -> ModelV2Params:
         sigma_corners=float(sigma.get("corner", 0.0)), sigma_cards=float(sigma.get("cartellini", 0.0)),
         recalibration_active=bool(recalibration.get("attiva")), recalibration=dict(recalibration.get("mappe") or {}),
         thresholds_active=bool(thresholds.get("attiva")), thresholds=dict(thresholds.get("soglie_ev") or {}),
+        strength_model_only=bool(strength.get("solo_modello")) and bool(strength.get("pesi_modello_gol")),
+        strength_goal_params=GoalModelParams(**strength["pesi_modello_gol"]) if strength.get("pesi_modello_gol") else None,
     )
 
 
@@ -518,6 +524,8 @@ class MatchConfig:
     league: str | None = None
     rest_days: tuple[float | None, float | None] | None = None
     v2: ModelV2Params = DEFAULT_MODEL_V2
+    # Fase Y: (attacco, difesa) Dixon-Coles per lato «home»/«away» (``datasources.builder.strength_inputs``).
+    strength_inputs: Mapping[str, tuple[float, float]] | None = None
 
     def __post_init__(self) -> None:
         if self.goal_model not in GOAL_MODELS:
@@ -850,8 +858,30 @@ def final_goal_rates(config: MatchConfig) -> tuple[float, float, dict[str, Any]]
     return lambda_, mu, details
 
 
+def strength_model_config(config: MatchConfig) -> MatchConfig | None:
+    """Fase Y, punto 0: la stessa partita con Attacco/Difesa corretti per il calendario e i pesi del modello
+    ristimati, quando l'opzione «solo modello» è accesa e non ci sono quote 1X2 per l'ancoraggio."""
+    from dataclasses import replace
+
+    if not (config.v2.strength_model_only and config.strength_inputs and config.goal_model != "legacy"):
+        return None
+    if config.market_anchor.active and market_goal_rates(_anchor_source(config), config.market_anchor.devig_method,
+                                                         config.dixon_coles_rho) is not None:
+        return None
+    (home_attack, home_defense), (away_attack, away_defense) = config.strength_inputs["home"], config.strength_inputs["away"]
+    return replace(config, goal_params=config.v2.strength_goal_params,
+                   home=replace(config.home, attack=home_attack, defense=home_defense),
+                   away=replace(config.away, attack=away_attack, defense=away_defense))
+
+
 def _anchored_goal_rates(config: MatchConfig) -> tuple[float, float, dict[str, Any]]:
-    model_lambda, model_mu, ledger = expected_goals(config)
+    strength_config = strength_model_config(config)
+    model_lambda, model_mu, ledger = expected_goals(strength_config or config)
+    if strength_config is not None:
+        ledger = {**ledger, "forza_calendario": {
+            "nota": "Partita senza quote 1X2/O-U: modello con attacco e difesa corretti per il calendario (Dixon-Coles), "
+                    "che fuori campione migliora il modello da solo.",
+            "ingressi": dict(config.strength_inputs)}}
     tactical = _tactical(config, "goals")
     supremacy = _tactical(config, "goals_supremacy")
     if tactical is not None:

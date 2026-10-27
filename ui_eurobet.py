@@ -115,3 +115,32 @@ def render_apply(paste: EurobetPaste, current: Mapping[str, float], set_field: C
         skipped = 0 if replace else len(plan["conflicts"])
         st.success(f"{len(chosen)} quote Eurobet applicate ({SOURCE})."
                    + (f" {skipped} campi già valorizzati lasciati com'erano." if skipped else ""))
+
+
+def sharp_notes(home: str, away: str) -> dict[str, str]:
+    """Fase Y (0b): note «eurobet_vs_sharp» per le selezioni con quota Eurobet incollata e riferimento sharp."""
+    from sharp_value import notes_for
+
+    paste = find_paste(home, away)
+    return notes_for(paste.odds(), sharp_for(home, away)) if paste is not None else {}
+
+
+def render_sharp_value(home: str, away: str) -> None:
+    """Eurobet contro il prezzo equo sharp, per selezione, e le quote sopra la soglia."""
+    from sharp_value import above, compare, describe, threshold_pct
+
+    paste, sharp = find_paste(home, away), sharp_for(home, away)
+    if paste is None or not sharp:
+        if paste is not None:
+            st.caption("Confronto con lo sharp: manca la quota di riferimento dell'API per questa partita.")
+        return
+    rows = compare(paste.odds(), sharp)
+    if not rows:
+        return
+    limit = threshold_pct()
+    st.markdown("**Eurobet contro il prezzo equo sharp**")
+    st.dataframe(pd.DataFrame([{**row, "Lettura": describe(row)} for row in rows]), hide_index=True, width="stretch")
+    best = above(rows, limit)
+    st.caption((f"Quote Eurobet sopra il prezzo equo sharp (≥ +{limit:g}%): "
+                + ", ".join(f"{row['Selezione']} {row['Scarto %']:+.1f}%" for row in best)) if best else
+               f"Nessuna quota Eurobet sopra il prezzo equo sharp di almeno {limit:g}%.")

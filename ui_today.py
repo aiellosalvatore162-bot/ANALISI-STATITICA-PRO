@@ -130,6 +130,7 @@ def render_today() -> None:
     render_quick_search(analyses, settings)
     _render_analyst(analyses, settings)
     _render_dual(analyses, settings)
+    _render_sharp_list(analyses)
     _render_quick(analyses, settings)
     _render_builder(analyses, settings)
 
@@ -251,7 +252,10 @@ def _single_rows(analysis: Analysis, selections: list[str], kind: str) -> list[d
     from prediction_log import prediction_rows
 
     claude = analysis.result if analysis.claude is not None and analysis.claude.adjustment() is not None else None
-    return prediction_rows(analysis.result, selections, _save_info(analysis, kind), claude=claude, odds=analysis.odds)
+    from ui_eurobet import sharp_notes
+
+    return prediction_rows(analysis.result, selections, _save_info(analysis, kind), claude=claude, odds=analysis.odds,
+                           extra_notes=sharp_notes(analysis.match.home, analysis.match.away))
 
 
 def _save(rows: list[dict]) -> None:
@@ -426,6 +430,24 @@ def _dual_rows(analysis: Analysis, choice, kind: str) -> list[dict]:
         info = replace_info(info, note="; ".join(part for part in (info.note, source_note(sources)) if part))
         rows += prediction_rows(analysis.result, [selection], info, claude=claude, odds={selection: odds})
     return rows
+
+
+def _render_sharp_list(analyses: list[Analysis]) -> None:
+    """Fase Y (0b): quote Eurobet sopra il prezzo equo sharp in tutte le partite con incollata e riferimento API."""
+    from sharp_value import above, compare, threshold_pct
+    from ui_eurobet import find_paste, sharp_for
+
+    rows = []
+    for analysis in analyses:
+        paste, sharp = find_paste(analysis.match.home, analysis.match.away), sharp_for(analysis.match.home, analysis.match.away)
+        if paste is not None and sharp:
+            rows += [{"Partita": analysis.match.label, **row} for row in above(compare(paste.odds(), sharp))]
+    if rows:
+        st.subheader("Quote Eurobet sopra il prezzo equo sharp")
+        st.caption(f"Quota Eurobet almeno {threshold_pct():g}% sopra la quota equa (senza margine) del riferimento sharp "
+                   "dell'API. Nel registro queste giocate portano «eurobet_vs_sharp: +x%» in Note, per misurarne CLV e "
+                   "rendimento nella pagina Prestazioni.")
+        st.dataframe(pd.DataFrame(rows).sort_values("Scarto %", ascending=False), hide_index=True, width="stretch")
 
 
 def _render_quick(analyses: list[Analysis], settings: dict) -> None:
