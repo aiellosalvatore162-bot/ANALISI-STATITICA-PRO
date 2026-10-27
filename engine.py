@@ -7,7 +7,7 @@ used here.
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, fields
 import json
 import math
 from pathlib import Path
@@ -38,6 +38,8 @@ class TeamParams:
     corners_for: float
     corners_against: float
     cards_for: float
+    # Gialli presi dagli avversari contro la squadra (fase T, divisione dei cartellini); None = non disponibile.
+    cards_provoked: float | None = None
 
 
 GOAL_MODEL_PATH = Path(__file__).resolve().parent / "config" / "goal_model.json"
@@ -276,6 +278,43 @@ DEFAULT_COUNT_ANCHOR = load_count_anchor()
 
 
 @dataclass(frozen=True)
+class CardSplitParams:
+    """How the card total is divided between the teams (fase T, ``python -m tools.card_split``).
+
+    Inactive = the original division ``p = cards_for casa / (casa + ospite)``. Active: logit p = ``home`` +
+    ``rate_weight``·log(c_casa/c_ospite) + ``provoked_weight``·log(prov_ospite/prov_casa) + ``underdog_weight``·
+    (P(2) − P(1)) + ``referee_weight``·log(gialli arbitro/4.5)·log(c_casa/c_ospite); the split of the
+    yellows is a multiplicative binomial (``balance`` = log θ, > 0 favours balanced splits) or a
+    beta-binomial (``concentration``); reds are divided with the same p. With 1X2 cards or team lines
+    quoted, logit p moves towards the market by ``market_weight`` (declared, not fitted: no card odds in
+    the history).
+    """
+
+    active: bool = False
+    home: float = 0.0
+    rate_weight: float = 1.0
+    provoked_weight: float = 0.0
+    underdog_weight: float = 0.0
+    referee_weight: float = 0.0
+    balance: float = 0.0
+    concentration: float = 0.0
+    market_weight: float = 0.8
+
+
+def load_card_split(path: Path = GOAL_MODEL_PATH) -> CardSplitParams:
+    if not path.exists():
+        return CardSplitParams()
+    section = json.loads(path.read_text(encoding="utf-8")).get("divisione_cartellini", {})
+    names = {item.name for item in fields(CardSplitParams)}
+    values = {key: value for key, value in section.get("parametri", {}).items() if key in names}
+    return CardSplitParams(active=bool(section.get("attiva", False)), **values,
+                           market_weight=float(section.get("peso_mercato", 0.8)))
+
+
+DEFAULT_CARD_SPLIT = load_card_split()
+
+
+@dataclass(frozen=True)
 class TacticalSwitches:
     """Which tactical corrections are applied (validated by ``python -m tools.tactical``)."""
 
@@ -361,6 +400,7 @@ class MatchConfig:
     count_model: CountModelParams = DEFAULT_COUNT_MODEL
     card_rule: CardRule = DEFAULT_CARD_RULE
     count_anchor: CountAnchorParams = DEFAULT_COUNT_ANCHOR
+    card_split: CardSplitParams = DEFAULT_CARD_SPLIT
     tactical: TacticalFactors | None = None
     tactical_switches: TacticalSwitches = DEFAULT_TACTICAL_SWITCHES
     claude: ClaudeAdjustment | None = None
@@ -388,6 +428,7 @@ def config_from_input(match: MatchInput, simulations: int = 100_000, seed: int =
             corners_for=value.corners_for,
             corners_against=value.corners_against,
             cards_for=value.cards_for,
+            cards_provoked=getattr(value, "cards_provoked", None),
         )
 
     return MatchConfig(
@@ -1296,6 +1337,219 @@ def count_anchoring(config: MatchConfig) -> dict[str, dict[str, Any]]:
             "cartellini": _anchor_count(config, "cartellini", _model_card_mean(config))}
 
 
+# --- Division of the cards between the teams (fase T) -------------------------------------------------
+
+CARD_SPLIT_MAX_YELLOWS = 16
+CARD_SPLIT_MAX_REDS = 3
+
+
+def split_log_pmf(total, p, balance: float = 0.0, concentration: float = 0.0, max_total: int = CARD_SPLIT_MAX_YELLOWS):
+    """log P(gialli casa = k | totale) per k = 0..max_total (matrice N × (max_total+1), -inf oltre il totale).
+
+    Binomiale (balance = concentration = 0), binomiale moltiplicativa di Altham (balance = log θ) o
+    beta-binomiale (concentration).
+    """
+    from scipy.special import betaln, gammaln
+
+    k = np.arange(max_total + 1)[None, :]
+    total = np.atleast_1d(np.asarray(total, float))[:, None]
+    p = np.clip(np.atleast_1d(np.asarray(p, float)), 1e-9, 1 - 1e-9)[:, None]
+    rest = np.maximum(total - k, 0)
+    combinations = gammaln(total + 1) - gammaln(k + 1) - gammaln(rest + 1)
+    if concentration > 0:
+        alpha, beta = concentration * p, concentration * (1 - p)
+        terms = combinations + betaln(k + alpha, rest + beta) - betaln(alpha, beta)
+    else:
+        terms = combinations + k * np.log(p) + rest * np.log(1 - p) + balance * k * rest
+    terms = np.where(k <= total, terms, -np.inf)
+    return terms - np.logaddexp.reduce(terms, axis=1, keepdims=True)
+
+
+def card_points_joint(yellow_mean, p, count_model: CountModelParams, rule: CardRule, *, balance: float = 0.0,
+                      concentration: float = 0.0) -> np.ndarray:
+    """P[n, punti casa, punti ospite]: gialli totali NB (o Poisson), divisi con p, rossi Poisson divisi con p."""
+    from scipy.stats import nbinom, poisson
+
+    yellow_mean = np.atleast_1d(np.asarray(yellow_mean, float))
+    p = np.broadcast_to(np.asarray(p, float), yellow_mean.shape)
+    size = CARD_SPLIT_MAX_YELLOWS + 1
+    totals = np.arange(size)
+    dispersion = count_model.card_dispersion if count_model.active else 0.0
+    if dispersion > 0:
+        total_pmf = nbinom.pmf(totals[None, :], dispersion, dispersion / (dispersion + yellow_mean[:, None]))
+    else:
+        total_pmf = poisson.pmf(totals[None, :], yellow_mean[:, None])
+    joint = np.zeros((len(yellow_mean), size, size))
+    for total in totals:
+        home = np.arange(total + 1)
+        split = np.exp(split_log_pmf(np.full(len(yellow_mean), total), p, balance, concentration))[:, :total + 1]
+        joint[:, home, total - home] += total_pmf[:, [total]] * split
+    red_mean = count_model.card_red_ratio * yellow_mean
+    reds = np.arange(CARD_SPLIT_MAX_REDS + 1)[None, :]
+    red_home, red_away = poisson.pmf(reds, (red_mean * p)[:, None]), poisson.pmf(reds, (red_mean * (1 - p))[:, None])
+    width = size + rule.red_weight * CARD_SPLIT_MAX_REDS
+    points = np.zeros((len(yellow_mean), width, width))
+    for home_reds in range(CARD_SPLIT_MAX_REDS + 1):
+        for away_reds in range(CARD_SPLIT_MAX_REDS + 1):
+            x, y = rule.red_weight * home_reds, rule.red_weight * away_reds
+            points[:, x:x + size, y:y + size] += (red_home[:, home_reds] * red_away[:, away_reds])[:, None, None] * joint
+    return points / points.sum(axis=(1, 2), keepdims=True)
+
+
+def card_split_markets(points: np.ndarray, lines: Sequence[float] = (0.5, 1.5, 2.5, 3.5, 4.5)) -> dict[str, np.ndarray]:
+    """1X2 cartellini e Over per squadra dalla distribuzione congiunta dei punti (chiavi evento del motore)."""
+    index = np.arange(points.shape[1])
+    one = (points * (index[:, None] > index[None, :])).sum(axis=(1, 2))
+    draw = (points * (index[:, None] == index[None, :])).sum(axis=(1, 2))
+    result = {"1 cartellini": one, "X cartellini": draw, "2 cartellini": 1.0 - one - draw}
+    home, away = points.sum(axis=2), points.sum(axis=1)
+    for line in lines:
+        result[f"Casa Over {line:g} cartellini"] = home[:, int(line) + 1:].sum(axis=1)
+        result[f"Ospite Over {line:g} cartellini"] = away[:, int(line) + 1:].sum(axis=1)
+    return result
+
+
+def card_split_logit(config: MatchConfig, underdog: float) -> tuple[float, dict[str, Any]]:
+    """Logit della quota di casa del modello e componenti usate (fase T)."""
+    params = config.card_split
+    home, away = max(config.home.cards_for, 0.05), max(config.away.cards_for, 0.05)
+    rate = math.log(home / away)
+    if not params.active:
+        return rate, {"modello": "divisione originale: cartellini pro casa / totale"}
+    value = params.home + params.rate_weight * rate
+    used = {"ritmo": params.rate_weight}
+    provoked = (config.home.cards_provoked, config.away.cards_provoked)
+    if params.provoked_weight and all(value is not None and value > 0 for value in provoked):
+        value += params.provoked_weight * math.log(provoked[1] / provoked[0])
+        used["provocati"] = params.provoked_weight
+    elif params.provoked_weight:
+        used["provocati"] = "non disponibili: termine escluso"
+    if params.underdog_weight:
+        value += params.underdog_weight * underdog
+        used["sfavorita"] = params.underdog_weight
+    if params.referee_weight and config.referee_yellow_avg > 0:
+        value += params.referee_weight * math.log(config.referee_yellow_avg / 4.5) * rate
+        used["arbitro"] = params.referee_weight
+    if params.balance:
+        used["bilanciamento"] = params.balance
+    return value, used
+
+
+def _card_split_targets(config: MatchConfig) -> dict[str, float]:
+    """Probabilità senza margine dalle quote 1X2 cartellini e Over/Under cartellini per squadra (se quotate entrambe)."""
+    odds = _anchor_source(config) or {}
+    method = config.count_anchor.devig_method
+    targets: dict[str, float] = {}
+
+    def valid(key: str) -> bool:
+        try:
+            return float(odds[key]) > 1.0
+        except (KeyError, TypeError, ValueError):
+            return False
+
+    signs = ("1 cartellini", "X cartellini", "2 cartellini")
+    if all(valid(key) for key in signs):
+        targets.update(zip(signs, (float(value) for value in remove_margin([odds[key] for key in signs], method))))
+    for key in list(odds):
+        found = re.fullmatch(r"(Casa|Ospite) Over (\d+\.5) cartellini", key)
+        under = f"{found.group(1)} Under {found.group(2)} cartellini" if found else None
+        if found and valid(key) and valid(under):
+            targets[key] = float(remove_margin([odds[key], odds[under]], method)[0])
+    return targets
+
+
+def card_split_share(config: MatchConfig, underdog: float, yellow_mean: float) -> tuple[float, dict[str, Any]]:
+    """Quota dei cartellini della squadra di casa: modello, eventualmente ancorato al mercato (fase T)."""
+    from scipy.optimize import minimize_scalar
+
+    params = config.card_split
+    logit, used = card_split_logit(config, underdog)
+    p_model = 1.0 / (1.0 + math.exp(-logit))
+    details: dict[str, Any] = {"active": params.active, "p_model": p_model, "p": p_model, "components": used,
+                               "anchored": False}
+    if not params.active:
+        details["reason"] = "Divisione originale (fase T disattivata in configurazione)."
+        return p_model, details
+    targets = _card_split_targets(config)
+    if not targets:
+        details["reason"] = "Non ancorato: nessuna quota 1X2 cartellini o Over/Under cartellini per squadra."
+        return p_model, details
+
+    def loss(shift: float) -> float:
+        points = card_points_joint(yellow_mean, 1.0 / (1.0 + math.exp(-(logit + shift))), config.count_model,
+                                   config.card_rule, balance=params.balance, concentration=params.concentration)
+        model = {key: float(value[0]) for key, value in card_split_markets(points).items()}
+        total = 0.0
+        if "1 cartellini" in targets:
+            total -= sum(targets[key] * math.log(max(model[key], 1e-9)) for key in ("1 cartellini", "X cartellini", "2 cartellini"))
+        for key, over in targets.items():
+            if key.startswith(("Casa", "Ospite")):
+                fitted = min(max(model.get(key, 0.5), 1e-9), 1 - 1e-9)
+                total -= over * math.log(fitted) + (1 - over) * math.log(1 - fitted)
+        return total
+
+    shift = float(minimize_scalar(loss, bounds=(-3.0, 3.0), method="bounded").x)
+    p = 1.0 / (1.0 + math.exp(-(logit + params.market_weight * shift)))
+    details.update({"anchored": True, "p": p, "market_shift": shift, "targets": targets,
+                    "reason": f"Quota di casa = modello spostato verso il mercato con peso {params.market_weight:g} "
+                              f"(dichiarato, non tarato) su {len(targets)} probabilità senza margine."})
+    return p, details
+
+
+COUNT_DISAGREEMENT_PP = 10.0
+COUNT_DISAGREEMENT_TEXT = "disaccordo forte col bookmaker: probabile errore del modello, verifica"
+_COUNT_LINE = re.compile(r"^(?:(Casa|Ospite) )?(Over|Under) (\d+\.5) (corner|cartellini)$")
+
+
+def count_market_gaps(final: Mapping[str, float], odds: Mapping[str, float] | None,
+                      method: str = "proporzionale") -> dict[str, dict[str, float]]:
+    """Corner e cartellini: probabilità del modello contro il mercato senza margine (punti percentuali).
+
+    Gruppi completi soltanto: 1X2 corner/cartellini (tre esiti) e coppie Over/Under della stessa linea.
+    """
+    odds = {key: float(value) for key, value in (odds or {}).items() if value and float(value) > 1.0}
+    groups: list[tuple[str, ...]] = [tuple(f"{sign} {kind}" for sign in ("1", "X", "2")) for kind in ("corner", "cartellini")]
+    for key in odds:
+        found = _COUNT_LINE.match(key)
+        if found and found.group(2) == "Over":
+            groups.append((key, key.replace(" Over ", " Under ") if found.group(1) else key.replace("Over ", "Under ", 1)))
+    gaps = {}
+    for group in groups:
+        if not all(key in odds and key in final for key in group):
+            continue
+        market = remove_margin([odds[key] for key in group], method)
+        for key, probability in zip(group, market):
+            model = float(final[key])
+            gaps[key] = {"model": model, "market": round(float(probability) * 100.0, 2), "gap": round(model - float(probability) * 100.0, 2)}
+    return gaps
+
+
+def flag_count_disagreements(financial: dict[str, Any], final: Mapping[str, float], odds: Mapping[str, float] | None,
+                             threshold: float = COUNT_DISAGREEMENT_PP) -> dict[str, dict[str, float]]:
+    """Righe di corner e cartellini con |modello − mercato| > ``threshold``: avviso e niente semaforo verde."""
+    strong = {key: value for key, value in count_market_gaps(final, odds).items() if abs(value["gap"]) > threshold}
+    for row in financial["markets"]:
+        if row["market"] in strong:
+            row.update(count_disagreement=strong[row["market"]], suspicious_value=True, is_value=False,
+                       model_market_gap_pct=abs(strong[row["market"]]["gap"]))
+    financial["value_bets"] = [row for row in financial["value_bets"] if row["market"] not in strong]
+    return strong
+
+
+def _split_samples(rng: np.random.Generator, totals: np.ndarray, p: float, params: CardSplitParams) -> np.ndarray:
+    """Gialli della squadra di casa per ogni simulazione, dato il totale."""
+    if not params.active or (not params.balance and not params.concentration):
+        return rng.binomial(totals, p)
+    home = np.zeros_like(totals)
+    uniform = rng.random(len(totals))
+    for total in np.unique(totals):
+        mask = totals == total
+        cdf = np.cumsum(np.exp(split_log_pmf([total], [p], params.balance, params.concentration,
+                                             max_total=int(total)))[0][:int(total) + 1])
+        home[mask] = np.minimum(np.searchsorted(cdf, uniform[mask] * cdf[-1]), total)
+    return home
+
+
 def card_points_mean(config: MatchConfig) -> float:
     """Expected card-market points: yellows plus reds (``card_red_ratio`` per expected yellow) with the rule weights."""
     rule = config.card_rule
@@ -1443,7 +1697,12 @@ def simulate_match(config: MatchConfig) -> dict[str, Any]:
     home_card_share = (
         config.home.cards_for / card_signal_total if card_signal_total > 0.0 else 0.5
     )
-    home_yellows = rng.binomial(yellows, home_card_share)
+    card_split_details = {"active": False, "p": home_card_share}
+    if config.card_split.active:
+        # Fase T: quota di casa dal modello della divisione (sfavorita = P(2) − P(1) dei gol simulati).
+        underdog = float(np.mean(goals_home < goals_away) - np.mean(goals_home > goals_away))
+        home_card_share, card_split_details = card_split_share(config, underdog, yellow_mean)
+    home_yellows = _split_samples(rng, yellows, home_card_share, config.card_split)
     away_yellows = yellows - home_yellows
     # Reds after the yellows, so the yellow samples do not depend on the rule.
     reds = rng.poisson(config.count_model.card_red_ratio * yellow_mean, config.simulations)
@@ -1579,12 +1838,15 @@ def simulate_match(config: MatchConfig) -> dict[str, Any]:
     }
     result["market_anchoring"] = anchoring
     result["count_anchoring"] = count_anchoring(config)
+    result["card_split"] = card_split_details
     result["components"] = components
     result["exact_scores"] = exact_scores
     result["financial"] = financial_analysis(
         events, getattr(config, "odds", None), components,
         config.market_anchor.suspicious_gap_pct, config.market_anchor.no_value_markets,
     )
+    result["count_disagreements"] = flag_count_disagreements(result["financial"], components["finale"],
+                                                             getattr(config, "odds", None))
     result["smart_combo"] = smart_combo(
         events, getattr(config, "odds", None), config.market_anchor.no_value_markets
     )
