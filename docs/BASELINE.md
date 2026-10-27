@@ -785,3 +785,132 @@ Generato il 27/10/2026 con `python -m tools.minute_check`. 1754 partite di footb
 | corner_pressione | 0.6836 / 0.0157 | 0.6810 / 0.0182 | 0.6691 / 0.0136 | 0.6206 / 0.0295 | 0.5258 / 0.0159 | 0.6170 / 0.0177 |
 | cartellini_tempo | 0.6836 / 0.0157 | 0.6810 / 0.0182 | 0.6692 / 0.0119 | 0.6208 / 0.0293 | 0.5260 / 0.0157 | 0.6171 / 0.0174 |
 
+
+## Motore minuto per minuto: varianti ibride con punteggi Dixon-Coles fissi (fase Q, punto 0)
+
+Generato il 27/10/2026 con `python -m tools.minute_check`. 1754 partite di football-data.co.uk (1920: 354. 2021: 399. 2122: 346. 2223: 401. 2627: 254). escluse le stagioni usate per stimare le regole o tarare gli altri parametri (2324. 2425. 2526). Gol ancorati alle quote di chiusura come nell'app; 20.000 simulazioni per partita e variante. Una componente resta accesa solo se la log-loss media scende di più di due errori standard (confronto appaiato partita per partita) e l'ECE media non sale (tolleranza 0.0005).
+
+### Componenti provate, nell'ordine
+
+| Passo | Log-loss media | ECE media | Differenza appaiata (± 2 e.s.) | Tenuta |
+|---|---|---|---|---|
+| motore attuale | 0.61530 | 0.01815 | +0.00000 ± 0.00000 | sì |
+| tempi_stato | 0.61531 | 0.01774 | +0.00001 ± 0.00016 | no |
+| espulsioni_tempi | 0.61531 | 0.01784 | +0.00002 ± 0.00013 | no |
+| corner_pressione | 0.61528 | 0.01836 | -0.00002 ± 0.00015 | no |
+| cartellini_tempo | 0.61533 | 0.01753 | +0.00004 ± 0.00013 | no |
+
+### Per mercato: motore attuale → scelta finale (motore attuale)
+
+| Mercato | Gruppo | Log-loss prima | Log-loss dopo | ECE prima | ECE dopo |
+|---|---|---|---|---|---|
+| 1X2 | gol | 0.9654 | 0.9654 | 0.0168 | 0.0168 |
+| Over 1.5 | gol | 0.4951 | 0.4951 | 0.0124 | 0.0124 |
+| Over 2.5 | gol | 0.6629 | 0.6629 | 0.0211 | 0.0211 |
+| Over 3.5 | gol | 0.6135 | 0.6135 | 0.0183 | 0.0183 |
+| Goal | gol | 0.6808 | 0.6808 | 0.0098 | 0.0098 |
+| 1X2 1T | tempi | 1.0183 | 1.0183 | 0.0075 | 0.0075 |
+| 1X2 2T | tempi | 1.0438 | 1.0438 | 0.0070 | 0.0070 |
+| 1T Over 0.5 | tempi | 0.5907 | 0.5907 | 0.0087 | 0.0087 |
+| 1T Over 1.5 | tempi | 0.6451 | 0.6451 | 0.0110 | 0.0110 |
+| 2T Over 0.5 | tempi | 0.4751 | 0.4751 | 0.0290 | 0.0290 |
+| 2T Over 1.5 | tempi | 0.6760 | 0.6760 | 0.0387 | 0.0387 |
+| Multigol 1T 0-1 | tempi | 0.6451 | 0.6451 | 0.0110 | 0.0110 |
+| Multigol 1T 1-2 | tempi | 0.6787 | 0.6787 | 0.0125 | 0.0125 |
+| Multigol 2T 0-1 | tempi | 0.6760 | 0.6760 | 0.0387 | 0.0387 |
+| Multigol 2T 1-3 | tempi | 0.5874 | 0.5874 | 0.0186 | 0.0186 |
+| Primo tempo con più gol | tempi | 0.5919 | 0.5919 | 0.0257 | 0.0257 |
+| Corner Over 8.5 | corner | 0.6604 | 0.6604 | 0.0165 | 0.0165 |
+| Corner Over 9.5 | corner | 0.6869 | 0.6869 | 0.0065 | 0.0065 |
+| Corner Over 10.5 | corner | 0.6605 | 0.6605 | 0.0138 | 0.0138 |
+| Cartellini Over 3.5 | cartellini | 0.6358 | 0.6358 | 0.0211 | 0.0211 |
+| Cartellini Over 4.5 | cartellini | 0.6497 | 0.6497 | 0.0413 | 0.0413 |
+| Cartellini Over 5.5 | cartellini | 0.5757 | 0.5757 | 0.0277 | 0.0277 |
+| Over 2.5 & Corner Over 9.5 | combo | 0.5724 | 0.5724 | 0.0191 | 0.0191 |
+| Over 2.5 & Cartellini Over 4.5 | combo | 0.5167 | 0.5167 | 0.0219 | 0.0219 |
+| Goal & Corner Over 9.5 | combo | 0.5802 | 0.5802 | 0.0116 | 0.0116 |
+| 1 & Over 2.5 | combo | 0.5500 | 0.5500 | 0.0164 | 0.0164 |
+| X & Under 2.5 | combo | 0.4593 | 0.4593 | 0.0200 | 0.0200 |
+| Corner Over 9.5 & Cartellini Over 4.5 | combo | 0.5194 | 0.5194 | 0.0129 | 0.0129 |
+| X & Cartellini Over 4.5 | combo | 0.3679 | 0.3679 | 0.0089 | 0.0089 |
+| 1T Over 0.5 & Over 2.5 | combo | 0.6678 | 0.6678 | 0.0053 | 0.0053 |
+| Under 2.5 & Corner Under 9.5 | combo | 0.5002 | 0.5002 | 0.0316 | 0.0316 |
+| 1T Over 0.5 & Corner Over 9.5 | combo | 0.6435 | 0.6435 | 0.0086 | 0.0086 |
+| 2T Over 1.5 & Cartellini Over 4.5 | combo | 0.4938 | 0.4938 | 0.0187 | 0.0187 |
+| 1X2 1T pari & Cartellini Over 4.5 | combo | 0.4754 | 0.4754 | 0.0161 | 0.0161 |
+
+| Media per gruppo | Log-loss prima | Log-loss dopo | ECE prima | ECE dopo |
+|---|---|---|---|---|
+| media gol | 0.6836 | 0.6836 | 0.0157 | 0.0157 |
+| media tempi | 0.6935 | 0.6935 | 0.0190 | 0.0190 |
+| media corner | 0.6693 | 0.6693 | 0.0122 | 0.0122 |
+| media cartellini | 0.6204 | 0.6204 | 0.0300 | 0.0300 |
+| media combo | 0.5289 | 0.5289 | 0.0159 | 0.0159 |
+| media | 0.6153 | 0.6153 | 0.0182 | 0.0182 |
+
+### Tutte le varianti (log-loss / ECE medie per gruppo)
+
+| Variante | gol | tempi | corner | cartellini | combo | media |
+|---|---|---|---|---|---|---|
+| motore attuale | 0.6836 / 0.0157 | 0.6935 / 0.0190 | 0.6693 / 0.0122 | 0.6204 / 0.0300 | 0.5289 / 0.0159 | 0.6153 / 0.0182 |
+| tempi_stato | 0.6836 / 0.0157 | 0.6933 / 0.0185 | 0.6694 / 0.0119 | 0.6207 / 0.0287 | 0.5290 / 0.0158 | 0.6153 / 0.0177 |
+| espulsioni_tempi | 0.6836 / 0.0157 | 0.6935 / 0.0179 | 0.6691 / 0.0125 | 0.6206 / 0.0297 | 0.5289 / 0.0162 | 0.6153 / 0.0178 |
+| corner_pressione | 0.6836 / 0.0157 | 0.6934 / 0.0185 | 0.6691 / 0.0136 | 0.6207 / 0.0320 | 0.5289 / 0.0161 | 0.6153 / 0.0184 |
+| cartellini_tempo | 0.6836 / 0.0157 | 0.6934 / 0.0185 | 0.6692 / 0.0119 | 0.6209 / 0.0295 | 0.5289 / 0.0151 | 0.6153 / 0.0175 |
+
+
+## Goleade: calibrazione fuori campione e correzione della coda (fase Q, 6c)
+
+Generato il 27/10/2026 con `python -m tools.goleade`. 7153 partite fuori campione (2019-24 e 2026-27), gol attesi ancorati alle quote di chiusura, punteggi Dixon-Coles. Correzione provata: marginali binomiali negative con dispersione k = 500.0 tarata sul 2024-26 (2852 partite, verosimiglianza dei punteggi esatti). Differenza appaiata della log-loss media dei tre mercati -0.00011 ± 0.00009 (2 e.s.): **spenta** (dispersione al limite superiore: i dati non chiedono una coda più pesante, il modello Poisson non sottostima le goleade).
+
+| Mercato | Log-loss prima | Log-loss dopo | ECE prima | ECE dopo |
+|---|---|---|---|---|
+| Favorita 4+ gol | 0.3249 | 0.3248 | 0.0081 | 0.0085 |
+| Favorita vince di 3+ | 0.3835 | 0.3832 | 0.0134 | 0.0123 |
+| Totale 5+ gol | 0.4221 | 0.4221 | 0.0071 | 0.0072 |
+| media goleade | 0.3768 | 0.3767 | 0.0095 | 0.0093 |
+| 1X2 | 0.9651 | 0.9648 | 0.0095 | 0.0064 |
+| Over 2.5 | 0.6666 | 0.6666 | 0.0159 | 0.0161 |
+
+Per fascia di squilibrio (media prevista prima / dopo / frequenza reale):
+
+| Fascia |λ − μ| | Partite | Favorita 4+ gol: prima / dopo / reale | Favorita vince di 3+: prima / dopo / reale | Totale 5+ gol: prima / dopo / reale |
+|---|---|---|---|---|
+| -0.00–0.23 | 1431 | 5.2% / 5.2% / 4.4% | 6.6% / 6.7% / 5.6% | 12.9% / 12.9% / 13.3% |
+| 0.23–0.48 | 1430 | 6.8% / 6.8% / 6.9% | 9.0% / 9.0% / 9.3% | 13.4% / 13.4% / 13.0% |
+| 0.48–0.83 | 1431 | 9.3% / 9.3% / 8.7% | 12.5% / 12.5% / 10.8% | 14.5% / 14.5% / 14.2% |
+| 0.83–1.29 | 1430 | 13.8% / 13.7% / 13.6% | 18.4% / 18.2% / 17.3% | 16.9% / 16.8% / 16.0% |
+| 1.29–3.82 | 1431 | 25.7% / 25.4% / 23.1% | 32.9% / 32.5% / 28.7% | 24.4% / 24.1% / 23.7% |
+
+
+## Incroci di stile delle schede tattiche (fase Q, punti 5 e 7)
+
+Generato il 27/10/2026 con `python -m tools.tactical_cross`. Stima su StatsBomb Open Data 2015/16 (Premier, Liga, Serie A, Ligue 1; schede dai valori di stagione senza la partita; cartellini misurati con i falli), verifica su football-data.co.uk + Understat 2019-27 (10004 partite, 8789 con le schede di entrambe le squadre). Fattori dopo l'ancoraggio alle quote di chiusura; regola severa: log-loss appaiata giù di oltre 2 errori standard ED ECE non peggiore.
+
+| Regola | Casi StatsBomb | Effetto stimato (± e.s.) | Valore usato | Verifica | Esito |
+|---|---|---|---|---|---|
+| Verticale contro blocco alto a zona | 0 | non stimabile: campo non misurabile nei dati: non_possesso | gol 1.06 (prudente (campo non misurabile nei dati: non_possesso)) | non verificabile: manca nei dati Understat: non_possesso | **spenta** |
+| Orizzontale contro blocco basso, gestione scarsa | 82 | gol 1.122 ± 0.063, corner 1.008 ± 0.069 | gol 1.12, corner 1.008 (stimato su StatsBomb Open Data 2015/16) | 204 partite; gol: 0.8170 → 0.8170 (+0.00000 ± 0.00018), ECE 0.0100 → 0.0101; corner: 2.6200 → 2.6200 (+0.00003 ± 0.00006), ECE 0.0062 → 0.0066 | **spenta** |
+| Orizzontale contro blocco basso, gestione buona | 202 | gol 0.920 ± 0.034, corner 0.937 ± 0.036 | gol 0.92, corner 0.937 (stimato su StatsBomb Open Data 2015/16) | 1409 partite; gol: 0.8170 → 0.8173 (+0.00029 ± 0.00045), ECE 0.0100 → 0.0113; corner: 2.6200 → 2.6238 (+0.00382 ± 0.00144), ECE 0.0062 → 0.0191 | **spenta** |
+| Pressing alto contro squadra che non gestisce palla | 331 | gol 1.022 ± 0.029, cartellini 0.993 ± 0.011 | gol 1.022, cartellini 0.993 (stimato su StatsBomb Open Data 2015/16) | 1905 partite; gol: 0.8170 → 0.8170 (+0.00005 ± 0.00013), ECE 0.0100 → 0.0096; cartellini: 2.1460 → 2.1461 (+0.00005 ± 0.00010), ECE 0.0129 → 0.0134 | **spenta** |
+| Fasce e cross contro difesa a uomo | 0 | non stimabile: campo non misurabile nei dati: non_possesso | corner 1.08 (prudente (campo non misurabile nei dati: non_possesso)) | non verificabile: manca nei dati Understat: fasce_cross, non_possesso | **spenta** |
+
+
+## Nuovi mercati: verifica fuori campione (fase Q, punto 7)
+
+Generato il 27/10/2026 con `python -m tools.new_markets`. 7153 partite 2019-24 e 2026-27 (fuori dal periodo di taratura), gol ancorati alle quote di chiusura, primo tempo con le quote tarate, corner e gialli dal modello dei conteggi. Per ogni famiglia: media sui mercati della log-loss binaria e dell'ECE, scarto massimo tra probabilità media e frequenza osservata.
+
+| Famiglia | Mercati | Log-loss media | ECE media | Scarto massimo (mercato: previsto / reale) |
+|---|---|---|---|---|
+| Multigol 1T | 10 | 0.5108 | 0.0077 | Multigol 1T 1-3: 66.4% / 67.7% |
+| Multigol 2T | 11 | 0.5249 | 0.0153 | Multigol 2T 1-3: 70.9% / 73.5% |
+| Over 4.5-6.5 gol | 3 | 0.2633 | 0.0051 | Over 4.5 gol: 16.4% / 16.0% |
+| Goal/No Goal + U/O | 12 | 0.4846 | 0.0084 | Goal + Under 4.5: 38.6% / 40.4% |
+| Segno + U/O | 40 | 0.4438 | 0.0100 | X + Under 1.5: 7.7% / 6.3% |
+| Multigol casa+ospite | 100 | 0.5175 | 0.0121 | Multigol Casa 1-2 + Ospite 0-4: 53.3% / 56.6% |
+| Fasce corner totali | 7 | 0.5113 | 0.0065 | Corner totali 0-8: 38.5% / 37.6% |
+| Fasce corner per squadra | 8 | 0.5488 | 0.0337 | Corner casa 0-2: 11.6% / 16.8% |
+| Fasce cartellini totali (gialli) | 10 | 0.2511 | 0.0133 | Cartellini totali 0-3: 43.8% / 39.8% |
+
+Non verificabili con i dati storici disponibili: Corner per tempo (Over/Under 1T e 2T, 1X2 corner 1T); Cartellini per tempo (Over/Under 1T e 2T, 1X2 cartellini 1T); Fasce cartellini per squadra (divisione verificata nella fase T solo per le linee). Le quote dei tempi per corner (0,493) e cartellini (0,386) vengono dai pesi dei blocchi stimati su StatsBomb Open Data 2015/16 (fase O) e restano dichiarate come non verificate.
+

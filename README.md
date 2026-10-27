@@ -418,6 +418,58 @@ Claude» crea un unico testo con tutte le partite che hanno corner o cartellini
 senza esito (utile per le coppe). La risposta, con un blocco `ESITI_CLAUDE: E1`
 per partita e la fonte, compila solo gli esiti mancanti; la fonte va in Note.
 
+## Schede tattiche, incroci di stile e nuovi mercati (fase Q)
+
+**Schede tattiche.** Nella pagina Oggi, sezione «Schede tattiche»: scegli le
+squadre, «Prepara richiesta profili per Claude» crea il testo (con gli indizi
+dei profili di stile già in cache: pressing, blocco, transizione). Incolla la
+risposta: si leggono i blocchi `PROFILO_TATTICO: <squadra>` (allenatore e data
+di arrivo, moduli, transizione 1-5, gestione contro il blocco basso, non
+possesso, blocco, pressing, fasce e cross, adattabilità, comportamento contro
+forti e deboli, reazioni in svantaggio e in vantaggio, fonti, confidenza).
+Valori fuori elenco scartati, profilo senza link scartato. Nulla si salva
+finché non confermi la tabella (modificabile). Se i dati dicono il contrario
+(es. pressing «alto» nella scheda e «basso» nei dati) compare un avviso, mai una
+correzione. Le schede salvate si modificano anche a mano e finiscono nel foglio
+«Schede tattiche» dell'Excel della giornata («Riprendi da file» le ripristina).
+Nella pagina Partita il riquadro «Schede tattiche» mostra le due schede e come
+gioca ciascuna contro un avversario più forte o più debole (Elo). Le schede
+entrano nei testi per Claude e il registro scrive «scheda tattica: sì/no» in
+Note; la pagina Prestazioni confronta i due gruppi.
+
+**Allenatore nuovo.** Con la data «dal» della scheda, le partite precedenti
+pesano 0,3 nelle medie e, finché il nuovo allenatore ha meno di 8 partite,
+attacco, difesa, corner e cartellini si avvicinano alla media del campionato.
+Compare l'avviso «Allenatore nuovo da N partite» (`config/tattica.json`,
+`cambio_allenatore`).
+
+**Incroci di stile.** Cinque regole con effetti piccoli e limitati (0,90-1,12),
+attenuate per le squadre adattabili, in `config/tattica.json`. Si stimano su
+StatsBomb Open Data 2015/16 e si verificano su football-data.co.uk + Understat
+2019-27 con `python -m tools.tactical_cross --salva` (estrarre prima gli stili
+con `python -m tools.style_data`). Esito: **tutte spente**. Due regole non sono
+misurabili (non possesso a uomo/zona non c'è nei dati) e restano con il valore
+prudente dichiarato; le altre tre non migliorano la log-loss. Le reazioni in
+svantaggio/vantaggio entrano nel motore minuto per minuto, che resta spento.
+
+**Nuovi mercati.** Multigol 1T e 2T, Over/Under fino a 6.5, Goal/No Goal +
+Over/Under 2.5-4.5, segno (1, X, 2, 1X, X2) + Over/Under 1.5-4.5, multigol casa
++ ospite, corner per tempo (Over/Under 1T e 2T 3.5-5.5, 1X2 corner 1T),
+cartellini per tempo (1T 1.5-2.5, 2T 1.5-3.5, 1X2 cartellini 1T), cartellini
+squadra 0.5, fasce di corner e cartellini (totali, casa, ospite). Tutti dallo
+stesso campione simulato, collegati al parser Eurobet, al registro, al
+costruttore di multiple e al foglio Analisi. Verifica fuori campione con
+`python -m tools.new_markets`; corner e cartellini per tempo non sono
+verificabili con i dati storici (quote dei tempi da StatsBomb, dichiarate).
+Nella tabella Riepilogo del tuo file vanno aggiunte le righe: Multigol 1T,
+Multigol 2T, Multigol casa+ospite, Over/Under 4.5+, Corner per tempo,
+Cartellini per tempo, Fasce corner, Fasce cartellini.
+
+**Goleade.** La Panoramica mostra la riga «Goleada» (favorita 4+ gol, vittoria
+con 3+ di scarto). `python -m tools.goleade` misura per fascia di squilibrio:
+nelle partite più squilibrate il modello sovrastima un po' (favorita 4+ gol
+25,7% previsto contro 23,1% reale); una coda più pesante non serve ed è spenta.
+
 ## Motore minuto per minuto (fase O, parte 1): opzione spenta
 
 `timeline.py` simula ogni partita a blocchi di 5 minuti. Ritmi di gol, corner e
