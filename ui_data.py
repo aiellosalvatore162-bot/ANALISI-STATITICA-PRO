@@ -119,7 +119,11 @@ def render_automatic() -> None:
         referee = st.text_input("Arbitro (facoltativo)", key="auto_referee") or None
     if st.button("Compila il blocco", type="primary", disabled=not (home and away), key="auto_build") or (refresh and home and away):
         with st.spinner("Scarico e calcolo i dati…"):
-            sheet = _provider(settings, refresh).build(home, away, match_date=match_date, competition=competition, referee=referee)
+            from ui_tactical import current_effects
+
+            coaches = current_effects(home, away).coaches()
+            sheet = _provider(settings, refresh).build(home, away, match_date=match_date, competition=competition,
+                                                       referee=referee, coaches=coaches)
         _use_block(sheet)
 
 
@@ -395,8 +399,13 @@ def render_claude(result: dict, config, block: str) -> tuple[dict | None, str]:
     st.subheader("Analisi con Claude (copia e incolla)")
     st.caption("Nessuna API: copi il testo in Claude (con la ricerca web attiva), poi incolli qui la risposta.")
     if st.button("Prepara analisi per Claude", key="claude_prepare"):
+        from tactical_sheets import prompt_lines
+        from ui_tactical import current_effects
+
+        effects = current_effects(result["input"]["home"]["name"], result["input"]["away"]["name"])
         st.session_state["claude_prompt"] = analysis_prompt(
-            block, result, sources=st.session_state.get("auto_sheet_rows"), match_date=date.today().strftime("%d/%m/%Y"))
+            block, result, sources=st.session_state.get("auto_sheet_rows"), match_date=date.today().strftime("%d/%m/%Y"),
+            extra=prompt_lines(effects, (config.home.elo, config.away.elo)))
     prompt = st.session_state.get("claude_prompt")
     if prompt:
         st.caption(COPY_HINT)
@@ -434,7 +443,10 @@ def render_claude(result: dict, config, block: str) -> tuple[dict | None, str]:
     if apply:
         signature = (answer, id(result))
         if st.session_state.get("claude_signature") != signature:
-            adjusted = replace(config, claude=combined_adjustment(flags, response),
+            from ui_tactical import current_effects
+
+            effects = current_effects(result["input"]["home"]["name"], result["input"]["away"]["name"])
+            adjusted = replace(config, claude=combined_adjustment(flags, response, tactical=effects.factors),
                                referee_yellow_avg=referee if referee is not None else config.referee_yellow_avg)
             st.session_state["claude_result"] = simulate_match(adjusted)
             st.session_state["claude_signature"] = signature

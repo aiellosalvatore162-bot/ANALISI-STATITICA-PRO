@@ -35,9 +35,9 @@ def test_main_page_goal_lines_and_suspended_selections(main):
     assert (odds["Goal"], odds["No Goal"], odds["1X"]) == (1.80, 1.92, 1.43)
     under, over = find(main, "U/O GOAL", "UNDER", "5.5"), find(main, "U/O GOAL", "OVER", "5.5")
     assert under.price is None and under.status == eurobet.SUSPENDED
-    assert over.price == 16.50 and over.status == eurobet.NOT_SIMULATED  # nessun campo Over 5.5 gol
+    assert over.price == 16.50 and over.status == eurobet.OK  # campo Over 5.5 gol dalla fase Q
     assert find(main, "U/O GOAL", "OVER", "6.5").price == 30.00          # nessuno slittamento della quota
-    assert "Over 5.5 gol" not in odds and "Under 4.5 gol" in odds
+    assert odds["Over 5.5 gol"] == 16.50 and "Under 5.5 gol" not in odds and "Under 4.5 gol" in odds
 
 
 def test_first_half_combos_and_duplicates(main):
@@ -47,7 +47,7 @@ def test_first_half_combos_and_duplicates(main):
     # Lo stesso mercato in un'altra sezione (SCOMMESSE TOP e U/O GOAL) è un doppione: vale la prima quota.
     assert find(main, "U/O GOAL", "OVER", "2.5").status == eurobet.DUPLICATE
     assert find(main, "X2 + U/O", "1 + OVER", "1.5").status == eurobet.DUPLICATE
-    assert find(main, "GG/NG + U/O", "GG + OVER", "2.5").status == eurobet.NOT_SIMULATED
+    assert find(main, "GG/NG + U/O", "GG + OVER", "2.5").market == "Goal + Over 2.5"   # mercato della fase Q
 
 
 def test_handicap_quote_glued_to_the_next_title(main):
@@ -62,7 +62,7 @@ def test_cards_markets_and_team_lines(main):
     assert (odds["Under 3.5 cartellini"], odds["Over 3.5 cartellini"]) == (1.82, 1.75)
     assert (odds["1 cartellini"], odds["X cartellini"], odds["2 cartellini"]) == (2.25, 4.20, 2.20)
     assert odds["Casa Over 1.5 cartellini"] == 1.63 and odds["Ospite Under 2.5 cartellini"] == 1.28
-    assert find(main, "U/O CARTELLINI SQ.", "OVER", "sq.1 - 0.5").status == eurobet.NOT_SIMULATED  # linea 0.5 fuori catalogo
+    assert find(main, "U/O CARTELLINI SQ.", "OVER", "sq.1 - 0.5").market == "Casa Over 0.5 cartellini"  # fase Q
     assert find(main, "TOT. CARTELLINI", ">11").price == 65.00
     assert find(main, "U/O CARTELLINI TEMPO", "OVER", "2t - 3.5").price == 3.85
     assert find(main, "ENTRAMBE ALMENO X CARTELLINI", "NO", "3").price is None
@@ -202,3 +202,19 @@ def test_same_section_from_two_pages_keeps_its_margin():
     single = eurobet.parse_eurobet(CORNER).margins()["1X2 CORNER + 1X2 CARTELLINI"]
     both = eurobet.parse_eurobet(CORNER + "\n" + MAIN).margins()["1X2 CORNER + 1X2 CARTELLINI"]
     assert both == pytest.approx(single) and eurobet.format_margin(single) == "25,1%"
+
+
+def test_phase_q_markets_from_the_pasted_pages():
+    """Fase Q (6b): sezioni prima «non simulato» ora collegate ai campi del simulatore."""
+    pages = eurobet.parse_eurobet("\n".join([MAIN, MULTIGOL, CORNER]))
+    odds = pages.odds()
+    expected = {"Multigol 1T 1-2": 1.62, "Multigol 2T 4+": 13.50, "Goal + Over 2.5": 2.60, "No Goal + Under 3.5": 1.95,
+                "Multigol Casa 1-2 + Ospite 0-1": 2.35, "Over 3.5 corner 1T": 1.45, "Under 4.5 corner 2T": 1.87,
+                "1 corner 1T": 2.30, "Over 1.5 cartellini 1T": 2.30, "Over 3.5 cartellini 2T": 3.85,
+                "1 cartellini 1T": 3.00, "Corner totali 0-5": 5.40, "Corner totali 15+": 8.80, "Corner totali 12+": 3.75,
+                "Corner casa 7+": 5.00, "Cartellini totali 0-3": 1.82, "Cartellini totali 4": 3.70,
+                "Cartellini totali 12+": 65.00, "Cartellini casa 4+": 6.40, "2 + Under 1.5": 7.60, "1X + Over 2.5": 3.75}
+    assert {key: odds.get(key) for key in expected} == expected
+    assert set(odds) <= event_keys()
+    # Restano non simulati: fasce del primo tempo e parziale/finale.
+    assert find(pages, "TOT. CORNER 1T", "0-4").status == eurobet.NOT_SIMULATED

@@ -66,7 +66,7 @@ def test_columns_and_markets_match_the_user_template():
     ("1 1T", "Primo tempo"), ("X 1T", "Primo tempo"), ("Over 0.5 gol 1T", "Over 0.5 1T"), ("Over 1.5 gol 1T", "Over 1.5 1T"),
     ("Over 9.5 corner", "Corner"), ("1 corner", "Corner"), ("Over 4.5 cartellini", "Cartellini"), ("1 + Over 1.5 gol", "Combo"),
     # Linee senza nome nella tabella del Riepilogo: non registrabili.
-    ("Over 4.5 gol", None), ("Under 0.5 gol", None), ("1X 1T", None), ("Goal 1T", None), ("Under 0.5 gol 1T", None),
+    ("Over 4.5 gol", "Over/Under 4.5+"), ("Somma gol 3", None), ("Under 0.5 gol", None), ("1X 1T", None), ("Goal 1T", None), ("Under 0.5 gol 1T", None),
     ("Casa DNB push", None), ("1-0/2-0/2-1", "Risultati esatti"), ("0-0", "Risultati esatti"), ("1-0/", None),
 ])
 def test_market_names_are_fixed(selection, market):
@@ -93,7 +93,7 @@ def test_rows_carry_every_component(simulations):
     assert plain["Prob_finale"] == pytest.approx(base["components"]["finale"]["X"] / 100)
     assert plain["Prob_stile"] is None and plain["Prob_Claude"] is None
     with pytest.raises(ValueError, match="non previsto"):
-        prediction_rows(base, ["Over 4.5 gol"], INFO)
+        prediction_rows(base, ["Somma gol 3"], INFO)
     # DNB: probabilità condizionata al non rimborso, come la quota.
     dnb = prediction_rows(base, ["Casa DNB"], INFO)[0]
     finale = base["components"]["finale"]

@@ -54,8 +54,8 @@ def test_observer_rows_keep_the_simulator_probability_and_the_source_in_note():
     assert dual.sources_of(row["Note"]) == ["osservatore"]
     assert dual.sources_of("fonte: simulatore, unita; esito da football-data.co.uk") == ["simulatore", "unita"]
     assert dual.sources_of("esito da Claude") == []
-    assert "2" in dual.observer_options(result, {"2": 3.9, "X": 0.0, "Over 4.5 gol": 9.0})
-    assert "Over 4.5 gol" not in dual.observer_options(result, {"Over 4.5 gol": 9.0})  # non registrabile
+    assert "2" in dual.observer_options(result, {"2": 3.9, "X": 0.0, "Somma gol 3": 9.0})
+    assert "Somma gol 3" not in dual.observer_options(result, {"Somma gol 3": 9.0})  # non registrabile
 
 
 def test_weekend_groups_friday_to_monday():

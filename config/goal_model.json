@@ -891,7 +891,9 @@
       "gol_stato": false,
       "espulsioni": false,
       "corner_pressione": false,
-      "cartellini_tempo": false
+      "cartellini_tempo": false,
+      "tempi_stato": false,
+      "espulsioni_tempi": false
     },
     "verifica": {
       "data": "2026-10-27",
@@ -900,44 +902,51 @@
         {
           "passo": "motore attuale",
           "tenuta": true,
-          "log_loss": 0.61703,
-          "ece": 0.01792,
+          "log_loss": 0.6153,
+          "ece": 0.01815,
           "differenza": 0.0,
           "errore_standard": 0.0
         },
         {
-          "passo": "gol_stato",
+          "passo": "tempi_stato",
           "tenuta": false,
-          "log_loss": 0.61962,
-          "ece": 0.02192,
-          "differenza": 0.00259,
-          "errore_standard": 0.00053
+          "log_loss": 0.61531,
+          "ece": 0.01774,
+          "differenza": 1e-05,
+          "errore_standard": 8e-05
         },
         {
-          "passo": "espulsioni",
+          "passo": "espulsioni_tempi",
           "tenuta": false,
-          "log_loss": 0.61749,
-          "ece": 0.0196,
-          "differenza": 0.00046,
-          "errore_standard": 0.00022
+          "log_loss": 0.61531,
+          "ece": 0.01784,
+          "differenza": 2e-05,
+          "errore_standard": 7e-05
         },
         {
           "passo": "corner_pressione",
           "tenuta": false,
-          "log_loss": 0.61699,
-          "ece": 0.01769,
-          "differenza": -4e-05,
-          "errore_standard": 6e-05
+          "log_loss": 0.61528,
+          "ece": 0.01836,
+          "differenza": -2e-05,
+          "errore_standard": 7e-05
         },
         {
           "passo": "cartellini_tempo",
           "tenuta": false,
-          "log_loss": 0.61707,
-          "ece": 0.01739,
-          "differenza": 3e-05,
-          "errore_standard": 6e-05
+          "log_loss": 0.61533,
+          "ece": 0.01753,
+          "differenza": 4e-05,
+          "errore_standard": 7e-05
         }
       ]
     }
+  },
+  "goleade": {
+    "data": "2026-10-27",
+    "attiva": false,
+    "dispersione_gol": 499.997,
+    "differenza_log_loss": -0.000112,
+    "due_errori_standard": 8.7e-05
   }
 }

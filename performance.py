@@ -147,7 +147,13 @@ def read_registry(source: bytes | str | BytesIO) -> Registry:
     frame["Ora"] = frame["Ora"].map(_time)
     for column in ("Competizione", "Partita", "Mercato", "Selezione", "Tipo", "Versione_modello", "Note", "ID"):
         frame[column] = frame[column].map(lambda value: "" if value is None or pd.isna(value) else str(value).strip())
-    unknown = sorted(set(frame["Mercato"]) - set(MARKETS) - {""})
+    from prediction_log import NEW_MARKETS
+
+    unknown = sorted(set(frame["Mercato"]) - set(MARKETS) - set(NEW_MARKETS) - {""})
+    new = sorted(set(frame["Mercato"]) & set(NEW_MARKETS))
+    if new:
+        warnings.append("Mercati nuovi (fase Q) senza riga nel foglio Riepilogo del tuo file: " + ", ".join(new)
+                        + ". Aggiungi le righe per vederli nei totali di Excel; qui sono già misurati.")
     if unknown:
         warnings.append("Mercati con nome non previsto dal Riepilogo: " + ", ".join(unknown) + ".")
     no_id = frame["ID"] == ""
@@ -494,6 +500,20 @@ def settle_multiples(frame: pd.DataFrame, today: date | None = None) -> FillRepo
 
 
 _CB_REAL = re.compile(r"quota CB reale (\d+(?:\.\d+)?) / prodotto (\d+(?:\.\d+)?)")
+
+
+def tactical_comparison(frame: pd.DataFrame) -> pd.DataFrame:
+    """Fase Q: selezioni chiuse con e senza scheda tattica (nota «scheda tattica: sì/no»), Brier e log-loss finali."""
+    settled = _settled(frame)
+    notes = settled["Note"].fillna("").astype(str)
+    rows = []
+    for label, flag in (("con scheda tattica", "scheda tattica: sì"), ("senza scheda tattica", "scheda tattica: no")):
+        part = settled[notes.str.contains(flag, regex=False)]
+        rows.append({"Gruppo": label, "Selezioni": len(part),
+                     "Brier": brier(part["Prob_finale"], part["Esito"]) if len(part) else None,
+                     "Log-loss": log_loss(part["Prob_finale"], part["Esito"]) if len(part) else None,
+                     "Giudizio": "campione sufficiente" if len(part) >= MIN_SELECTIONS else f"meno di {MIN_SELECTIONS}: indicativo"})
+    return pd.DataFrame(rows)
 
 
 def observed_cb_discount(frame: pd.DataFrame) -> tuple[int, float | None]:

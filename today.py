@@ -49,6 +49,7 @@ class Analysis:
     skipped: str | None = None                 # motivo per cui la partita è saltata
     warnings: list[str] = field(default_factory=list)
     sources: list[dict] = field(default_factory=list)
+    tactical: Any = None                       # tactical_sheets.MatchEffects (fase Q), None = schede non cercate
 
     @property
     def ok(self) -> bool:
@@ -65,7 +66,8 @@ class Analysis:
 # --- Analisi in blocco ----------------------------------------------------------------------------
 
 def analyze(match: TodayMatch, build: Callable[..., Any], odds_fields: Mapping[str, Any], *,
-            simulations: int, competition: str | None = None, settings: Mapping[str, Any] | None = None) -> Analysis:
+            simulations: int, competition: str | None = None, settings: Mapping[str, Any] | None = None,
+            sheets: Sequence[Mapping[str, Any]] | None = None) -> Analysis:
     """Dati automatici + quote del passaggio economico + simulazione; salta la partita se manca un dato.
 
     ``build`` è ``DataProvider.build`` (o un sostituto nei test); ``odds_fields`` sono i campi quota del blocco
@@ -75,8 +77,15 @@ def analyze(match: TodayMatch, build: Callable[..., Any], odds_fields: Mapping[s
     from parser import MatchInputError, parse_match_input
 
     analysis = Analysis(match)
+    coaches = {}
+    if sheets is not None:
+        from tactical_sheets import match_effects
+
+        analysis.tactical = match_effects(sheets, match.home, match.away)
+        coaches = analysis.tactical.coaches()
     try:
-        sheet = build(match.home, match.away, match_date=match.commence_time.date(), competition=competition)
+        sheet = build(match.home, match.away, match_date=match.commence_time.date(), competition=competition,
+                      **({"coaches": coaches} if coaches else {}))
     except Exception as exc:  # fonti remote: si degrada con un avviso, mai un blocco dell'intera giornata
         analysis.skipped = f"dati automatici non disponibili ({type(exc).__name__}: {str(exc)[:120]})"
         return analysis
@@ -111,11 +120,16 @@ def simulate(analysis: Analysis, *, flags: Sequence[str] | None = None, claude: 
         analysis.claude = claude
     if extra_odds:
         analysis.odds = {**analysis.odds, **{key: float(value) for key, value in extra_odds.items()}}
-    adjustment = combined_adjustment(analysis.flags, analysis.claude, settings)
+    effects = analysis.tactical
+    adjustment = combined_adjustment(analysis.flags, analysis.claude, settings, effects.factors if effects else None)
     referee = analysis.claude.referee_yellow(analysis.config.referee_yellow_avg) if analysis.claude else None
     config = replace(analysis.config, odds=dict(analysis.odds), claude=adjustment,
                      referee_yellow_avg=referee if referee is not None else analysis.config.referee_yellow_avg)
+    if effects is not None:
+        config = replace(config, timeline=effects.timeline(config.timeline))
     analysis.result = simulate_match(config)
+    if effects is not None:
+        analysis.result["tactical_sheet"] = effects.any_sheet
     return analysis
 
 
@@ -135,15 +149,18 @@ def observer_adjustment(flags: Iterable[str], settings: Mapping[str, Any] | None
 
 
 def combined_adjustment(flags: Iterable[str], claude: ClaudeResponse | None,
-                        settings: Mapping[str, Any] | None = None) -> ClaudeAdjustment | None:
-    """Segnalazioni × correzioni di Claude (ciascuna già nei propri limiti); ``None`` se nulla da applicare."""
+                        settings: Mapping[str, Any] | None = None,
+                        tactical: Mapping[str, float] | None = None) -> ClaudeAdjustment | None:
+    """Segnalazioni × correzioni di Claude × incroci delle schede tattiche (fase Q, solo regole accese), ciascuno
+    già nei propri limiti; ``None`` se nulla da applicare."""
     observer = observer_adjustment(flags, settings)
     from_claude = claude.adjustment() if claude is not None else None
+    tactical = tactical or {}
     values = {
-        "goals_home": observer["gol_casa"] * (from_claude.goals_home if from_claude else 1.0),
-        "goals_away": observer["gol_ospite"] * (from_claude.goals_away if from_claude else 1.0),
-        "corners": observer["corner"] * (from_claude.corners if from_claude else 1.0),
-        "cards": observer["cartellini"] * (from_claude.cards if from_claude else 1.0),
+        "goals_home": observer["gol_casa"] * (from_claude.goals_home if from_claude else 1.0) * tactical.get("gol_casa", 1.0),
+        "goals_away": observer["gol_ospite"] * (from_claude.goals_away if from_claude else 1.0) * tactical.get("gol_ospite", 1.0),
+        "corners": observer["corner"] * (from_claude.corners if from_claude else 1.0) * tactical.get("corner", 1.0),
+        "cards": observer["cartellini"] * (from_claude.cards if from_claude else 1.0) * tactical.get("cartellini", 1.0),
     }
     if all(abs(value - 1.0) < 1e-12 for value in values.values()):
         return None
@@ -265,6 +282,11 @@ def explain(row: Mapping[str, Any], analysis: Analysis) -> str:
 _MULTI_HEADER = re.compile(rf"{re.escape(HEADER)}\s*(?:ID\s*[:=]?\s*)?(P\d+)", re.IGNORECASE)
 
 
+def _elo_pair(analysis: Analysis) -> tuple[float, float] | None:
+    config = analysis.config
+    return (config.home.elo, config.away.elo) if config is not None else None
+
+
 def match_ids(analyses: Sequence[Analysis]) -> dict[str, int]:
     """ID delle partite nel testo per Claude («P1», «P2»…) -> indice dell'analisi."""
     return {f"P{position}": index for position, index in enumerate(
@@ -284,6 +306,10 @@ def multi_analysis_prompt(analyses: Sequence[Analysis], selected: Iterable[int],
             "INPUT DEL SIMULATORE:", "```", analysis.block.strip(), "```",
             "PROBABILITÀ DEL SIMULATORE:", *[f"- {line}" for line in probability_lines(analysis.result)], "",
         ]
+        if analysis.tactical is not None:
+            from tactical_sheets import prompt_lines
+
+            sections += prompt_lines(analysis.tactical, _elo_pair(analysis))
     example = RESPONSE_FORMAT.replace(HEADER, f"{HEADER} P1", 1)
     return "\n".join([
         "Sei un analista di calcio. Per OGNUNA delle partite qui sotto verifica sul web i fatti e confrontali con gli "

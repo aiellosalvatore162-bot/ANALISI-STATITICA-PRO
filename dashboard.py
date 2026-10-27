@@ -542,6 +542,25 @@ def solid_picks_box(result: Mapping) -> str:
             f'<div class="picks">{"".join(items)}</div></section>')
 
 
+def goleada(result: Mapping) -> dict[str, float | str]:
+    """Probabilità (%) che la favorita segni 4+ gol e che vinca con 3+ gol di scarto, dai risultati esatti simulati."""
+    home, away = team_names(result)
+    favourite_home = result["model"]["lambda"] >= result["model"]["mu"]
+    four = margin = 0.0
+    for score, value in (result.get("exact_scores") or {}).get("finale", {}).items():
+        goals_home, goals_away = (int(part) for part in score.split("-"))
+        favourite, other = (goals_home, goals_away) if favourite_home else (goals_away, goals_home)
+        four += value if favourite >= 4 else 0.0
+        margin += value if favourite - other >= 3 else 0.0
+    return {"favorita": home if favourite_home else away, "quattro": four, "scarto": margin}
+
+
+def goleada_line(result: Mapping) -> str:
+    data = goleada(result)
+    return (f'<div class="say"><strong>Goleada</strong> · {esc(data["favorita"])} segna 4+ gol: {pct(data["quattro"])} · '
+            f'vince con 3+ gol di scarto: {pct(data["scarto"])}</div>')
+
+
 def keys_card(keys: Sequence) -> str:
     """Chiavi del match: duelli con il mercato collegato (solo informazione, non cambiano le probabilità)."""
     items = [f'<div class="pick"><div class="family">{esc(", ".join(key.markets))}</div>'

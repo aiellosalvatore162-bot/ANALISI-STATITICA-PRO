@@ -164,6 +164,69 @@ def _exact_group(param: str | None, label: str) -> str | None:
     return group_selection(label.split("/"))
 
 
+def _half_multigol(half: str) -> Mapper:
+    """«MULTIGOL 1T/2T»: intervallo «1-2» o «4-99» (= 4+) → «Multigol 1T 1-2», solo per «Sì»."""
+    from market_catalog import range_label
+
+    def mapper(param: str | None, label: str) -> str | None:
+        if not param or not re.fullmatch(RANGE, param) or not label.startswith("s"):
+            return None
+        low, high = (int(value) for value in param.split("-"))
+        return f"Multigol {half} {range_label(low, high)}"
+    return mapper
+
+
+def _pair_multigol(param: str | None, label: str) -> str | None:
+    found = re.fullmatch(rf"({RANGE}) \+ ({RANGE})", param or "")
+    if not found or not label.startswith("s"):
+        return None
+    home, away = found.group(1), found.group(2)
+    return f"Multigol Casa {home} + Ospite {away}"
+
+
+def _goal_uo(param: str | None, label: str) -> str | None:
+    found = re.fullmatch(rf"({GGNG}) \+ ({UO})", label)
+    if not found or not param or not re.fullmatch(LINE, param):
+        return None
+    return f"{'Goal' if found.group(1) == 'gg' else 'No Goal'} + {_side(found.group(2))} {_line(param)}"
+
+
+def _half_total(suffix: str) -> Mapper:
+    """«1T - 3.5» → «Over 3.5 corner 1T» (o cartellini)."""
+    def mapper(param: str | None, label: str) -> str | None:
+        found = re.fullmatch(rf"([12])t - ({LINE})", param or "")
+        return f"{_side(label)} {_line(found.group(2))} {suffix} {found.group(1)}T" if found else None
+    return mapper
+
+
+def _half_sign(suffix: str) -> Mapper:
+    def mapper(param: str | None, label: str) -> str | None:
+        return f"{_SIGNS[label]} {suffix} 1T" if param == "1t" and label in _SIGNS else None
+    return mapper
+
+
+def _band(prefix: str) -> Mapper:
+    """Fasce: «< 6», «6 - 8», «> 14», «0-8», «12+», «Meno Di 4», «4», «>11» → «Corner totali 6-8» ecc."""
+    from market_catalog import OPEN, range_label
+
+    def mapper(param: str | None, label: str) -> str | None:
+        text = label.replace(" ", "")
+        if found := re.fullmatch(r"(?:<|menodi)(\d+)", text):
+            low, high = 0, int(found.group(1)) - 1
+        elif found := re.fullmatch(r">(\d+)", text):
+            low, high = int(found.group(1)) + 1, OPEN
+        elif found := re.fullmatch(r"(\d+)\+", text):
+            low, high = int(found.group(1)), OPEN
+        elif found := re.fullmatch(r"(\d+)-(\d+)", text):
+            low, high = int(found.group(1)), int(found.group(2))
+        elif found := re.fullmatch(r"(\d+)", text):
+            low = high = int(found.group(1))
+        else:
+            return None
+        return f"{prefix} {range_label(low, high)}"
+    return mapper
+
+
 _SIGNS = {"1": "1", "x": "X", "2": "2"}
 SECTIONS: tuple[SectionSpec, ...] = (
     # Gol
@@ -182,33 +245,36 @@ SECTIONS: tuple[SectionSpec, ...] = (
     SectionSpec(r"1x2 \+ u/o", rf"(?:{X12}) \+ (?:{UO})", LINE, _result_uo, "gruppi"),
     SectionSpec(r"1x \+ u/o", rf"(?:1x|2) \+ (?:{UO})", LINE, _result_uo, "gruppi"),
     SectionSpec(r"x2 \+ u/o", rf"(?:1|x2) \+ (?:{UO})", LINE, _result_uo, "gruppi"),
-    SectionSpec(r"gg/ng \+ u/o", rf"(?:{GGNG}) \+ (?:{UO})", LINE, None, "gruppi"),
+    SectionSpec(r"gg/ng \+ u/o", rf"(?:{GGNG}) \+ (?:{UO})", LINE, _goal_uo, "gruppi"),
     SectionSpec(r"risultato esatto(?: xl)?", r"\d+-\d+", None, _exact),
     SectionSpec(r"ris\. esatto a gruppi|risultato esatto a gruppi", r"\d+-\d+(?:/\d+-\d+)+|sq\.[12] altro|x", None, _exact_group),
     SectionSpec(r"1t/finale|parziale/finale", r"[12x]-[12x]", None, None, "gruppi"),
     SectionSpec(r"1x2 handicap", X12, r"\d+:\d+", None, "gruppi"),
     # Multigol
     SectionSpec(r"multigol", SINO, RANGE, _multigol(None)),
-    SectionSpec(r"multigol 1t", SINO, RANGE),
-    SectionSpec(r"multigol 2t", SINO, RANGE),
+    SectionSpec(r"multigol 1t", SINO, RANGE, _half_multigol("1T")),
+    SectionSpec(r"multigol 2t", SINO, RANGE, _half_multigol("2T")),
     SectionSpec(r"multigol casa", SINO, RANGE, _multigol("Casa")),
     SectionSpec(r"multigol ospite", SINO, RANGE, _multigol("Ospite")),
     SectionSpec(r"multigol 1t \+ 2t", SINO, rf"{RANGE} \+ {RANGE}"),
-    SectionSpec(r"multigol casa \+ ospite", SINO, rf"{RANGE} \+ {RANGE}"),
+    SectionSpec(r"multigol casa \+ ospite", SINO, rf"{RANGE} \+ {RANGE}", _pair_multigol),
     SectionSpec(r"1x \+ multigol", r"(?:1x|2) \+ (?:multigol|altro)", RANGE, _result_multigol, "gruppi"),
     SectionSpec(r"x2 \+ multigol", r"(?:1|x2) \+ (?:multigol|altro)", RANGE, _result_multigol, "gruppi"),
     SectionSpec(r"12 \+ multigol", r"(?:12|x) \+ (?:multigol|altro)", RANGE, _result_multigol, "gruppi"),
     # Corner
     SectionSpec(r"1x2 corner", X12, None, _simple({k: f"{v} corner" for k, v in _SIGNS.items()}), "gruppi"),
     SectionSpec(r"u/o corner", UO, LINE, _total("corner"), "gruppi", "corner"),
-    SectionSpec(r"totale corner|tot\. corner|tot\. corner 1t|totale corner (?:casa|ospite)(?: 1t)?", BAND, None, None, "gruppi"),
+    SectionSpec(r"totale corner|tot\. corner", BAND, None, _band("Corner totali"), "gruppi"),
+    SectionSpec(r"totale corner casa", BAND, None, _band("Corner casa"), "gruppi"),
+    SectionSpec(r"totale corner ospite", BAND, None, _band("Corner ospite"), "gruppi"),
+    SectionSpec(r"tot\. corner 1t|totale corner (?:casa|ospite) 1t", BAND, None, None, "gruppi"),
     SectionSpec(r"t/t hand\.? corner(?: 1t| 2t)?", r"1|2", r"[+-]\s*\d+[.,]5", None, "gruppi"),
     SectionSpec(r"ultimo corner", r"sq\.[12]|nessuno", None, None, "gruppi"),
     SectionSpec(r"(?:primo|ultimo) corner tempo", r"sq\.[12]|nessuno", HALF, None, "gruppi"),
     SectionSpec(r"p/d corner", r"pari|dispari", None, None, "gruppi"),
     SectionSpec(r"p/d corner tempo", r"pari|dispari", HALF, None, "gruppi"),
-    SectionSpec(r"1x2 corner tempo", X12, HALF, None, "gruppi"),
-    SectionSpec(r"u/o corner tempo", UO, rf"{HALF} - {LINE}", None, "gruppi"),
+    SectionSpec(r"1x2 corner tempo", X12, HALF, _half_sign("corner"), "gruppi"),
+    SectionSpec(r"u/o corner tempo", UO, rf"{HALF} - {LINE}", _half_total("corner"), "gruppi"),
     SectionSpec(r"u/o corner sq\.", UO, rf"{TEAM} - {LINE}", _team_total("corner"), "gruppi"),
     SectionSpec(r"u/o corner sq\. tempo", UO, rf"{HALF}/{TEAM} - {LINE}", None, "gruppi"),
     SectionSpec(r"corner battuti casa \+ ospite", rf"(?:{UO}) \+ (?:{UO})", rf"casa {LINE} - ospite {LINE}", None, "gruppi"),
@@ -220,10 +286,13 @@ SECTIONS: tuple[SectionSpec, ...] = (
     SectionSpec(r"tempo con piu' corner|tempo con più corner", X12, None, None, "gruppi"),
     # Cartellini
     SectionSpec(r"u/o cartellini", UO, LINE, _total("cartellini"), "gruppi", "cartellini"),
-    SectionSpec(r"u/o cartellini tempo", UO, rf"{HALF} - {LINE}", None, "gruppi"),
+    SectionSpec(r"u/o cartellini tempo", UO, rf"{HALF} - {LINE}", _half_total("cartellini"), "gruppi"),
     SectionSpec(r"1x2 cartellini", X12, None, _simple({k: f"{v} cartellini" for k, v in _SIGNS.items()}), "gruppi"),
-    SectionSpec(r"1x2 cartellini tempo", X12, HALF, None, "gruppi"),
-    SectionSpec(r"tot\. cartellini|tot\. cartellini (?:1t )?(?:casa|ospite)", BAND, None, None, "gruppi"),
+    SectionSpec(r"1x2 cartellini tempo", X12, HALF, _half_sign("cartellini"), "gruppi"),
+    SectionSpec(r"tot\. cartellini", BAND, None, _band("Cartellini totali"), "gruppi"),
+    SectionSpec(r"tot\. cartellini casa", BAND, None, _band("Cartellini casa"), "gruppi"),
+    SectionSpec(r"tot\. cartellini ospite", BAND, None, _band("Cartellini ospite"), "gruppi"),
+    SectionSpec(r"tot\. cartellini 1t (?:casa|ospite)", BAND, None, None, "gruppi"),
     SectionSpec(r"primo cartellino", r"1|2|nessuno", None, None, "gruppi"),
     SectionSpec(r"cartellino minuto", SINO, r"\d+:\d+ - \d+:\d+"),
     SectionSpec(r"u/o cartellini sq\.", UO, rf"{TEAM} - {LINE}", _team_total("cartellini"), "gruppi"),

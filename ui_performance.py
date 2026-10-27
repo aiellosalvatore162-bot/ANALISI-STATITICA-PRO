@@ -12,7 +12,7 @@ import streamlit as st
 from dashboard import GLOSSARY, missing_as_dash
 from performance import (
     MIN_SELECTIONS, RegistryError, bankroll, calibration_table, clv_by_market, collect_results, component_comparison,
-    FillReport, edge_verdicts, fill_from_results, observed_cb_discount, read_registry, scores_over_time, settle_multiples, updated_workbook,
+    FillReport, edge_verdicts, fill_from_results, observed_cb_discount, read_registry, scores_over_time, settle_multiples, tactical_comparison, updated_workbook,
 )
 
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -307,3 +307,9 @@ def render_performance() -> None:
     st.dataframe(missing_as_dash(component_comparison(frame).round(4)), hide_index=True, width="stretch")
     st.caption("Brier e log-loss più bassi = meglio. Nei confronti a coppie si usano solo le selezioni con entrambe le "
                "probabilità; «migliora davvero» richiede una differenza di Brier negativa oltre due errori standard.")
+    tactical = tactical_comparison(frame)
+    if tactical["Selezioni"].sum():
+        st.markdown("**Schede tattiche**")
+        st.dataframe(missing_as_dash(tactical.round(4)), hide_index=True, width="stretch")
+        st.caption("Dalla nota «scheda tattica: sì/no» del registro. I gruppi contengono partite diverse: il confronto "
+                   "è indicativo, non appaiato.")

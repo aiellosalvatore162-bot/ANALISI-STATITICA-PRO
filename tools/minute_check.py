@@ -34,14 +34,18 @@ TOLERANCE_ECE = 0.0005
 
 BINARY = {
     "gol": ("Over 1.5", "Over 2.5", "Over 3.5", "Goal"),
-    "tempi": ("1T Over 0.5", "1T Over 1.5", "2T Over 0.5", "2T Over 1.5"),
+    "tempi": ("1T Over 0.5", "1T Over 1.5", "2T Over 0.5", "2T Over 1.5", "Multigol 1T 0-1", "Multigol 1T 1-2",
+              "Multigol 2T 0-1", "Multigol 2T 1-3", "Primo tempo con più gol"),
     "corner": ("Corner Over 8.5", "Corner Over 9.5", "Corner Over 10.5"),
     "cartellini": ("Cartellini Over 3.5", "Cartellini Over 4.5", "Cartellini Over 5.5"),
     "combo": ("Over 2.5 & Corner Over 9.5", "Over 2.5 & Cartellini Over 4.5", "Goal & Corner Over 9.5",
               "1 & Over 2.5", "X & Under 2.5", "Corner Over 9.5 & Cartellini Over 4.5", "X & Cartellini Over 4.5",
-              "1T Over 0.5 & Over 2.5", "Under 2.5 & Corner Under 9.5"),
+              "1T Over 0.5 & Over 2.5", "Under 2.5 & Corner Under 9.5", "1T Over 0.5 & Corner Over 9.5",
+              "2T Over 1.5 & Cartellini Over 4.5", "1X2 1T pari & Cartellini Over 4.5"),
 }
-MULTI = {"gol": ("1X2",), "tempi": ("1X2 1T",)}
+MULTI = {"gol": ("1X2",), "tempi": ("1X2 1T", "1X2 2T")}
+# Gruppi su cui si decide (i mercati gol finali restano identici con le varianti a punteggi Dixon-Coles fissi).
+SELECTION_GROUPS = ("tempi", "corner", "cartellini", "combo")
 
 
 def evaluation_rows(limit: int, seed: int = 11) -> pd.DataFrame:
@@ -108,6 +112,10 @@ def events(sample: dict) -> dict[str, np.ndarray]:
     corners, points = sample["corners"], sample["points"]
     found = {
         "1X2": np.where(gh > ga, 0, np.where(gh == ga, 1, 2)), "1X2 1T": np.where(fh > fa, 0, np.where(fh == fa, 1, 2)),
+        "1X2 2T": np.where(gh - fh > ga - fa, 0, np.where(gh - fh == ga - fa, 1, 2)),
+        "Multigol 1T 0-1": first <= 1, "Multigol 1T 1-2": (first >= 1) & (first <= 2),
+        "Multigol 2T 0-1": second <= 1, "Multigol 2T 1-3": (second >= 1) & (second <= 3),
+        "Primo tempo con più gol": first > second,
         "Over 1.5": total > 1.5, "Over 2.5": total > 2.5, "Over 3.5": total > 3.5, "Goal": (gh > 0) & (ga > 0),
         "1T Over 0.5": first > 0.5, "1T Over 1.5": first > 1.5, "2T Over 0.5": second > 0.5, "2T Over 1.5": second > 1.5,
         "Corner Over 8.5": corners > 8.5, "Corner Over 9.5": corners > 9.5, "Corner Over 10.5": corners > 10.5,
@@ -122,6 +130,9 @@ def events(sample: dict) -> dict[str, np.ndarray]:
         "X & Cartellini Over 4.5": (gh == ga) & found["Cartellini Over 4.5"],
         "1T Over 0.5 & Over 2.5": found["1T Over 0.5"] & found["Over 2.5"],
         "Under 2.5 & Corner Under 9.5": ~found["Over 2.5"] & ~found["Corner Over 9.5"],
+        "1T Over 0.5 & Corner Over 9.5": found["1T Over 0.5"] & found["Corner Over 9.5"],
+        "2T Over 1.5 & Cartellini Over 4.5": found["2T Over 1.5"] & found["Cartellini Over 4.5"],
+        "1X2 1T pari & Cartellini Over 4.5": (fh == fa) & found["Cartellini Over 4.5"],
     })
     return found
 
@@ -130,7 +141,7 @@ def probabilities(sample: dict) -> dict[str, np.ndarray]:
     found = events(sample)
     result = {}
     for key, value in found.items():
-        if key in ("1X2", "1X2 1T"):
+        if key in ("1X2", "1X2 1T", "1X2 2T"):
             result[key] = np.bincount(value, minlength=3) / len(value)
         else:
             result[key] = np.array([1 - value.mean(), value.mean()])
@@ -150,7 +161,8 @@ def outcomes(rows: pd.DataFrame) -> dict[str, np.ndarray]:
 def per_match_loss(predictions: dict[str, list[np.ndarray]], observed: dict[str, np.ndarray]) -> np.ndarray:
     """Log-loss media sui mercati, partita per partita (per il confronto appaiato tra varianti)."""
     losses = []
-    for key in (*MULTI["gol"], *MULTI["tempi"], *(key for keys in BINARY.values() for key in keys)):
+    groups = SELECTION_GROUPS
+    for key in (*(key for group in groups for key in MULTI.get(group, ())), *(key for group in groups for key in BINARY[group])):
         probs = np.clip(np.vstack(predictions[key]), 1e-6, 1)
         probs = probs / probs.sum(axis=1, keepdims=True)
         losses.append(-np.log(probs[np.arange(len(probs)), observed[key]]))
@@ -167,12 +179,13 @@ def score(predictions: dict[str, list[np.ndarray]], observed: dict[str, np.ndarr
     for group in BINARY:
         keys = [key for key, value in result.items() if value.get("gruppo") == group]
         result[f"media {group}"] = {metric: float(np.mean([result[key][metric] for key in keys])) for metric in ("log_loss", "ece", "brier")}
-    keys = [key for key in result if not key.startswith("media")]
+    keys = [key for key in result if not key.startswith("media") and result[key]["gruppo"] in SELECTION_GROUPS]
     result["media"] = {metric: float(np.mean([result[key][metric] for key in keys])) for metric in ("log_loss", "ece", "brier")}
     return result
 
 
-def run(limit: int) -> tuple[dict, dict, pd.DataFrame]:
+def run(limit: int, components: tuple[str, ...] = timeline.HYBRID_COMPONENTS + ("corner_pressione", "cartellini_tempo")
+        ) -> tuple[dict, dict, pd.DataFrame]:
     rows = evaluation_rows(limit)
     observed = outcomes(rows)
     base_params = timeline.load(engine.GOAL_MODEL_PATH)
@@ -194,7 +207,7 @@ def run(limit: int) -> tuple[dict, dict, pd.DataFrame]:
     current = results["motore attuale"]
     steps = [{"passo": "motore attuale", "tenuta": True, "log_loss": current["media"]["log_loss"], "ece": current["media"]["ece"],
               "differenza": 0.0, "errore_standard": 0.0}]
-    for component in timeline.COMPONENTS:
+    for component in components:
         candidate = base_params.with_components((*chosen, component))
         label = " + ".join((*chosen, component))
         results[label] = evaluate(candidate)
@@ -262,7 +275,7 @@ def main() -> None:
         section = json.loads(engine.GOAL_MODEL_PATH.read_text(encoding="utf-8")).get("minuto_per_minuto", {})
         _update_config({"minuto_per_minuto": {
             **section, "attivo": bool(selection["componenti"]),
-            "componenti": {component: component in selection["componenti"] for component in timeline.COMPONENTS},
+            "componenti": {component: component in selection["componenti"] for component in timeline.ALL_COMPONENTS},
             "verifica": {"data": date.today().isoformat(), "partite": len(rows),
                          "passi": [{key: (round(value, 5) if isinstance(value, float) else value) for key, value in step.items()}
                                    for step in selection["passi"]]},

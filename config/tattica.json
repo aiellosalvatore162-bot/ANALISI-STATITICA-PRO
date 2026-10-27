@@ -1,0 +1,223 @@
+{
+  "nota": "Regole di incrocio di stile (fase Q, punto 5). Effetti piccoli, limitati a «limiti». «attiva» = verificata fuori campione con la regola severa (python -m tools.tactical_cross --salva). «valore_da» dichiara se il valore è stimato su StatsBomb Open Data o prudente.",
+  "limiti": [
+    0.9,
+    1.12
+  ],
+  "regole": [
+    {
+      "id": "verticale_vs_blocco_alto",
+      "nome": "Verticale contro blocco alto a zona",
+      "condizione": {
+        "attacco": {
+          "transizione": [
+            4,
+            5
+          ]
+        },
+        "difesa": {
+          "blocco": [
+            "alto"
+          ],
+          "non_possesso": [
+            "zona",
+            "mista"
+          ]
+        }
+      },
+      "effetto": {
+        "gol": 1.06
+      },
+      "attiva": false,
+      "valore_da": "prudente (campo non misurabile nei dati: non_possesso)",
+      "verifica": {
+        "data": "2026-10-27",
+        "verificabile": false,
+        "motivo": "manca nei dati Understat: non_possesso"
+      }
+    },
+    {
+      "id": "orizzontale_vs_blocco_basso_scarsa",
+      "nome": "Orizzontale contro blocco basso, gestione scarsa",
+      "condizione": {
+        "attacco": {
+          "transizione": [
+            1,
+            2
+          ],
+          "gestione_blocco_basso": [
+            "scarsa"
+          ]
+        },
+        "difesa": {
+          "blocco": [
+            "basso"
+          ]
+        }
+      },
+      "effetto": {
+        "gol": 1.12,
+        "corner": 1.008
+      },
+      "attiva": false,
+      "valore_da": "stimato su StatsBomb Open Data 2015/16",
+      "verifica": {
+        "data": "2026-10-27",
+        "verificabile": true,
+        "partite": 204,
+        "mercati": {
+          "gol": {
+            "prima": 0.816959,
+            "dopo": 0.816959,
+            "differenza": 0.0,
+            "due_es": 0.000184,
+            "ece_prima": 0.010013,
+            "ece_dopo": 0.010132,
+            "toccate": 204
+          },
+          "corner": {
+            "prima": 2.619981,
+            "dopo": 2.620014,
+            "differenza": 3.3e-05,
+            "due_es": 6.1e-05,
+            "ece_prima": 0.006154,
+            "ece_dopo": 0.00656,
+            "toccate": 204
+          }
+        }
+      }
+    },
+    {
+      "id": "orizzontale_vs_blocco_basso_buona",
+      "nome": "Orizzontale contro blocco basso, gestione buona",
+      "condizione": {
+        "attacco": {
+          "transizione": [
+            1,
+            2
+          ],
+          "gestione_blocco_basso": [
+            "buona"
+          ]
+        },
+        "difesa": {
+          "blocco": [
+            "basso"
+          ]
+        }
+      },
+      "effetto": {
+        "gol": 0.92,
+        "corner": 0.937
+      },
+      "attiva": false,
+      "valore_da": "stimato su StatsBomb Open Data 2015/16",
+      "verifica": {
+        "data": "2026-10-27",
+        "verificabile": true,
+        "partite": 1409,
+        "mercati": {
+          "gol": {
+            "prima": 0.816959,
+            "dopo": 0.817254,
+            "differenza": 0.000295,
+            "due_es": 0.000445,
+            "ece_prima": 0.010013,
+            "ece_dopo": 0.011289,
+            "toccate": 1409
+          },
+          "corner": {
+            "prima": 2.619981,
+            "dopo": 2.623806,
+            "differenza": 0.003825,
+            "due_es": 0.001435,
+            "ece_prima": 0.006154,
+            "ece_dopo": 0.019127,
+            "toccate": 1409
+          }
+        }
+      }
+    },
+    {
+      "id": "pressing_vs_gioco_diretto",
+      "nome": "Pressing alto contro squadra che non gestisce palla",
+      "condizione": {
+        "attacco": {
+          "pressing": [
+            "alto"
+          ]
+        },
+        "difesa": {
+          "gestione_blocco_basso": [
+            "scarsa"
+          ]
+        }
+      },
+      "effetto": {
+        "gol": 1.022,
+        "cartellini": 0.993
+      },
+      "attiva": false,
+      "valore_da": "stimato su StatsBomb Open Data 2015/16",
+      "verifica": {
+        "data": "2026-10-27",
+        "verificabile": true,
+        "partite": 1905,
+        "mercati": {
+          "gol": {
+            "prima": 0.816959,
+            "dopo": 0.817009,
+            "differenza": 5e-05,
+            "due_es": 0.00013,
+            "ece_prima": 0.010013,
+            "ece_dopo": 0.00961,
+            "toccate": 1905
+          },
+          "cartellini": {
+            "prima": 2.146005,
+            "dopo": 2.146058,
+            "differenza": 5.3e-05,
+            "due_es": 9.9e-05,
+            "ece_prima": 0.012912,
+            "ece_dopo": 0.013356,
+            "toccate": 1905
+          }
+        }
+      }
+    },
+    {
+      "id": "fasce_vs_difesa_uomo",
+      "nome": "Fasce e cross contro difesa a uomo",
+      "condizione": {
+        "attacco": {
+          "fasce_cross": [
+            "alto"
+          ]
+        },
+        "difesa": {
+          "non_possesso": [
+            "uomo"
+          ]
+        }
+      },
+      "effetto": {
+        "corner": 1.08
+      },
+      "attiva": false,
+      "valore_da": "prudente (campo non misurabile nei dati: non_possesso)",
+      "verifica": {
+        "data": "2026-10-27",
+        "verificabile": false,
+        "motivo": "manca nei dati Understat: fasce_cross, non_possesso"
+      }
+    }
+  ],
+  "reazioni": {
+    "passo": 0.08,
+    "nota": "Fattore sul ritmo dello stato (motore minuto per minuto) per chi in svantaggio «attacca» (+) o in vantaggio «si chiude» (−); conta solo se il motore a blocchi è acceso."
+  },
+  "cambio_allenatore": {
+    "peso_partite_precedenti": 0.3,
+    "partite_per_fidarsi": 8
+  }
+}

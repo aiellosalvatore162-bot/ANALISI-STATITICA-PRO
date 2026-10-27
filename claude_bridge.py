@@ -81,7 +81,7 @@ def probability_lines(result: Mapping[str, Any]) -> list[str]:
 
 
 def analysis_prompt(block: str, result: Mapping[str, Any], *, sources: list[dict] | None = None,
-                    match_date: str | None = None, competition: str | None = None) -> str:
+                    match_date: str | None = None, competition: str | None = None, extra: Sequence[str] = ()) -> str:
     """Testo completo da incollare in Claude per la verifica della partita."""
     home, away = result["input"]["home"]["name"], result["input"]["away"]["name"]
     header = f"Partita: {home} - {away}" + (f" ({competition})" if competition else "") + (f", {match_date}" if match_date else "")
@@ -113,6 +113,7 @@ def analysis_prompt(block: str, result: Mapping[str, Any], *, sources: list[dict
         "PROBABILITÀ DEL SIMULATORE:",
         *[f"- {line}" for line in probability_lines(result)],
         "",
+        *extra,
         "COME RISPONDERE:",
         "Scrivi prima un breve commento in italiano (al massimo 5 righe), poi SOLO un blocco in questo formato, "
         "senza altro testo dopo:",

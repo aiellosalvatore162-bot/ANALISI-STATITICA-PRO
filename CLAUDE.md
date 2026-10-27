@@ -229,11 +229,23 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   `python -m tools.minute_model --salva`, verifica e scelta:
   `python -m tools.minute_check --salva` (regola: log-loss giù di oltre 2
   errori standard appaiati ED ECE non peggiore). Esito attuale: tutto spento.
-  La parte 2 (schede tattiche, incroci di stile, nuovi mercati) non è fatta.
+- Fase Q: schede tattiche in `tactical_sheets.py` (blocchi `PROFILO_TATTICO:` letti in modo tollerante,
+  profilo senza link scartato, conferma in tabella prima del salvataggio; indizi dai profili di stile e
+  avvisi di contrasto, mai correzioni), interfaccia in `ui_tactical.py` (pagina Oggi e riquadro della
+  Partita, `st.session_state["tactical_sheets"]`, foglio «Schede tattiche» con `SHEET_COLUMNS`).
+  Cambio allenatore: `datasources.stats.CoachChange` (gare precedenti ×0.3, riavvicinamento alla media
+  sotto 8 gare, avviso «Allenatore nuovo da N partite»). Incroci in `config/tattica.json` (limiti
+  0.90-1.12, attenuati dall'adattabilità), applicati con `today.combined_adjustment(tactical=...)` solo
+  se `attiva`; stima e verifica con `python -m tools.style_data` + `python -m tools.tactical_cross --salva`
+  (oggi tutte spente). Reazioni → `TimelineParams.reactions` (contano solo col motore a blocchi acceso).
+  Nota del registro «scheda tattica: sì/no» (`prediction_log.TACTICAL_NOTE`), confronto in
+  `performance.tactical_comparison`. Nuovi mercati 6b in `market_catalog.py` (verifica:
+  `python -m tools.new_markets`; corner e cartellini per tempo non verificabili). Goleade:
+  `python -m tools.goleade --salva` (sezione `goleade`, spenta), riga «Goleada» della Panoramica.
 - Le fonti remote devono degradare con un avviso (come `historical.py` ricade
   al 100% manuale), mai bloccare la simulazione manuale.
 
-## Stato del progetto (27/10/2026, dopo la fase O parte 1)
+## Stato del progetto (27/10/2026, dopo la fase Q)
 
 - Fasi completate e unite a `main`: modello gol log-lineare (1), ancoraggio al
   mercato (2), mercati secondari (C2), livello dati (D), football-data.org,
@@ -248,7 +260,8 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   giornata (K), pagina Oggi e costruttore di multiple (S), rifiniture delle multiple
   (S2), doppio pronostico Simulatore/Osservatore/Unita (U), report dell'Analista
   del giorno (W), ricerca rapida, schedine salvate, marcatori e chiavi del match (X),
-  cartellini per squadra (T), motore minuto per minuto come opzione spenta (O, parte 1).
+  cartellini per squadra (T), motore minuto per minuto come opzione spenta (O, parte 1), schede
+  tattiche, cambio allenatore, incroci di stile (spenti), nuovi mercati e goleade (Q).
 - Test: `python -m pytest -q` (solo fixture salvate, nessuna rete); 2 `xfail`
   noti (PSG-Barcellona, Napoli-Bodø, input stimati).
 

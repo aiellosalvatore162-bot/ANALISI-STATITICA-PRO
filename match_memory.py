@@ -8,7 +8,7 @@ data|casa - ospite: rianalizzare la stessa partita aggiorna la voce.
 L'Excel della giornata ha i fogli:
 - «Registro»: colonne A–S del file Registro_Previsioni.xlsx;
 - «Analisi»: una riga per partita (probabilità principali, quote, EV);
-- «Schede tattiche»: vuoto finché la fase Q non lo usa;
+- «Schede tattiche»: una riga per squadra (fase Q), ripristinabile dal foglio tecnico;
 - «Tecnico» (nascosto): le voci complete in JSON, per «Riprendi da file».
 
 Solo presentazione e salvataggio: nessun calcolo del modello.
@@ -23,6 +23,8 @@ import json
 import math
 from typing import Any, Iterable, Mapping, Sequence
 
+from tactical_sheets import SHEET_COLUMNS, TacticalSheet, sheet_row
+
 
 ANALYSIS_KEYS = (
     "1", "X", "2", "1X", "X2", "12",
@@ -31,12 +33,15 @@ ANALYSIS_KEYS = (
     "1 1T", "X 1T", "2 1T", "Over 0.5 gol 1T", "Over 1.5 gol 1T",
     "Over 8.5 corner", "Over 9.5 corner", "Over 10.5 corner",
     "Over 3.5 cartellini", "Over 4.5 cartellini", "Over 5.5 cartellini",
+    # Fase Q (6b)
+    "Over 4.5 gol", "Over 5.5 gol", "Goal + Over 2.5", "Multigol 1T 1-2", "Multigol 2T 1-3",
+    "Over 4.5 corner 1T", "Over 1.5 cartellini 1T", "Corner totali 9-11", "Cartellini totali 4",
 )
 ANALYSIS_SHEET, REGISTRY_SHEET, TACTICAL_SHEET, TECHNICAL_SHEET = "Analisi", "Registro", "Schede tattiche", "Tecnico"
 DUAL_SHEET = "Doppio pronostico"
 REPORT_SHEET = "Report Analista"
 SLIPS_SHEET = "Schedine"
-TACTICAL_COLUMNS = ("ID", "Data", "Partita", "Scheda")
+TACTICAL_COLUMNS = SHEET_COLUMNS
 _CHUNK = 30_000  # una cella Excel tiene al massimo 32.767 caratteri
 
 
@@ -186,7 +191,8 @@ def day_workbook(registry_rows: Sequence[Mapping[str, Any]], records: Iterable[M
 
     tactical = workbook.create_sheet(TACTICAL_SHEET)
     tactical.append(list(TACTICAL_COLUMNS))
-    for row in tactical_rows:
+    for item in tactical_rows:
+        row = sheet_row(TacticalSheet.from_dict(item))
         tactical.append([_clean(row.get(column)) for column in TACTICAL_COLUMNS])
 
     technical = workbook.create_sheet(TECHNICAL_SHEET)

@@ -8,6 +8,7 @@ import pytest
 
 import engine
 from datasources.cache import SourceCache
+from tactical_sheets import SHEET_COLUMNS, TacticalSheet
 from match_memory import (
     DUAL_SHEET, REPORT_SHEET, SLIPS_SHEET, ANALYSIS_SHEET, REGISTRY_SHEET, TACTICAL_SHEET, TECHNICAL_SHEET, analysis_rows, day_workbook, make_record, match_id,
     read_day_workbook, summary_label, upsert,
@@ -72,19 +73,24 @@ def test_three_matches_in_sequence_give_three_matches_in_the_file(day):
     registry_sheet = list(workbook[REGISTRY_SHEET].iter_rows(values_only=True))
     assert tuple(registry_sheet[0]) == COLUMNS and len(registry_sheet) == 1 + 7
     assert "Multipla" in {row[5] for row in registry_sheet[1:]}
-    assert list(workbook[TACTICAL_SHEET].iter_rows(values_only=True)) == [("ID", "Data", "Partita", "Scheda")]
+    assert list(workbook[TACTICAL_SHEET].iter_rows(values_only=True)) == [SHEET_COLUMNS]
 
 
 def test_resume_from_file_restores_registry_and_reopenable_matches(day):
     store, registry = day
-    restored = read_day_workbook(day_workbook(registry, store.values(), [{"ID": "q1", "Data": "2026-10-25",
-                                                                         "Partita": "Napoli - Roma", "Scheda": "4-3-3"}]))
+    sheet = TacticalSheet("Napoli", transizione=4, blocco="alto", modulo="4-3-3", dal="2026-07-01",
+                          fonti=["https://esempio.it/napoli"], origine="Claude, confermata")
+    content = day_workbook(registry, store.values(), [sheet.to_dict()])
+    restored = read_day_workbook(content)
+    visible = list(load_workbook(__import__("io").BytesIO(content))[TACTICAL_SHEET].iter_rows(values_only=True))
+    row = dict(zip(visible[0], visible[1]))
+    assert row["Squadra"] == "Napoli" and row["Transizione"] == 4 and row["Fonti"] == "https://esempio.it/napoli"
     assert [record["id"] for record in restored.records] == list(store)
     lazio = restored.records[2]
     assert lazio == store[match_id(DAY, "Lazio", "Torino")]
     assert lazio["block"].startswith("CASA: Lazio") and lazio["eurobet_text"].startswith("1X2 CORNER")
     assert lazio["odds"]["Over 9.5 corner"] == 2.10
-    assert len(restored.registry_rows) == 7 and restored.tactical_rows[0]["Scheda"] == "4-3-3"
+    assert len(restored.registry_rows) == 7 and TacticalSheet.from_dict(restored.tactical_rows[0]) == sheet
     multipla = next(row for row in restored.registry_rows if row["Mercato"] == "Multipla")
     assert multipla["Quota_presa"] == 6.4 and multipla["Prob_finale"] == 0.18
 
