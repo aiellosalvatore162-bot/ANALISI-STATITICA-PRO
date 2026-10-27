@@ -418,6 +418,34 @@ Claude» crea un unico testo con tutte le partite che hanno corner o cartellini
 senza esito (utile per le coppe). La risposta, con un blocco `ESITI_CLAUDE: E1`
 per partita e la fonte, compila solo gli esiti mancanti; la fonte va in Note.
 
+## Doppio pronostico: Simulatore, Osservatore, Unita
+
+Nella pagina Oggi, per ogni partita:
+- **Simulatore**: la giocata singola più probabile che non sia una trappola
+  (stesso criterio del costruttore di multiple);
+- **La mia giocata**: la scegli tu tra i mercati con quota, e puoi correggere
+  la quota;
+- **Unita**: la conferma se coincidono, altrimenti scegli tu tra le due (di
+  default la tua). In giallo i disaccordi forti: per la tua scelta il
+  simulatore dà meno del 45% (`soglia_disaccordo_forte` in
+  `config/oggi.json`).
+
+«Salva il doppio pronostico nel registro» scrive una riga per selezione, con
+Tipo «A carta» o «Reale». Le fonti vanno in Note («fonte: osservatore, unita»),
+quindi le colonne A–S restano le stesse. Anche per la tua scelta `Prob_finale`
+è quella del simulatore.
+
+Nella pagina Prestazioni ci sono:
+- tre classifiche affiancate (Simulatore, Osservatore, Unita) con selezioni,
+  % vinte, attese, ROI a puntata 1 e Brier, in totale, per mercato o per
+  weekend (da martedì a lunedì);
+- la tabella dei disaccordi: chi ha avuto ragione e quante volte;
+- dopo 4 weekend con esiti (`min_weekend_suggerimento`), un suggerimento per
+  mercato: «su questo mercato rende meglio l'osservatore / il simulatore».
+
+L'Excel della giornata ha il foglio «Doppio pronostico» con le tre colonne;
+«Riprendi da file» lo ricarica.
+
 ## Partite analizzate ed Excel della giornata
 
 Ogni partita simulata entra da sola nell'elenco **Partite analizzate** della

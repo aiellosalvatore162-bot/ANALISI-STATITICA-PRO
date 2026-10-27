@@ -159,7 +159,7 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
 - Fase K: memoria delle partite analizzate in `match_memory.py` (voce per
   partita con blocco, quote dei campi, incollata Eurobet, risposta di Claude,
   segnalazioni e riassunto; chiave data|casa - ospite) e Excel della giornata
-  (fogli Registro A–S, Analisi, Schede tattiche, Tecnico nascosto in JSON
+  (fogli Registro A–S, Analisi, Doppio pronostico, Schede tattiche, Tecnico nascosto in JSON
   diviso in celle da 30.000 caratteri); interfaccia in `ui_memory.py`
   (`st.session_state["analyzed_matches"]`, barra laterale disegnata in fondo
   allo script, riapertura con `auto_simulate`, «Riprendi da file»). Il registro
@@ -180,10 +180,17 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   `today.combined_adjustment`) e blocco Claude per partita
   (`today.split_multi_response`) riaperti da «Apri scheda». Demo per gli screenshot: `python -m tools.screenshots
   --oggi` (quote registrate, dati reali).
+- Fase U: doppio pronostico in `dual.py` (scelta del simulatore = singola più
+  probabile non trappola; fonti in Note «fonte: simulatore, osservatore,
+  unita», una riga per selezione, `Prob_finale` del simulatore anche per
+  l'osservatore; classifiche, disaccordi e suggerimenti dopo
+  `min_weekend_suggerimento` weekend), sezione in `ui_today._render_dual`, misure
+  in `ui_performance._dual_section`, foglio «Doppio pronostico» dell'Excel della
+  giornata (`st.session_state["dual_choices"]`).
 - Le fonti remote devono degradare con un avviso (come `historical.py` ricade
   al 100% manuale), mai bloccare la simulazione manuale.
 
-## Stato del progetto (24/10/2026, dopo la fase S2)
+## Stato del progetto (27/10/2026, dopo la fase U)
 
 - Fasi completate e unite a `main`: modello gol log-lineare (1), ancoraggio al
   mercato (2), mercati secondari (C2), livello dati (D), football-data.org,
@@ -196,7 +203,7 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   con ancoraggio di corner e cartellini (N), risparmio crediti con budget
   mensile (N2), quote Eurobet incollate (N3), registro cumulativo ed Excel della
   giornata (K), pagina Oggi e costruttore di multiple (S), rifiniture delle multiple
-  (S2).
+  (S2), doppio pronostico Simulatore/Osservatore/Unita (U).
 - Test: `python -m pytest -q` (solo fixture salvate, nessuna rete); 2 `xfail`
   noti (PSG-Barcellona, Napoli-Bodø, input stimati).
 
