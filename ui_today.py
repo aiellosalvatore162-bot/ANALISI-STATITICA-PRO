@@ -118,6 +118,7 @@ def render_today() -> None:
     _render_overview(analyses, settings)
     if mode == "Approfondita":
         _render_deep(api, analyses, settings)
+    _render_analyst(analyses, settings)
     _render_dual(analyses, settings)
     _render_quick(analyses, settings)
     _render_builder(analyses, settings)
@@ -248,6 +249,73 @@ def _save(rows: list[dict]) -> None:
     new, updated = registry_log().save(rows, session_id())
     st.success(f"Registro: {new} righe nuove" + (f", {updated} aggiornate (stesso ID)." if updated else ".")
                + " Le trovi nella tab Registro della pagina Partita e nell'Excel della giornata.")
+
+
+# --- Report dell'Analista ---------------------------------------------------------------------------------
+
+def _render_analyst(analyses: list[Analysis], settings: dict) -> None:
+    """Incolla il report dell'Analista: blocchi abbinati alle partite e correzioni con le regole della fase G."""
+    import hashlib
+
+    from analyst import Target, match_blocks, parse_report, report_rows
+
+    st.subheader("Report dell'Analista")
+    text = st.text_area("Incolla report dell'Analista", key="analyst_text", height=160,
+                        help="L'intero report dell'attività programmata: i blocchi «PARTITA: Casa - Ospite | competizione | "
+                             "data» con CORREZIONI_CLAUDE si abbinano alle partite di questa pagina per squadre e data; il "
+                             "testo libero viene ignorato.")
+    if not text.strip():
+        return
+    blocks = parse_report(text)
+    if not blocks:
+        st.warning("Nessun blocco «PARTITA: Casa - Ospite | …» nel testo incollato.")
+        return
+    targets = [Target(index, analysis.match.home, analysis.match.away, analysis.match.commence_time.astimezone().date())
+               for index, analysis in enumerate(analyses) if analysis.ok]
+    match_blocks(blocks, targets)
+    names = {index: analysis.match.label for index, analysis in enumerate(analyses)}
+    rows = report_rows(blocks, names)
+    matched = [row for row, block in zip(rows, blocks) if block.matched is not None]
+    unmatched = [row for row, block in zip(rows, blocks) if block.matched is None]
+    st.caption(f"{len(blocks)} blocchi nel report: {len(matched)} abbinati, {len(unmatched)} non abbinati. Correzioni con le "
+               "regole della fase G: limiti, fonte obbligatoria, media dell'arbitro avvicinata alla media.")
+    if matched:
+        st.dataframe(pd.DataFrame(matched).drop(columns=["Non abbinato perché"]), hide_index=True, width="stretch")
+    if unmatched:
+        st.markdown("**Blocchi non abbinati**")
+        st.dataframe(pd.DataFrame(unmatched)[["Partita del report", "Data del report", "Non abbinato perché"]],
+                     hide_index=True, width="stretch")
+    apply = st.toggle("Applica le correzioni del report", value=True, key="analyst_apply")
+    signature = (hashlib.sha256(text.encode()).hexdigest(), apply, len(analyses), id(analyses))
+    if st.session_state.get("analyst_signature") != signature:
+        by_index = {block.matched: block for block in blocks if block.matched is not None}
+        previous = set(st.session_state.get("analyst_applied", []))
+        for index, analysis in enumerate(analyses):
+            block = by_index.get(index)
+            if not analysis.ok or (block is None and index not in previous):
+                continue
+            use = block is not None and apply and block.response is not None
+            analysis.claude_text = block.corrections_text if use else ""
+            simulate(analysis, claude=block.response if use else None, keep_claude=False, settings=settings)
+            _remember(analysis)
+        st.session_state["analyst_applied"] = [index for index, block in by_index.items() if apply and block.response]
+        _store_report(text, rows)
+        st.session_state["analyst_signature"] = signature
+        st.session_state.pop("today_overrides", None)
+        st.rerun()
+    st.caption("Correzioni applicate dopo l'ancoraggio al mercato; «Apri scheda» le porta nella tab Claude della partita."
+               if apply else "Correzioni lette ma non applicate.")
+
+
+def _store_report(text: str, rows: list[dict]) -> None:
+    """Report nella memoria della giornata (e quindi nell'Excel): uno per testo, l'ultimo sostituisce i precedenti uguali."""
+    import hashlib
+
+    report_id = hashlib.sha1(text.encode()).hexdigest()[:12]
+    reports = [report for report in st.session_state.get("analyst_reports", []) if report["id"] != report_id]
+    reports.append({"id": report_id, "date": date.today().isoformat(), "saved_at": datetime.now().isoformat(timespec="seconds"),
+                    "text": text, "rows": rows})
+    st.session_state["analyst_reports"] = reports
 
 
 # --- Doppio pronostico ---------------------------------------------------------------------------------
