@@ -83,6 +83,45 @@ def _fill_section(registry, original: bytes, signature: str) -> pd.DataFrame:
     return current
 
 
+def _dual_section(frame: pd.DataFrame) -> None:
+    """Doppio pronostico: classifiche affiancate di Simulatore, Osservatore e Unita, disaccordi e suggerimenti."""
+    from dual import LABELS, SOURCES, disagreements, exploded, leaderboard, suggestions
+    from multiples import load_settings
+
+    if exploded(frame).empty:
+        return
+    settings = load_settings()
+    st.subheader("Doppio pronostico: Simulatore · Osservatore · Unita")
+    st.caption("Dalle righe con «fonte: …» in Note. Attese = probabilità media del simulatore (anche per le scelte "
+               "dell'osservatore); ROI a puntata fissa 1 sulla quota presa; Brier più basso = meglio.")
+    view = st.radio("Dividi per", ["Totale", "Mercato", "Weekend"], horizontal=True, key="dual_view")
+    table = leaderboard(frame, None if view == "Totale" else view)
+    columns = st.columns(3)
+    for column, source in zip(columns, SOURCES):
+        with column:
+            st.markdown(f"**{LABELS[source]}**")
+            subset = table[table["Fonte"] == LABELS[source]].drop(columns=["Fonte"])
+            st.dataframe(missing_as_dash(_percent(subset, ["% vinte", "Attese", "ROI"]).round({"Brier": 4})),
+                         hide_index=True, width="stretch")
+    summary, details = disagreements(frame)
+    st.markdown("**Disaccordi: chi ha avuto ragione**")
+    if details.empty:
+        st.caption("Nessun disaccordo con l'esito di entrambe le giocate.")
+    else:
+        st.dataframe(summary.set_index("Ha ragione").T, width="stretch")
+        with st.expander(f"Tutti i disaccordi ({len(details)})", expanded=False):
+            st.dataframe(missing_as_dash(_percent(details, ["Prob. simulatore per l'osservatore"])), hide_index=True, width="stretch")
+    needed = int(settings.get("min_weekend_suggerimento", 4))
+    lines, weekends = suggestions(frame, min_weekends=needed,
+                                  min_selections=int(settings.get("min_selezioni_mercato_suggerimento", 5)))
+    if weekends < needed:
+        st.caption(f"Suggerimenti per mercato dopo {needed} weekend con esiti (finora {weekends}).")
+    elif lines:
+        st.info("\n".join(f"- {line}" for line in lines))
+    else:
+        st.caption("Nessun mercato con abbastanza selezioni di entrambe le fonti per un suggerimento.")
+
+
 def _cb_discount_note(frame: pd.DataFrame) -> None:
     """Sconto medio osservato dei Combo Builder (quota reale Eurobet / prodotto), per aggiornare «sconto_cb»."""
     from multiples import load_settings
@@ -211,6 +250,7 @@ def render_performance() -> None:
     metrics[1].metric("Con esito", settled)
     metrics[2].metric("Con quota di chiusura", int(frame["Quota_chiusura"].notna().sum()))
     _cb_discount_note(frame)
+    _dual_section(frame)
     if not settled:
         st.info("Servono righe con Esito (1 = vinta, 0 = persa) per calcolare le misure.")
         return
