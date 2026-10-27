@@ -113,7 +113,7 @@ def _forget(record_id: str) -> None:
 
 def day_file_bytes() -> bytes:
     return day_workbook(registry_log().rows(session_id()), list(_store().values()),
-                        st.session_state.get("tactical_sheets", []))
+                        st.session_state.get("tactical_sheets", []), st.session_state.get("dual_choices", []))
 
 
 def render_download(key: str) -> None:
@@ -162,6 +162,10 @@ def restore(content: bytes) -> None:
         known = {row.get("ID") for row in st.session_state.get("tactical_sheets", [])}
         st.session_state["tactical_sheets"] = st.session_state.get("tactical_sheets", []) + \
             [row for row in day.tactical_rows if row.get("ID") not in known]
+    if day.dual_choices:
+        known = {choice.get("id") for choice in day.dual_choices}
+        st.session_state["dual_choices"] = [choice for choice in st.session_state.get("dual_choices", [])
+                                            if choice.get("id") not in known] + day.dual_choices
     st.session_state["memory_upload_report"] = (
         f"Ripreso: {new} righe del registro nuove, {updated} già presenti; {len(day.records)} partite; "
         f"{len(day.tactical_rows)} schede tattiche." + ("".join(f" {warning}" for warning in day.warnings)))
