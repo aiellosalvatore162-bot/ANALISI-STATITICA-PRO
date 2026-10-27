@@ -502,6 +502,20 @@ def settle_multiples(frame: pd.DataFrame, today: date | None = None) -> FillRepo
 _CB_REAL = re.compile(r"quota CB reale (\d+(?:\.\d+)?) / prodotto (\d+(?:\.\d+)?)")
 
 
+def tactical_comparison(frame: pd.DataFrame) -> pd.DataFrame:
+    """Fase Q: selezioni chiuse con e senza scheda tattica (nota «scheda tattica: sì/no»), Brier e log-loss finali."""
+    settled = _settled(frame)
+    notes = settled["Note"].fillna("").astype(str)
+    rows = []
+    for label, flag in (("con scheda tattica", "scheda tattica: sì"), ("senza scheda tattica", "scheda tattica: no")):
+        part = settled[notes.str.contains(flag, regex=False)]
+        rows.append({"Gruppo": label, "Selezioni": len(part),
+                     "Brier": brier(part["Prob_finale"], part["Esito"]) if len(part) else None,
+                     "Log-loss": log_loss(part["Prob_finale"], part["Esito"]) if len(part) else None,
+                     "Giudizio": "campione sufficiente" if len(part) >= MIN_SELECTIONS else f"meno di {MIN_SELECTIONS}: indicativo"})
+    return pd.DataFrame(rows)
+
+
 def observed_cb_discount(frame: pd.DataFrame) -> tuple[int, float | None]:
     """Combo Builder con quota reale nelle note delle righe «Multipla» e sconto medio osservato (reale / prodotto)."""
     ratios = []

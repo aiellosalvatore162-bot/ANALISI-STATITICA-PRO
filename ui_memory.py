@@ -160,9 +160,11 @@ def restore(content: bytes) -> None:
     for record in day.records:
         upsert(_store(), record)
     if day.tactical_rows:
-        known = {row.get("ID") for row in st.session_state.get("tactical_sheets", [])}
-        st.session_state["tactical_sheets"] = st.session_state.get("tactical_sheets", []) + \
-            [row for row in day.tactical_rows if row.get("ID") not in known]
+        from tactical_sheets import TacticalSheet, upsert
+
+        st.session_state["tactical_sheets"] = upsert(
+            st.session_state.get("tactical_sheets", []),
+            [TacticalSheet.from_dict(row) for row in day.tactical_rows if row.get("team")])
     if day.slips:
         names = {slip.get("name") for slip in day.slips}
         st.session_state["saved_slips"] = [slip for slip in st.session_state.get("saved_slips", [])

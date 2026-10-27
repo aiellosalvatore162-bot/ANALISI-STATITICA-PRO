@@ -51,6 +51,9 @@ class TimelineParams:
     card_weights: tuple[float, ...] = (1.0,) * BLOCKS
     card_level: tuple[float, ...] = (1.0,) * len(BANDS)
     red_weights: tuple[float, ...] = (1.0,) * BLOCKS
+    # Fase Q: reazioni dalle schede tattiche (casa in svantaggio, casa in vantaggio, ospite in svantaggio, ospite in
+    # vantaggio), moltiplicano lo stato del punteggio della squadra; 1.0 = nessuna scheda.
+    reactions: tuple[float, float, float, float] = (1.0, 1.0, 1.0, 1.0)
 
     def uses(self, component: str) -> bool:
         return self.active and component in self.components
@@ -145,6 +148,9 @@ def _goal_paths(rng, n, base_home, base_away, weights_home, weights_away, params
         # Pressione offensiva dallo stato del punteggio (e dalle espulsioni): guida i corner anche quando i gol
         # restano quelli Dixon-Coles; sui gol si applica solo con «gol_stato».
         state_home, state_away = state_table[difference + 2, band], state_table[-difference + 2, band]
+        react_home = np.where(difference < 0, params.reactions[0], np.where(difference > 0, params.reactions[1], 1.0))
+        react_away = np.where(difference > 0, params.reactions[2], np.where(difference < 0, params.reactions[3], 1.0))
+        state_home, state_away = state_home * react_home, state_away * react_away
         if red_home_blocks is not None:
             reds_home += red_home_blocks[:, block]
             reds_away += red_away_blocks[:, block]
@@ -167,8 +173,8 @@ def _goal_paths(rng, n, base_home, base_away, weights_home, weights_away, params
             cards_first += card_block
         if final is not None:
             # Gol già decisi: quanti arrivano in questo blocco.
-            rows_home = state_table[difference + 2] if timing_state else np.ones((n, len(BANDS)))
-            rows_away = state_table[-difference + 2] if timing_state else np.ones((n, len(BANDS)))
+            rows_home = state_table[difference + 2] * react_home[:, None] if timing_state else np.ones((n, len(BANDS)))
+            rows_away = state_table[-difference + 2] * react_away[:, None] if timing_state else np.ones((n, len(BANDS)))
             hazard_home = weights_home[block] * rows_home[:, band] * red_home
             hazard_away = weights_away[block] * rows_away[:, band] * red_away
             future_home = _future_mass(weights_home, rows_home, block) * red_home

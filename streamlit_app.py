@@ -31,6 +31,7 @@ from ui_eurobet import find_paste, render_apply, render_paste, sharp_for
 from ui_memory import RESTART_WARNING, flags_key, remember, remember_claude, render_registry_table, render_sidebar
 from ui_odds import render_credits, render_odds
 from ui_performance import render_performance
+from ui_tactical import current_effects, render_match as render_match_sheets
 
 
 # Senza linee corner quotate l'EV dei corner viene solo dal modello.
@@ -572,6 +573,10 @@ with st.container(border=True):
 tactical_factors, tactical_switches = render_tactical(
     parsed_preview.home.name if parsed_preview else None, parsed_preview.away.name if parsed_preview else None
 )
+sheet_effects = current_effects(parsed_preview.home.name if parsed_preview else None,
+                                parsed_preview.away.name if parsed_preview else None)
+render_match_sheets(sheet_effects, (parsed_preview.home.elo, parsed_preview.away.elo)
+                    if parsed_preview is not None and hasattr(parsed_preview.home, "elo") else None)
 def _anchor_signature(parsed: MatchInput | None) -> tuple:
     """Quote che cambiano l'ancoraggio senza toccare i campi: scala Eurobet di corner/cartellini e quote sharp."""
     if parsed is None:
@@ -591,6 +596,7 @@ current_signature = (
     _anchor_signature(parsed_preview),
     tuple(st.session_state.get(flags_key(parsed_preview.home.name, parsed_preview.away.name)) or [])
     if parsed_preview is not None else (),
+    repr((sheet_effects.home, sheet_effects.away)),
 )
 
 # «auto_simulate»: partita riaperta dall'elenco delle partite analizzate.
@@ -612,10 +618,12 @@ if st.button("Esegui simulazione", type="primary", width="stretch") or st.sessio
         flags = list(st.session_state.get(flags_key(parsed.home.name, parsed.away.name)) or [])
         config = config.__class__(**{**config.__dict__, "odds": merged_odds, "anchor_odds": anchor,
                                      "tactical": tactical_factors, "tactical_switches": tactical_switches,
-                                     "claude": combined_adjustment(flags, None)})
+                                     "claude": combined_adjustment(flags, None, tactical=sheet_effects.factors)})
+        config = config.__class__(**{**config.__dict__, "timeline": sheet_effects.timeline(config.timeline)})
         st.session_state["result_flags"] = flags
         st.session_state["anchor_sources"] = anchor_sources
         result = simulate_match(config)
+        result["tactical_sheet"] = sheet_effects.any_sheet
         st.session_state["result"] = result
         st.session_state["result_config"] = config
         st.session_state["result_signature"] = current_signature

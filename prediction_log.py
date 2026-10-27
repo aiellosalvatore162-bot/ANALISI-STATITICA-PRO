@@ -118,6 +118,9 @@ def model_version(config, *, claude: bool = False) -> str:
     return " · ".join(parts)
 
 
+TACTICAL_NOTE = "scheda tattica: "
+
+
 @dataclass(frozen=True)
 class SaveInfo:
     day: date
@@ -159,6 +162,12 @@ def prediction_rows(base: Mapping[str, Any], selections: Sequence[str], info: Sa
     """
     match = f"{base['input']['home']['name']} - {base['input']['away']['name']}"
     final = claude if claude is not None else styled if styled is not None else base
+    note = info.note
+    marked = [item["tactical_sheet"] for item in (claude, styled, base) if item is not None and "tactical_sheet" in item]
+    if marked:
+        # Fase Q: per confrontare nella pagina Prestazioni le previsioni con e senza scheda tattica.
+        present = bool(marked[0])
+        note = "; ".join(part for part in (note, f"{TACTICAL_NOTE}{'sì' if present else 'no'}") if part)
     rows = []
     for selection in selections:
         market = market_of(selection)
@@ -174,7 +183,7 @@ def prediction_rows(base: Mapping[str, Any], selections: Sequence[str], info: Sa
             "Prob_Claude": _probability(claude, "finale", selection),
             "Quota_presa": (odds or {}).get(selection), "Puntata": (stakes or {}).get(selection),
             "Tipo": info.kind, "Versione_modello": info.version, "Quota_chiusura": None, "Esito": None,
-            "Note": info.note,
+            "Note": note,
         })
     return rows
 

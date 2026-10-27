@@ -8,7 +8,7 @@ data|casa - ospite: rianalizzare la stessa partita aggiorna la voce.
 L'Excel della giornata ha i fogli:
 - «Registro»: colonne A–S del file Registro_Previsioni.xlsx;
 - «Analisi»: una riga per partita (probabilità principali, quote, EV);
-- «Schede tattiche»: vuoto finché la fase Q non lo usa;
+- «Schede tattiche»: una riga per squadra (fase Q), ripristinabile dal foglio tecnico;
 - «Tecnico» (nascosto): le voci complete in JSON, per «Riprendi da file».
 
 Solo presentazione e salvataggio: nessun calcolo del modello.
@@ -22,6 +22,8 @@ from io import BytesIO
 import json
 import math
 from typing import Any, Iterable, Mapping, Sequence
+
+from tactical_sheets import SHEET_COLUMNS, TacticalSheet, sheet_row
 
 
 ANALYSIS_KEYS = (
@@ -39,7 +41,7 @@ ANALYSIS_SHEET, REGISTRY_SHEET, TACTICAL_SHEET, TECHNICAL_SHEET = "Analisi", "Re
 DUAL_SHEET = "Doppio pronostico"
 REPORT_SHEET = "Report Analista"
 SLIPS_SHEET = "Schedine"
-TACTICAL_COLUMNS = ("ID", "Data", "Partita", "Scheda")
+TACTICAL_COLUMNS = SHEET_COLUMNS
 _CHUNK = 30_000  # una cella Excel tiene al massimo 32.767 caratteri
 
 
@@ -189,7 +191,8 @@ def day_workbook(registry_rows: Sequence[Mapping[str, Any]], records: Iterable[M
 
     tactical = workbook.create_sheet(TACTICAL_SHEET)
     tactical.append(list(TACTICAL_COLUMNS))
-    for row in tactical_rows:
+    for item in tactical_rows:
+        row = sheet_row(TacticalSheet.from_dict(item))
         tactical.append([_clean(row.get(column)) for column in TACTICAL_COLUMNS])
 
     technical = workbook.create_sheet(TECHNICAL_SHEET)

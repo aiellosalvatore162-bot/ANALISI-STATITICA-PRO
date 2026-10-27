@@ -114,6 +114,9 @@ def render_today() -> None:
     if events.empty:
         st.info("Nessuna partita nel giorno scelto per queste competizioni.")
         return
+    from ui_tactical import render_manager
+
+    render_manager(sorted(set(events["home_team"]) | set(events["away_team"])))
     _render_analyze_all(api, events, events_day, labels, simulations, settings, mode)
     analyses = _analyses()
     if not analyses:
@@ -139,6 +142,7 @@ def _render_analyze_all(api, events: pd.DataFrame, day: date, labels: dict, simu
     from ui_data import source_cache
     from ui_eurobet import save_sharp
     from ui_odds import _approve, _run, render_day_summary
+    from ui_tactical import saved_sheets
 
     leagues = sorted(events["sport"].unique())
     st.caption(f"{len(events)} partite il {day:%d/%m/%Y} in {len(leagues)} competizioni.")
@@ -166,7 +170,7 @@ def _render_analyze_all(api, events: pd.DataFrame, day: date, labels: dict, simu
         quotes = reference_quotes(quotes_frame(event), api.settings.get("riferimento")) if event else {}
         competition = row.competition if row.competition in COMPETITIONS or row.competition in CUP_COMPETITIONS else None
         analysis = analyze(match, provider.build, sheet_odds(quotes, fetched) if quotes else {}, simulations=simulations,
-                           competition=competition, settings=settings)
+                           competition=competition, settings=settings, sheets=saved_sheets())
         if analysis.ok:
             if not quotes:
                 analysis.warnings.append("nessuna quota per campionato: simulazione del solo modello")
