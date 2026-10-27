@@ -118,6 +118,7 @@ def render_today() -> None:
     _render_overview(analyses, settings)
     if mode == "Approfondita":
         _render_deep(api, analyses, settings)
+    _render_dual(analyses, settings)
     _render_quick(analyses, settings)
     _render_builder(analyses, settings)
 
@@ -247,6 +248,81 @@ def _save(rows: list[dict]) -> None:
     new, updated = registry_log().save(rows, session_id())
     st.success(f"Registro: {new} righe nuove" + (f", {updated} aggiornate (stesso ID)." if updated else ".")
                + " Le trovi nella tab Registro della pagina Partita e nell'Excel della giornata.")
+
+
+# --- Doppio pronostico ---------------------------------------------------------------------------------
+
+def _render_dual(analyses: list[Analysis], settings: dict) -> None:
+    """Simulatore, la mia giocata e Unita per ogni partita; salvataggio con la fonte in Note."""
+    from dual import DualChoice, choice_record, observer_options, pick_for, simulator_pick
+    from prediction_log import TYPES
+
+    st.subheader("Doppio pronostico: Simulatore · Osservatore · Unita")
+    threshold = float(settings.get("soglia_disaccordo_forte", 0.45))
+    st.caption("Simulatore = la giocata singola più probabile che non sia una trappola. «La mia giocata» la scegli tu tra "
+               f"i mercati con quota. Unita = la conferma se coincidono, altrimenti scegli tu (di default la tua). In giallo "
+               f"i disaccordi forti: per la tua scelta il simulatore dà meno del {threshold:.0%}.")
+    trap = float(st.session_state.get("today_trap", settings["trappola_ev"]))
+    min_odds = float(st.session_state.get("today_min_odds", settings["quota_minima_gamba"]))
+    header = st.columns([3, 3.2, 3.6, 1.3, 3.6])
+    for column, title in zip(header, ("Partita", "Simulatore", "La mia giocata", "Quota", "Unita")):
+        column.markdown(f"**{title}**")
+    choices = []
+    for index, analysis in enumerate(analyses):
+        if not analysis.ok:
+            continue
+        key = analysis.match.event_id
+        legs = candidate_legs(str(index), analysis.match.label, analysis.result, analysis.odds)
+        sim_leg = simulator_pick(legs, trap_ev=trap, min_odds=min_odds)
+        simulator = pick_for(sim_leg.selections[0], analysis.result, sim_leg.odds) if sim_leg else None
+        options = observer_options(analysis.result, analysis.odds)
+        columns = st.columns([3, 3.2, 3.6, 1.3, 3.6])
+        columns[0].markdown(f"{analysis.match.label}  \n:gray[{analysis.match.competition} · {analysis.match.commence_time:%H:%M}]")
+        columns[1].markdown(simulator.label() if simulator else ":gray[nessuna giocata non-trappola]")
+        mine = columns[2].selectbox("La mia giocata", ["—", *options], key=f"dual_obs_{key}", label_visibility="collapsed",
+                                    format_func=lambda option, final=analysis.result["components"]["finale"]:
+                                    option if option == "—" else f"{option} (simulatore {final[option]:.0f}%)")
+        observer = None
+        if mine != "—":
+            odds = columns[3].number_input("Quota", 1.01, 1000.0, float(analysis.odds[mine]), 0.01, format="%.2f",
+                                           key=f"dual_odds_{key}_{mine}", label_visibility="collapsed")
+            observer = pick_for(mine, analysis.result, float(odds))
+        if observer is None or simulator is None or observer.selection == simulator.selection:
+            unita = observer or simulator
+            columns[4].markdown(("✓ confermata: " if observer and simulator else "") + (unita.label() if unita else "—"))
+        else:
+            chosen = columns[4].radio("Unita", ["La mia", "Simulatore"], key=f"dual_unita_{key}", horizontal=True,
+                                      label_visibility="collapsed")
+            unita = observer if chosen == "La mia" else simulator
+        choice = DualChoice(_record_id(analysis), analysis.match.label, simulator, observer, unita)
+        if choice.strong_disagreement(threshold):
+            columns[4].warning(f"Disaccordo forte: per {observer.selection} il simulatore dà {observer.probability:.0%}.")
+        choices.append((analysis, choice))
+    # Si aggiornano le partite di questa pagina; restano le altre (es. riprese da file).
+    merged = {item["id"]: item for item in st.session_state.get("dual_choices", [])}
+    merged.update({record["id"]: record for record in (choice_record(choice, analysis.match.commence_time.date(), threshold)
+                                                       for analysis, choice in choices)})
+    st.session_state["dual_choices"] = list(merged.values())
+    columns = st.columns([2, 3])
+    kind = columns[0].radio("Tipo", TYPES, index=1, horizontal=True, key="dual_kind")
+    if columns[1].button("Salva il doppio pronostico nel registro", key="dual_save", disabled=not choices):
+        _save([row for analysis, choice in choices for row in _dual_rows(analysis, choice, kind)])
+
+
+def _dual_rows(analysis: Analysis, choice, kind: str) -> list[dict]:
+    """Una riga per selezione con le fonti in Note; Prob_finale del simulatore anche per l'osservatore."""
+    from dataclasses import replace as replace_info
+
+    from dual import source_note, sources_by_selection
+    from prediction_log import prediction_rows
+
+    claude = analysis.result if analysis.claude is not None and analysis.claude.adjustment() is not None else None
+    rows = []
+    for selection, (sources, odds) in sources_by_selection(choice).items():
+        info = _save_info(analysis, kind)
+        info = replace_info(info, note="; ".join(part for part in (info.note, source_note(sources)) if part))
+        rows += prediction_rows(analysis.result, [selection], info, claude=claude, odds={selection: odds})
+    return rows
 
 
 def _render_quick(analyses: list[Analysis], settings: dict) -> None:
