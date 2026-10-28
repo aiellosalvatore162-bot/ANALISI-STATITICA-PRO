@@ -254,10 +254,27 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   della tab Gol), marcatori v2 in `scorers.py` (sezione `marcatori`); storico giocatori con
   `python -m tools.player_data 2025 2026` e verifica con `python -m tools.player_check --salva`. Accese oggi:
   ricalibrazione di «Over 3.5 cartellini» e marcatori v2 (verificati); il resto è spento.
+- Fase Y (dati dell'Analista): report completo in `analyst.parse_full` (blocchi ESITO, PARTITA +
+  CORREZIONI_CLAUDE + CHIAVI_MATCH, PROFILO_TATTICO; ogni blocco finisce dove inizia il successivo; esempio
+  completo in `tests/fixtures/analista/report_completo.md`). Formato ESITO (casa-ospite, una riga per voce,
+  righe facoltative omesse): `ESITO: Casa - Ospite | competizione | gg/mm/aaaa hh:mm`, `risultato`,
+  `primo_tempo`, `corner`, `corner_1t`, `gialli` (con il primo giallo di chi è espulso per doppia
+  ammonizione), `gialli_1t`, `rossi`, `rossi_1t`, `doppie_ammonizioni`, `fonte: https://...` (obbligatoria).
+  Esiti nel registro e nelle schedine con `analyst.fill_registry`/`fill_slips` (mai sovrascritti, fonte in
+  Note; mercati per tempo in `performance.settle`), profili con `analyst.merge_profiles` (conferma solo se
+  cambia un valore). Storico proprio in `analyst_dataset.py` (tabella SQLite `dataset_analista`, foglio
+  «Dataset Analista» + JSON «dataset» nel foglio tecnico, `ui_memory.analyst_records`). Regole dell'Analista
+  in `config/tattica.json` sezione `regole_analista` (`tactical_sheets.analyst_adjustment`, solo profili
+  PROFILO_TATTICO, limiti 0.95-1.05, stato da verificare/verificata/spenta, nota «regole_analista: sì/no»),
+  verifica e mercati per tempo nella pagina Prestazioni (`verify_rules`, `half_calibration`,
+  `apply_proposal` dopo conferma). Forza per il calendario solo senza quote 1X2/O-U
+  (`forza_calendario.solo_modello`, `MatchConfig.strength_inputs`, `engine.strength_model_config`).
+  Eurobet contro sharp in `sharp_value.py` (soglia `eurobet_vs_sharp.soglia_pct` di `config/oggi.json`,
+  nota «eurobet_vs_sharp: +x%», `prediction_rows(extra_notes=...)`).
 - Le fonti remote devono degradare con un avviso (come `historical.py` ricade
   al 100% manuale), mai bloccare la simulazione manuale.
 
-## Stato del progetto (27/10/2026, dopo la fase P)
+## Stato del progetto (28/10/2026, dopo la fase Y)
 
 - Fasi completate e unite a `main`: modello gol log-lineare (1), ancoraggio al
   mercato (2), mercati secondari (C2), livello dati (D), football-data.org,
@@ -274,7 +291,7 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   del giorno (W), ricerca rapida, schedine salvate, marcatori e chiavi del match (X),
   cartellini per squadra (T), motore minuto per minuto come opzione spenta (O, parte 1), schede
   tattiche, cambio allenatore, incroci di stile (spenti), nuovi mercati e goleade (Q), motore statistico
-  v2 con opzioni verificate una per una (P).
+  v2 con opzioni verificate una per una (P), dati dell'Analista nel modello e storico proprio (Y).
 - Test: `python -m pytest -q` (solo fixture salvate, nessuna rete); 2 `xfail`
   noti (PSG-Barcellona, Napoli-Bodø, input stimati).
 
@@ -284,7 +301,8 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
    per mercato il giudizio della pagina Prestazioni diventa significativo.
 2. Quote di chiusura per Multigol e per i mercati senza istantanea (The Odds
    API salva solo le quote per campionato scaricate prima del via).
-3. Esiti di corner, cartellini e primo tempo delle coppe: i punteggi di The
-   Odds API danno solo il risultato finale.
+3. Esiti di corner, cartellini e primo tempo delle coppe: ora arrivano dai blocchi
+   ESITO dell'Analista; servono settimane di report per riempire il dataset
+   (150 partite per le regole, 100 con i tempi per i mercati per tempo).
 4. Se il confronto delle componenti mostra che stile o Claude non migliorano il
    Brier rispetto a modello/mercato, disattivarli con le opzioni esistenti.

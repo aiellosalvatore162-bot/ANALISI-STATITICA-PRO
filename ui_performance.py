@@ -225,10 +225,57 @@ def _odds_api_fill(frame: pd.DataFrame, signature: str):
     return report
 
 
+def _analyst_rules_section() -> None:
+    """Fase Y, punti 4 e 5: regole dell'Analista e mercati per tempo verificati sullo storico proprio."""
+    from analyst_dataset import apply_proposal, half_calibration, usable, verify_rules
+    from tactical_sheets import load_rules
+    from ui_memory import analyst_records
+
+    records = analyst_records()
+    settings = load_rules()
+    section = settings.get("regole_analista") or {}
+    with st.expander(f"Regole dell'Analista · storico proprio ({len(records)} partite)", expanded=False):
+        states = {rule_id: state.get("stato", "da verificare") for rule_id, state in (section.get("regole") or {}).items()}
+        st.caption("Regole non misurabili con le fonti gratuite, applicate con i profili PROFILO_TATTICO (effetto 0,95-1,05). "
+                   "Stato attuale: " + ", ".join(f"{rule} = {state}" for rule, state in states.items())
+                   + f". Opzione «regole_analista» {'accesa' if section.get('attiva') else 'spenta'} (config/tattica.json).")
+        result = verify_rules(records, settings)
+        if result["partite"] < result["minimo"]:
+            st.info(f"Partite con profili di entrambe le squadre ed esito: {result['partite']} su {result['minimo']} "
+                    "necessarie per la verifica.")
+        else:
+            rows = []
+            for rule_id, verdict in result["regole"].items():
+                for key, check in verdict["verifica"].items():
+                    rows.append({"Regola": rule_id, "Mercato": key, "Partite": verdict["partite"], "Casi": verdict["casi"],
+                                 "Effetto stimato": verdict["effetto"].get(key),
+                                 "Differenza log-loss": f"{check['differenza']:+.4f} ± {check['due_es']:.4f}",
+                                 "ECE prima → dopo": f"{check['ece_prima']:.3f} → {check['ece_dopo']:.3f}",
+                                 "Proposta": verdict["proposta"]})
+            st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+            st.caption("Effetto stimato in metà dello storico e misurato sull'altra (e viceversa); regola severa: log-loss "
+                       "giù di oltre 2 errori standard ED ECE non più alto.")
+            for rule_id, verdict in result["regole"].items():
+                if verdict["proposta"] != "lascia «da verificare»" and st.button(
+                        f"Conferma: {rule_id} → {verdict['proposta']}", key=f"analyst_rule_{rule_id}"):
+                    apply_proposal(rule_id, verdict)
+                    st.success(f"{rule_id}: configurazione aggiornata.")
+        halves = half_calibration(records, section.get("min_partite_tempi", 100))
+        st.markdown("**Corner e cartellini per tempo**")
+        if halves["partite"] < halves["minimo"]:
+            st.info(f"Partite con corner e cartellini del primo tempo: {halves['partite']} su {halves['minimo']} "
+                    "necessarie: i mercati per tempo restano «non verificabili».")
+        elif halves["mercati"]:
+            st.dataframe(pd.DataFrame(halves["mercati"]), hide_index=True, width="stretch")
+            st.caption("Probabilità del modello salvate all'analisi contro gli esiti dell'Analista; ECE su 5 classi.")
+        st.caption(f"Partite utilizzabili per le regole (profili ed esito): {len(usable(records))}.")
+
+
 def render_performance() -> None:
     st.subheader("Prestazioni")
     st.caption("Carica il tuo Registro_Previsioni.xlsx: si leggono solo le colonne A–S del foglio Registro "
                "(le colonne grigie calcolate sono ignorate e ricalcolate qui).")
+    _analyst_rules_section()
     upload = st.file_uploader("File Excel del registro", type=["xlsx"], key="performance_upload")
     if upload is None:
         return

@@ -418,6 +418,47 @@ Claude» crea un unico testo con tutte le partite che hanno corner o cartellini
 senza esito (utile per le coppe). La risposta, con un blocco `ESITI_CLAUDE: E1`
 per partita e la fonte, compila solo gli esiti mancanti; la fonte va in Note.
 
+## Dati dell'Analista e storico proprio (fase Y)
+
+**Report completo.** Nella pagina Oggi, in alto, si incolla l'intero report
+dell'Analista (esempio con tutti i blocchi in
+`tests/fixtures/analista/report_completo.md`).
+- I blocchi **ESITO** compilano gli esiti mancanti del registro e delle
+  schedine, coppe comprese, anche per i corner e i cartellini del primo e del
+  secondo tempo. Le doppie ammonizioni sono gestite con la regola Eurobet. Un
+  esito già presente non viene mai sovrascritto; la fonte va in Note.
+- I blocchi **PROFILO_TATTICO** aggiornano le schede tattiche. Si chiede
+  conferma solo se cambia un valore già salvato.
+- I blocchi **PARTITA** restano quelli della fase W e si abbinano dopo
+  «Analizza tutte».
+
+**Storico proprio.** Ogni partita abbinata e ogni esito entrano nel «dataset
+Analista», con i profili delle due squadre alla data della partita, le quote,
+le probabilità del modello (anche per tempo) e l'esito completo. Il dataset si
+salva nella cache locale e nel foglio «Dataset Analista» dell'Excel della
+giornata, e «Riprendi da file» lo ricarica.
+
+**Regole dell'Analista.** Le due regole di incrocio non misurabili con le fonti
+gratuite (verticale contro blocco alto; fasce e cross contro difesa a uomo) si
+applicano solo con i profili PROFILO_TATTICO, con effetti tra 0,95 e 1,05. Nella
+scheda partita compare l'avviso «regola non ancora verificata» e il registro
+annota «regole_analista: sì/no». Si possono spegnere con `regole_analista.attiva`
+in `config/tattica.json`. Nella pagina Prestazioni, la sezione «Regole
+dell'Analista» le verifica con la regola severa quando il dataset ha 150 partite
+con profili ed esiti, e propone «verificata» o «spegni» (serve la tua
+conferma). Con 100 partite che hanno i dati per tempo, la stessa sezione mostra
+la calibrazione dei mercati di corner e cartellini per tempo.
+
+**Senza quote.** Se una partita non ha quote 1X2/O-U, il modello usa da solo la
+forza corretta per il calendario (fase P) e la scheda lo dichiara. Con
+l'ancoraggio al mercato resta spenta.
+
+**Eurobet contro sharp.** Con la quota Eurobet incollata e il riferimento
+dell'API, la scheda mostra per ogni selezione «Eurobet paga X% sopra/sotto la
+quota equa sharp». La pagina Oggi elenca le quote almeno il 3% sopra il prezzo
+equo (`config/oggi.json`, `eurobet_vs_sharp`). Il registro annota
+«eurobet_vs_sharp: +x%» e la pagina Prestazioni ne misura rendimento e CLV.
+
 ## Motore statistico v2 (fase P)
 
 Ogni punto è un'opzione in `config/goal_model.json`, accesa solo se migliora

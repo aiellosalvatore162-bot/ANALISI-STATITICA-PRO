@@ -319,7 +319,8 @@ def split_match(match: str) -> tuple[str, str] | None:
 
 def _needs(selection: str) -> list[str]:
     needed = ["home_goals", "away_goals"]
-    if " 1T" in selection or " 2T" in selection or "BTTS" in selection:
+    counts_only = re.search(r"(corner|cartellini) [12]T", selection) and " + " not in selection
+    if (" 1T" in selection or " 2T" in selection or "BTTS" in selection) and not counts_only:
         needed += ["home_ht_goals", "away_ht_goals"]
     if "corner" in selection:
         needed += ["home_corners", "away_corners"]
