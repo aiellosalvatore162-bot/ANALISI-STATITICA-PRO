@@ -276,6 +276,66 @@ def crossing_adjustment(home: TacticalSheet | None, away: TacticalSheet | None, 
     return {key: min(max(value, low), high) for key, value in factors.items()}, notes
 
 
+# --- Regole «da osservatore» con i profili dell'Analista (fase Y) ------------------------------------
+
+PROFILE_ORIGINS = ("Analista", "Claude")
+
+
+def from_profile(sheet: TacticalSheet | None) -> bool:
+    """Scheda nata da un blocco PROFILO_TATTICO (Analista o Claude), non scritta a mano."""
+    return sheet is not None and sheet.origine.startswith(PROFILE_ORIGINS)
+
+
+def analyst_adjustment(home: TacticalSheet | None, away: TacticalSheet | None,
+                       settings: Mapping[str, Any] | None = None) -> tuple[dict[str, float], list[str]]:
+    """Regole non misurabili con i dati gratuiti, applicate con i profili PROFILO_TATTICO: effetto ridotto ai
+    limiti di ``regole_analista`` (0.95-1.05), solo con stato «da verificare» o «verificata»."""
+    settings = settings or load_rules()
+    section = settings.get("regole_analista") or {}
+    factors = {"gol_casa": 1.0, "gol_ospite": 1.0, "corner": 1.0, "cartellini": 1.0}
+    notes: list[str] = []
+    if not section.get("attiva") or not (from_profile(home) and from_profile(away)):
+        return factors, notes
+    low, high = section.get("limiti", (0.95, 1.05))
+    rules = {rule["id"]: rule for rule in settings["regole"]}
+    for rule_id, state in (section.get("regole") or {}).items():
+        status = state.get("stato", "da verificare")
+        if status == "spenta" or rule_id not in rules:
+            continue
+        rule = rules[rule_id]
+        effect = state.get("effetto") if status == "verificata" and state.get("effetto") else rule["effetto"]
+        for attack, defence, goal_key in ((home, away, "gol_casa"), (away, home, "gol_ospite")):
+            if not _applies(rule, attack, defence):
+                continue
+            scale = ADAPTABILITY.get(attack.adattabilita, 1.0)
+            for key, target in (("gol", goal_key), ("corner", "corner"), ("cartellini", "cartellini")):
+                if key in effect:
+                    value = min(max(1.0 + (float(effect[key]) - 1.0) * scale, low), high)
+                    factors[target] *= value
+            notes.append(f"{rule['nome']}: {attack.team} contro {defence.team}"
+                         + (" (regola non ancora verificata)" if status != "verificata" else " (verificata)"))
+    return {key: min(max(value, low), high) for key, value in factors.items()}, notes
+
+
+def merge_profile(old: TacticalSheet | None, new: TacticalSheet) -> tuple[TacticalSheet, list[dict]]:
+    """Profilo nuovo sopra quello salvato: i campi vuoti del nuovo tengono il vecchio valore. Restituisce anche
+    i cambiamenti di valori già presenti (da confermare); campi nuovi, data e fonti non chiedono conferma."""
+    if old is None:
+        return new, []
+    merged, changes = old.to_dict(), []
+    for name, value in new.to_dict().items():
+        if name in ("team", "origine", "aggiornata", "fonti"):
+            continue
+        if value in (None, "", []):
+            continue
+        if merged.get(name) not in (None, "", []) and merged[name] != value:
+            changes.append({"Squadra": old.team, "Campo": name, "Prima": merged[name], "Dopo": value})
+        merged[name] = value
+    merged["fonti"] = list(dict.fromkeys([*new.fonti, *old.fonti]))
+    merged["origine"], merged["aggiornata"] = new.origine, new.aggiornata
+    return TacticalSheet.from_dict(merged), changes
+
+
 # --- Reazioni allo stato della partita (motore minuto per minuto) ------------------------------------
 
 _AGGRESSIVE = ("attacc", "spinge", "alza", "aggressiv", "offensiv", "forza", "in avanti")
@@ -321,6 +381,11 @@ class MatchEffects:
     factors: dict[str, float]
     notes: list[str]
     reactions: tuple[float, float, float, float]
+    analyst_notes: list[str] = field(default_factory=list)   # fase Y: regole non ancora verificate applicate
+
+    @property
+    def analyst_rules(self) -> bool:
+        return bool(self.analyst_notes)
 
     @property
     def any_sheet(self) -> bool:
@@ -343,8 +408,10 @@ def match_effects(sheets: Iterable[Mapping[str, Any]], home: str, away: str,
     settings = settings or load_rules()
     home_sheet, away_sheet = find_sheet(sheets, home), find_sheet(sheets, away)
     factors, notes = crossing_adjustment(home_sheet, away_sheet, settings=settings)
+    extra, analyst_notes = analyst_adjustment(home_sheet, away_sheet, settings)
+    factors = {key: value * extra.get(key, 1.0) for key, value in factors.items()}
     return MatchEffects(home_sheet, away_sheet, factors, notes,
-                        (*reaction_factors(home_sheet, settings), *reaction_factors(away_sheet, settings)))
+                        (*reaction_factors(home_sheet, settings), *reaction_factors(away_sheet, settings)), analyst_notes)
 
 
 def prompt_lines(effects: MatchEffects, elo: tuple[float, float] | None = None) -> list[str]:

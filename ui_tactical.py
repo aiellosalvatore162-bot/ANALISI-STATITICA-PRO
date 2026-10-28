@@ -170,6 +170,9 @@ def render_match(effects: MatchEffects, elo: tuple[float, float] | None = None) 
     """Riquadro nella pagina Partita: schede delle due squadre, comportamento contro questo avversario, incroci."""
     if not effects.any_sheet:
         return
+    for note in effects.analyst_notes:
+        st.warning(f"Regola dell'Analista applicata, effetto piccolo (0,95-1,05): {note}. Si misura sullo storico "
+                   "proprio nella pagina Prestazioni (sezione «Regole dell'Analista»).")
     with st.expander("Schede tattiche", expanded=False):
         for sheet, own, other in ((effects.home, 0, 1), (effects.away, 1, 0)):
             if sheet is None:

@@ -649,6 +649,7 @@ if st.button("Esegui simulazione", type="primary", width="stretch") or st.sessio
         st.session_state["anchor_sources"] = anchor_sources
         result = simulate_match(config)
         result["tactical_sheet"] = sheet_effects.any_sheet
+        result["analyst_rules"] = sheet_effects.analyst_rules
         st.session_state["result"] = result
         st.session_state["result_config"] = config
         st.session_state["result_signature"] = current_signature

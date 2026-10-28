@@ -85,6 +85,7 @@ def render_today() -> None:
     from ui_quick import render_slips
 
     render_slips()
+    render_analyst_report()
     if not api.configured:
         st.info("Serve ODDS_API_KEY in .streamlit/secrets.toml per l'elenco partite e le quote del giorno.")
         return
@@ -298,17 +299,13 @@ def _render_analyst(analyses: list[Analysis], settings: dict) -> None:
 
     from analyst import Target, match_blocks, parse_report, report_rows
 
-    st.subheader("Report dell'Analista")
-    text = st.text_area("Incolla report dell'Analista", key="analyst_text", height=160,
-                        help="L'intero report dell'attività programmata: i blocchi «PARTITA: Casa - Ospite | competizione | "
-                             "data» con CORREZIONI_CLAUDE si abbinano alle partite di questa pagina per squadre e data; il "
-                             "testo libero viene ignorato.")
+    text = st.session_state.get("analyst_text") or ""
     if not text.strip():
         return
     blocks = parse_report(text)
     if not blocks:
-        st.warning("Nessun blocco «PARTITA: Casa - Ospite | …» nel testo incollato.")
         return
+    st.subheader("Report dell'Analista · partite di oggi")
     targets = [Target(index, analysis.match.home, analysis.match.away, analysis.match.commence_time.astimezone().date())
                for index, analysis in enumerate(analyses) if analysis.ok]
     match_blocks(blocks, targets)
@@ -338,12 +335,100 @@ def _render_analyst(analyses: list[Analysis], settings: dict) -> None:
             simulate(analysis, claude=block.response if use else None, keep_claude=False, settings=settings)
             _remember(analysis)
         st.session_state["analyst_applied"] = [index for index, block in by_index.items() if apply and block.response]
+        _record_dataset(analyses, by_index)
         _store_report(text, rows)
         st.session_state["analyst_signature"] = signature
         st.session_state.pop("today_overrides", None)
         st.rerun()
     st.caption("Correzioni applicate dopo l'ancoraggio al mercato; «Apri scheda» le porta nella tab Claude della partita."
                if apply else "Correzioni lette ma non applicate.")
+
+
+def _record_dataset(analyses: list[Analysis], by_index: dict) -> None:
+    """Fase Y: le partite abbinate entrano nel dataset dell'Analista con i profili alla data della partita."""
+    from analyst_dataset import from_result, upsert
+    from tactical_sheets import find_sheet
+    from ui_memory import analyst_records, save_analyst_records
+    from ui_tactical import saved_sheets
+
+    records = analyst_records()
+    for index in by_index:
+        analysis = analyses[index]
+        if not analysis.ok:
+            continue
+        home, away = analysis.match.home, analysis.match.away
+        records = upsert(records, from_result(analysis.match.commence_time.astimezone().date(), analysis.match.competition,
+                                              home, away, analysis.result, analysis.odds, find_sheet(saved_sheets(), home),
+                                              find_sheet(saved_sheets(), away), analysis.tactical))
+    save_analyst_records(records)
+
+
+def render_analyst_report() -> None:
+    """Report dell'Analista (fasi W e Y): esiti di ieri, profili tattici e storico proprio; le correzioni delle
+    partite di oggi si abbinano più sotto, dopo «Analizza tutte»."""
+    import hashlib
+
+    from analyst import fill_registry, fill_slips, merge_profiles, parse_full
+    from analyst_dataset import attach_outcome
+    from ui_memory import analyst_records, registry_log, save_analyst_records, session_id
+    from ui_tactical import STATE_KEY, saved_sheets
+
+    st.subheader("Report dell'Analista")
+    text = st.text_area("Incolla report dell'Analista", key="analyst_text", height=160,
+                        help="L'intero report: blocchi ESITO (partite di ieri), PARTITA con CORREZIONI_CLAUDE e "
+                             "CHIAVI_MATCH (partite di oggi, abbinate dopo «Analizza tutte») e PROFILO_TATTICO (squadre). "
+                             "Il testo libero viene ignorato.")
+    if not text.strip():
+        return
+    report = parse_full(text, date.today())
+    signature = hashlib.sha256(text.encode()).hexdigest()
+    outcomes = report.outcomes
+    if outcomes:
+        st.markdown("**Esiti delle partite di ieri**")
+        st.dataframe(pd.DataFrame([{"Partita": block.label, "Data": f"{block.when:%d/%m/%Y}" if block.when else "",
+                                    "Competizione": block.competition, "Per tempo": "sì" if block.has_halves else "no",
+                                    "Fonte": block.source or "", "Stato": block.error or "valido"} for block in outcomes]),
+                     hide_index=True, width="stretch")
+        if st.session_state.get("analyst_outcome_signature") != signature:
+            log, session = registry_log(), session_id()
+            changed, settled = fill_registry(log.rows(session), outcomes)
+            if changed:
+                log.save(changed, session)
+            slips, legs = fill_slips(st.session_state.get("saved_slips", []), outcomes)
+            st.session_state["saved_slips"] = slips
+            records, added = analyst_records(), 0
+            for block in outcomes:
+                if not block.error:
+                    records, status = attach_outcome(records, block)
+                    added += status != "già presente"
+            save_analyst_records(records)
+            st.session_state["analyst_outcome_signature"] = signature
+            st.session_state["analyst_outcome_report"] = (
+                f"Registro: {settled} selezioni con esito; schedine: {legs} gambe; dataset: {added} esiti aggiunti. "
+                "Esiti già presenti mai sovrascritti; fonte e data in Note.")
+        st.caption(st.session_state.get("analyst_outcome_report", ""))
+    if report.profiles or report.warnings:
+        st.markdown("**Profili tattici**")
+        for warning in report.warnings:
+            st.warning(warning)
+        if st.session_state.get("analyst_profile_signature") != signature:
+            sheets, changes, pending = merge_profiles(saved_sheets(), report.profiles)
+            st.session_state[STATE_KEY] = sheets
+            st.session_state["analyst_profile_pending"] = (changes, [sheet.to_dict() for sheet in pending])
+            st.session_state["analyst_profile_signature"] = signature
+        changes, pending = st.session_state.get("analyst_profile_pending", ([], []))
+        st.caption(f"{len(report.profiles)} profili letti: aggiornati subito quelli senza valori diversi dai precedenti.")
+        if changes:
+            st.warning("Alcuni profili cambiano valori già salvati: conferma per aggiornarli.")
+            st.dataframe(pd.DataFrame(changes), hide_index=True, width="stretch")
+            if st.button("Conferma i cambi dei profili", key="analyst_profile_confirm"):
+                from tactical_sheets import TacticalSheet, upsert as upsert_sheets
+
+                st.session_state[STATE_KEY] = upsert_sheets(saved_sheets(), [TacticalSheet.from_dict(item) for item in pending])
+                st.session_state["analyst_profile_pending"] = ([], [])
+                st.rerun()
+    st.caption(f"Dataset dell'Analista: {len(analyst_records())} partite nell'archivio locale (foglio «Dataset Analista» "
+               "dell'Excel della giornata).")
 
 
 def _store_report(text: str, rows: list[dict]) -> None:

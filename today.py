@@ -135,6 +135,7 @@ def simulate(analysis: Analysis, *, flags: Sequence[str] | None = None, claude: 
     analysis.result = simulate_match(config)
     if effects is not None:
         analysis.result["tactical_sheet"] = effects.any_sheet
+        analysis.result["analyst_rules"] = effects.analyst_rules
     return analysis
 
 

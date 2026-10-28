@@ -114,7 +114,29 @@ def _forget(record_id: str) -> None:
 def day_file_bytes() -> bytes:
     return day_workbook(registry_log().rows(session_id()), list(_store().values()),
                         st.session_state.get("tactical_sheets", []), st.session_state.get("dual_choices", []),
-                        st.session_state.get("analyst_reports", []), st.session_state.get("saved_slips", []))
+                        st.session_state.get("analyst_reports", []), st.session_state.get("saved_slips", []),
+                        analyst_records())
+
+
+def analyst_records() -> list[dict]:
+    """Fase Y: dataset dell'Analista (archivio locale cumulativo, caricato una volta per sessione)."""
+    from analyst_dataset import DatasetStore
+    from ui_data import source_cache
+
+    if "analyst_dataset" not in st.session_state:
+        try:
+            st.session_state["analyst_dataset"] = DatasetStore(source_cache()).load()
+        except Exception:  # archivio locale illeggibile: si riparte vuoti, con il file Excel come copia
+            st.session_state["analyst_dataset"] = []
+    return st.session_state["analyst_dataset"]
+
+
+def save_analyst_records(records: list[dict]) -> None:
+    from analyst_dataset import DatasetStore
+    from ui_data import source_cache
+
+    st.session_state["analyst_dataset"] = records
+    DatasetStore(source_cache()).save(records)
 
 
 def render_download(key: str) -> None:
@@ -165,6 +187,13 @@ def restore(content: bytes) -> None:
         st.session_state["tactical_sheets"] = upsert(
             st.session_state.get("tactical_sheets", []),
             [TacticalSheet.from_dict(row) for row in day.tactical_rows if row.get("team")])
+    if day.dataset:
+        from analyst_dataset import upsert as upsert_record
+
+        records = analyst_records()
+        for item in day.dataset:  # profili ed esiti già presenti restano (``analyst_dataset.upsert``)
+            records = upsert_record(records, item)
+        save_analyst_records(records)
     if day.slips:
         names = {slip.get("name") for slip in day.slips}
         st.session_state["saved_slips"] = [slip for slip in st.session_state.get("saved_slips", [])

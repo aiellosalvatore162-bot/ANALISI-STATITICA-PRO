@@ -219,5 +219,23 @@
   "cambio_allenatore": {
     "peso_partite_precedenti": 0.3,
     "partite_per_fidarsi": 8
+  },
+  "regole_analista": {
+    "nota": "Fase Y: regole di incrocio non misurabili con i dati gratuiti (non possesso a uomo/zona), applicate con i profili PROFILO_TATTICO (Analista o Claude), effetti ridotti a «limiti» e avviso «regola non ancora verificata». Stato per regola: «da verificare» (applicata con avviso), «verificata» (applicata con l'effetto stimato sullo storico proprio), «spenta». Si verificano nella pagina Prestazioni quando il dataset dell'Analista ha almeno «min_partite» partite con profili ed esiti.",
+    "attiva": true,
+    "limiti": [
+      0.95,
+      1.05
+    ],
+    "min_partite": 150,
+    "min_partite_tempi": 100,
+    "regole": {
+      "verticale_vs_blocco_alto": {
+        "stato": "da verificare"
+      },
+      "fasce_vs_difesa_uomo": {
+        "stato": "da verificare"
+      }
+    }
   }
 }
