@@ -271,6 +271,12 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   (`forza_calendario.solo_modello`, `MatchConfig.strength_inputs`, `engine.strength_model_config`).
   Eurobet contro sharp in `sharp_value.py` (soglia `eurobet_vs_sharp.soglia_pct` di `config/oggi.json`,
   nota «eurobet_vs_sharp: +x%», `prediction_rows(extra_notes=...)`).
+- Blocco facoltativo `FORMA:` nelle partite del report (`match_form.py`: righe `casa:`/`ospite:` con
+  ultime 5 V-N-P, `gol_fatti_subiti`, `in_casa`/`in_trasferta`, `fonte` obbligatoria per riga, `nota`;
+  lettura tollerante, tolto dal corpo prima di correzioni e chiavi). SOLO informativo: mai nel motore
+  (probabilità, gol attesi, EV, semaforo, ancoraggio). Scheda `dashboard.form_card` nella pagina Oggi, colonna
+  «Forma» del registro (SQLite e colonna Z dell'Excel, scritta solo se c'è almeno una forma: A–S e le formule
+  T–Y del file dell'utente restano intatte) e del foglio Analisi (`ui_memory.with_form`/`form_for`).
 - Le fonti remote devono degradare con un avviso (come `historical.py` ricade
   al 100% manuale), mai bloccare la simulazione manuale.
 

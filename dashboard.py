@@ -561,6 +561,27 @@ def goleada_line(result: Mapping) -> str:
             f'vince con 3+ gol di scarto: {pct(data["scarto"])}</div>')
 
 
+def form_card(home: str, away: str, form) -> str:
+    """Forma recente dal blocco FORMA dell'Analista (``match_form.MatchForm``): solo informazione."""
+    items = []
+    for label, team, side, venue in (("Casa", home, form.home, "in casa"), ("Ospite", away, form.away, "fuori")):
+        if side is None:
+            items.append(f'<div class="pick"><div class="family">{esc(label)} · {esc(team)}</div>'
+                         f'<div>forma non indicata</div></div>')
+            continue
+        details = [f"gol fatti-subiti {side.goals[0]}-{side.goals[1]}" if side.goals else "",
+                   f"{venue} {'-'.join(side.venue)}" if side.venue else ""]
+        items.append(f'<div class="pick"><div class="family">{esc(label)} · {esc(team)}</div>'
+                     f'<div class="market">{esc("-".join(side.results) or "—")}</div>'
+                     f'<div>{esc(" · ".join(part for part in details if part))}</div>'
+                     f'<div class="family">fonte: {esc(side.source)}</div></div>')
+    note = f'<div class="say">{esc(form.note)}</div>' if form.note else ""
+    return (f'<section class="card"><div class="head">{ICONS["ball"]}<span>Forma · {esc(home)} - {esc(away)}</span></div>'
+            f'<div class="say">Ultime 5 (V vinta, N pareggio, P persa, dalla più vecchia), dal report dell\'Analista. '
+            f'Solo informazione: non cambia probabilità, gol attesi, EV né semaforo.</div>{note}'
+            f'<div class="picks">{"".join(items)}</div></section>')
+
+
 def keys_card(keys: Sequence) -> str:
     """Chiavi del match: duelli con il mercato collegato (solo informazione, non cambiano le probabilità)."""
     items = [f'<div class="pick"><div class="family">{esc(", ".join(key.markets))}</div>'

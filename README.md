@@ -432,6 +432,23 @@ dell'Analista (esempio con tutti i blocchi in
 - I blocchi **PARTITA** restano quelli della fase W e si abbinano dopo
   «Analizza tutte».
 
+**Forma (solo informativa).** Ogni PARTITA del report può avere un blocco
+facoltativo:
+
+```
+FORMA:
+casa: V-V-P-N-V | gol_fatti_subiti: 9-4 | in_casa: V-N-V | fonte: https://...
+ospite: P-N-V-P-P | gol_fatti_subiti: 5-8 | in_trasferta: P-P-N | fonte: https://...
+nota: <una riga>
+```
+
+La pagina Oggi lo mostra come scheda accanto alle correzioni. Il registro lo
+salva nella colonna «Forma» (colonna Z dell'Excel, dopo le formule del tuo
+file), e anche il foglio Analisi ha la sua colonna. Probabilità, gol attesi, EV,
+semaforo e ancoraggio non cambiano: il modello tiene già conto della forma. Se
+il blocco manca o è incompleto, la partita funziona come prima; le righe senza
+fonte o con valori non validi vengono scartate con un avviso.
+
 **Storico proprio.** Ogni partita abbinata e ogni esito entrano nel «dataset
 Analista», con i profili delle due squadre alla data della partita, le quote,
 le probabilità del modello (anche per tempo) e l'esito completo. Il dataset si

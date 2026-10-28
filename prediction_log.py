@@ -29,6 +29,10 @@ COLUMNS = (
     "Quota_chiusura", "Esito", "Note",
 )
 PROBABILITY_COLUMNS = ("Prob_finale", "Prob_mercato", "Prob_modello", "Prob_stile", "Prob_Claude")
+# Colonna informativa oltre A–S: la forma dal report dell'Analista. Nel file dell'utente T–Y sono formule
+# (Profitto, CLV, Brier), quindi va nella prima colonna libera, Z; la lettura del registro resta A–S.
+FORM_COLUMN = "Forma"
+FORM_COLUMN_INDEX = 26
 # Stessi nomi, stesso ordine della tabella «per mercato» del foglio Riepilogo («Multipla»: schedine con più partite, fase S).
 MARKETS = ("1X2", "Doppia chance", "DNB", "Over 1.5", "Under 1.5", "Over 2.5", "Under 2.5", "Over 3.5", "Under 3.5",
            "Goal/NoGoal", "Multigol", "Multigol casa", "Multigol ospite", "Primo tempo", "Over 0.5 1T", "Over 1.5 1T",
@@ -209,7 +213,8 @@ def to_excel(rows: Sequence[Mapping[str, Any]], *, sheet: str = "Registro") -> b
 
 
 def write_registry_sheet(worksheet, rows: Sequence[Mapping[str, Any]]) -> None:
-    """Intestazione e righe A–S con i formati del file dell'utente (date, probabilità in percentuale)."""
+    """Intestazione e righe A–S con i formati del file dell'utente (date, probabilità in percentuale), più la
+    colonna informativa «Forma» in Z quando almeno una riga ce l'ha."""
     worksheet.append(list(COLUMNS))
     for row in rows:
         values = []
@@ -219,6 +224,12 @@ def write_registry_sheet(worksheet, rows: Sequence[Mapping[str, Any]]) -> None:
                 value = date.fromisoformat(value[:10])
             values.append(value)
         worksheet.append(values)
+    if any(row.get(FORM_COLUMN) for row in rows):  # colonna Z solo quando c'è almeno una forma
+        worksheet.cell(row=1, column=FORM_COLUMN_INDEX, value=FORM_COLUMN)
+        for position, row in enumerate(rows, start=2):
+            if row.get(FORM_COLUMN):
+                worksheet.cell(row=position, column=FORM_COLUMN_INDEX, value=row[FORM_COLUMN])
+        worksheet.column_dimensions[worksheet.cell(row=1, column=FORM_COLUMN_INDEX).column_letter].width = 60
     for index, column in enumerate(COLUMNS, start=1):
         letter = worksheet.cell(row=1, column=index).column_letter
         worksheet.column_dimensions[letter].width = max(10, len(column) + 2)
@@ -240,6 +251,9 @@ class PredictionLog:
         columns = ", ".join(f'"{column}"' + (" PRIMARY KEY" if column == "ID" else "") for column in COLUMNS)
         with sqlite3.connect(self.path) as connection:
             connection.execute(f"CREATE TABLE IF NOT EXISTS {self.TABLE} ({columns}, sessione TEXT)")
+            existing = {row[1] for row in connection.execute(f"PRAGMA table_info({self.TABLE})")}
+            if FORM_COLUMN not in existing:
+                connection.execute(f'ALTER TABLE {self.TABLE} ADD COLUMN "{FORM_COLUMN}" TEXT')
             self._migrate(connection)
 
     def _migrate(self, connection: sqlite3.Connection) -> None:
@@ -267,12 +281,15 @@ class PredictionLog:
         connection.execute("DROP TABLE registro_previsioni")
 
     def _upsert(self, connection: sqlite3.Connection, row: Mapping[str, Any], session: str) -> bool:
-        exists = connection.execute(f'SELECT 1 FROM {self.TABLE} WHERE "ID" = ?', (row["ID"],)).fetchone() is not None
+        found = connection.execute(f'SELECT "{FORM_COLUMN}" FROM {self.TABLE} WHERE "ID" = ?', (row["ID"],)).fetchone()
+        exists = found is not None
         values = [_day(row.get(column)) if column == "Data" else row.get(column) for column in COLUMNS]
-        names = ", ".join(f'"{column}"' for column in COLUMNS)
+        # Una riga senza la chiave «Forma» (es. riletta dalle sole colonne A–S) tiene la forma già salvata.
+        form = row[FORM_COLUMN] if FORM_COLUMN in row else (found[0] if found else None)
+        names = ", ".join(f'"{column}"' for column in (*COLUMNS, FORM_COLUMN))
         connection.execute(
-            f"INSERT OR REPLACE INTO {self.TABLE} ({names}, sessione) VALUES ({', '.join('?' * (len(COLUMNS) + 1))})",
-            (*values, session))
+            f"INSERT OR REPLACE INTO {self.TABLE} ({names}, sessione) VALUES ({', '.join('?' * (len(COLUMNS) + 2))})",
+            (*values, form, session))
         return exists
 
     def save(self, rows: Sequence[Mapping[str, Any]], session: str) -> tuple[int, int]:
@@ -291,5 +308,5 @@ class PredictionLog:
         query = f"SELECT * FROM {self.TABLE}" + (" WHERE sessione = ?" if session else "") + " ORDER BY rowid"
         with sqlite3.connect(self.path) as connection:
             connection.row_factory = sqlite3.Row
-            return [{column: row[column] for column in COLUMNS}
+            return [{**{column: row[column] for column in COLUMNS}, FORM_COLUMN: row[FORM_COLUMN]}
                     for row in connection.execute(query, (session,) if session else ())]
