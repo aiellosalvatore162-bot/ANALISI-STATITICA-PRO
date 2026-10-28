@@ -280,7 +280,8 @@ class DataProvider:
 
         section = json.loads(GOAL_MODEL_PATH.read_text(encoding="utf-8")).get("forza_calendario") if GOAL_MODEL_PATH.exists() else None
         params = ratings.params_from_config(section)
-        if not params.active or params.mode != "ingressi":
+        model_only = bool((section or {}).get("solo_modello"))
+        if params.mode != "ingressi" or not (params.active or model_only):
             return
         for side, league in leagues.items():
             if league is None or league not in league_rows or profiles[side].fields.get("attack") is None:
@@ -304,6 +305,13 @@ class DataProvider:
             note = (f"forza Dixon-Coles del campionato (ξ {params.decay_per_day:g}/giorno, peso gol {params.goal_weight:g}, "
                     f"{fitted.matches.get(team, 0):.1f} partite pesate)")
             previous = profiles[side].fields["attack"]
+            # Fase Y, punto 0: sempre tra le informazioni; il motore le usa da sole quando mancano le quote 1X2/O-U.
+            profiles[side].extra["dc_attack"] = FieldValue(round(float(np.clip(attack, 0.2, 3.0)), 3), previous.source,
+                                                           previous.updated, previous.last_match, note)
+            profiles[side].extra["dc_defense"] = FieldValue(round(float(np.clip(defence, 0.2, 3.0)), 3), previous.source,
+                                                            previous.updated, previous.last_match, note)
+            if not params.active:
+                continue
             profiles[side].fields["attack"] = FieldValue(round(float(np.clip(attack, 0.2, 3.0)), 2), previous.source,
                                                          previous.updated, previous.last_match, note)
             previous = profiles[side].fields["defense"]
@@ -530,7 +538,19 @@ def provenance_rows(sheet: MatchSheet) -> list[dict]:
 EXTRA_LABELS = {
     "goals_for": "Gol fatti", "goals_against": "Gol subiti", "ht_goals_for": "Gol fatti 1° tempo",
     "ht_goals_against": "Gol subiti 1° tempo", "fouls_for": "Falli commessi", "ppda": "PPDA", "deep": "Deep completions",
+    "dc_attack": "Attacco corretto per il calendario", "dc_defense": "Difesa corretta per il calendario",
 }
+
+
+def strength_inputs(sheet: MatchSheet) -> dict[str, tuple[float, float]] | None:
+    """Fase Y, punto 0: (attacco, difesa) Dixon-Coles delle due squadre, per il modello senza quote."""
+    out = {}
+    for side in ("home", "away"):
+        extra = sheet.extras.get(side, {})
+        if "dc_attack" not in extra or "dc_defense" not in extra:
+            return None
+        out[side] = (float(extra["dc_attack"].value), float(extra["dc_defense"].value))
+    return out
 
 
 # --- Controllo di plausibilità ------------------------------------------------------------

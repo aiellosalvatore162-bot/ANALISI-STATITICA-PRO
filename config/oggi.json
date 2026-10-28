@@ -79,5 +79,9 @@
       0.93,
       1.07
     ]
+  },
+  "eurobet_vs_sharp": {
+    "soglia_pct": 3.0,
+    "nota": "Fase Y: lista «Quote Eurobet sopra il prezzo equo sharp» con la quota Eurobet almeno questa percentuale sopra la quota equa (senza margine, Shin) del riferimento The Odds API."
   }
 }

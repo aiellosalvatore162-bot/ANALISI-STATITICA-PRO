@@ -319,12 +319,17 @@ def split_match(match: str) -> tuple[str, str] | None:
 
 def _needs(selection: str) -> list[str]:
     needed = ["home_goals", "away_goals"]
-    if " 1T" in selection or " 2T" in selection or "BTTS" in selection:
+    counts_only = re.search(r"(corner|cartellini) [12]T", selection) and " + " not in selection
+    if (" 1T" in selection or " 2T" in selection or "BTTS" in selection) and not counts_only:
         needed += ["home_ht_goals", "away_ht_goals"]
     if "corner" in selection:
         needed += ["home_corners", "away_corners"]
     if "cartellini" in selection:
         needed += ["home_yellows", "away_yellows", "home_reds", "away_reds"]
+    if re.search(r"(corner|cartellini) [12]T", selection):
+        # Fase Y: corner e cartellini per tempo (blocchi ESITO dell'Analista).
+        needed += ["home_corners_1t", "away_corners_1t"] if "corner" in selection else \
+            ["home_yellows_1t", "away_yellows_1t", "home_reds_1t", "away_reds_1t"]
     return needed
 
 
@@ -355,17 +360,26 @@ def settle(selection: str, result: pd.Series | dict, card_rule=None) -> int | No
     zero = np.array([0])
     if "home_reds" in values:
         rule = card_rule or DEFAULT_CARD_RULE
-        if rule.double_yellow_extra:
-            return None  # i dati non distinguono i rossi da doppia ammonizione
-        values["home_yellows"] = card_points(values["home_yellows"], values["home_reds"], rule)
-        values["away_yellows"] = card_points(values["away_yellows"], values["away_reds"], rule)
+        doubles = [result.get(f"{side}_double_yellows") for side in ("home", "away")]
+        known = all(value is not None and not pd.isna(value) for value in doubles)
+        if rule.double_yellow_extra and not known:
+            return None  # i dati non distinguono i rossi da doppia ammonizione (l'ESITO dell'Analista sì)
+        extra = [int(value) if known else 0 for value in doubles]
+        values["home_yellows"] = card_points(values["home_yellows"], values["home_reds"], rule, extra[0])
+        values["away_yellows"] = card_points(values["away_yellows"], values["away_reds"], rule, extra[1])
     first_home, first_away = values.get("home_ht_goals", zero), values.get("away_ht_goals", zero)
+    half_counts = None
+    if "home_corners_1t" in values or "home_yellows_1t" in values:
+        rule = card_rule or DEFAULT_CARD_RULE
+        cards_first = [card_points(values[f"{side}_yellows_1t"], values[f"{side}_reds_1t"], rule)
+                       if f"{side}_yellows_1t" in values else zero for side in ("home", "away")]
+        half_counts = (values.get("home_corners_1t", zero), values.get("away_corners_1t", zero), *cards_first)
     events = _event_catalog(
         values["home_goals"], values["away_goals"], first_home, first_away,
         values["home_goals"] - first_home, values["away_goals"] - first_away,
         values.get("home_corners", zero), values.get("away_corners", zero),
         values.get("home_yellows", zero), values.get("away_yellows", zero),
-        _team_multigol_ranges({leg: 2.0 for leg in legs}),
+        _team_multigol_ranges({leg: 2.0 for leg in legs}), half_counts=half_counts,
     )
     if any(leg not in events for leg in legs):
         return None

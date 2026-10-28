@@ -27,7 +27,7 @@ from ui_data import (
     render_automatic, render_claude, render_create, render_registry, render_style, render_tactical, show_provenance,
 )
 from ui_exact import render_exact_scores
-from ui_eurobet import find_paste, render_apply, render_paste, sharp_for
+from ui_eurobet import find_paste, render_apply, render_paste, render_sharp_value, sharp_for
 from ui_memory import RESTART_WARNING, flags_key, remember, remember_claude, render_registry_table, render_sidebar
 from ui_odds import render_credits, render_odds
 from ui_performance import render_performance
@@ -532,6 +532,7 @@ with st.container(border=True):
                 render_apply(eurobet_paste, current_fields,
                              lambda market, price: st.session_state.__setitem__(field_keys[market], float(price)),
                              f"eurobet_{match_slug}")
+                render_sharp_value(parsed_preview.home.name, parsed_preview.away.name)
         st.pills("Segnalazioni da osservatore", list(load_today_settings()["segnalazioni"]), selection_mode="multi",
                  key=flags_key(parsed_preview.home.name, parsed_preview.away.name),
                  help="Effetti piccoli e limitati (config/oggi.json) su gol, corner e cartellini, dopo l'ancoraggio; "
@@ -578,6 +579,15 @@ sheet_effects = current_effects(parsed_preview.home.name if parsed_preview else 
                                 parsed_preview.away.name if parsed_preview else None)
 render_match_sheets(sheet_effects, (parsed_preview.home.elo, parsed_preview.away.elo)
                     if parsed_preview is not None and hasattr(parsed_preview.home, "elo") else None)
+def _strengths(home: str, away: str) -> dict | None:
+    """Forza corretta per il calendario della scheda compilata in automatico (stesse squadre del blocco)."""
+    from datasources.names import match_team
+
+    saved = st.session_state.get("auto_strengths") or {}
+    teams = saved.get("teams") or ("", "")
+    return saved.get("inputs") if match_team(home, [teams[0]]) and match_team(away, [teams[1]]) else None
+
+
 def _with_absences(factors: dict, home: str, away: str) -> dict:
     """Fattori delle schede tattiche × assenze pesate (fase P), queste solo se l'opzione «assenze» è accesa."""
     from ui_scorers import absence_key
@@ -633,11 +643,13 @@ if st.button("Esegui simulazione", type="primary", width="stretch") or st.sessio
                                      "claude": combined_adjustment(flags, None, tactical=_with_absences(
                                          sheet_effects.factors, parsed.home.name, parsed.away.name))})
         config = config.__class__(**{**config.__dict__, "timeline": sheet_effects.timeline(config.timeline),
-                                     "league": league_code((st.session_state.get("match_meta") or {}).get("competition"))})
+                                     "league": league_code((st.session_state.get("match_meta") or {}).get("competition")),
+                                     "strength_inputs": _strengths(parsed.home.name, parsed.away.name)})
         st.session_state["result_flags"] = flags
         st.session_state["anchor_sources"] = anchor_sources
         result = simulate_match(config)
         result["tactical_sheet"] = sheet_effects.any_sheet
+        result["analyst_rules"] = sheet_effects.analyst_rules
         st.session_state["result"] = result
         st.session_state["result_config"] = config
         st.session_state["result_signature"] = current_signature
@@ -649,6 +661,9 @@ if st.button("Esegui simulazione", type="primary", width="stretch") or st.sessio
 
 if st.session_state.get("warnings"):
     st.warning("Fallback applicati: " + " · ".join(st.session_state["warnings"]))
+_strength_note = ((st.session_state.get("result") or {}).get("model", {}).get("formula_ledger") or {}).get("forza_calendario")
+if _strength_note:
+    st.info(_strength_note["nota"])
 
 def _source_probabilities(event_name: str | None) -> str:
     """Solo-mercato, solo-modello e finale per l'evento, dal risultato corrente."""
