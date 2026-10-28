@@ -540,6 +540,8 @@ def render_registry(result: dict, config, claude: dict | None = None, claude_not
     if st.button("Salva nel registro", key="registry_save"):
         records = [{key: None if pd.isna(value) else value for key, value in row.items()}
                    for row in edited.to_dict("records")]
-        new, updated = log.save(records, session)
+        from ui_memory import with_form
+
+        new, updated = log.save(with_form(records), session)
         st.success(f"Registro: {new} righe nuove" + (f", {updated} aggiornate (stesso ID: niente doppioni)." if updated else ".")
                    + " Le righe si sommano a quelle delle altre partite della giornata (tabella qui sotto).")

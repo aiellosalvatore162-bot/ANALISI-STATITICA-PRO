@@ -44,6 +44,9 @@ def _remember(analysis: Analysis) -> None:
                          warnings=[*analysis.warnings, *([analysis.note()] if analysis.note() else [])],
                          flags=analysis.flags, claude_answer=analysis.claude_text,
                          claude_applied=analysis.claude is not None and analysis.claude.adjustment() is not None)
+    from ui_memory import form_for
+
+    record["form"] = form_for(analysis.match.label)  # colonna «Forma» del foglio Analisi (informativa)
     upsert(_store(), record)
 
 
@@ -262,7 +265,9 @@ def _single_rows(analysis: Analysis, selections: list[str], kind: str) -> list[d
 def _save(rows: list[dict]) -> None:
     from ui_memory import registry_log, session_id
 
-    new, updated = registry_log().save(rows, session_id())
+    from ui_memory import with_form
+
+    new, updated = registry_log().save(with_form(rows), session_id())
     st.success(f"Registro: {new} righe nuove" + (f", {updated} aggiornate (stesso ID)." if updated else ".")
                + " Le trovi nella tab Registro della pagina Partita e nell'Excel della giornata.")
 
@@ -317,6 +322,7 @@ def _render_analyst(analyses: list[Analysis], settings: dict) -> None:
                "regole della fase G: limiti, fonte obbligatoria, media dell'arbitro avvicinata alla media.")
     if matched:
         st.dataframe(pd.DataFrame(matched).drop(columns=["Non abbinato perché"]), hide_index=True, width="stretch")
+        _render_forms(blocks, analyses)
     if unmatched:
         st.markdown("**Blocchi non abbinati**")
         st.dataframe(pd.DataFrame(unmatched)[["Partita del report", "Data del report", "Non abbinato perché"]],
@@ -342,6 +348,25 @@ def _render_analyst(analyses: list[Analysis], settings: dict) -> None:
         st.rerun()
     st.caption("Correzioni applicate dopo l'ancoraggio al mercato; «Apri scheda» le porta nella tab Claude della partita."
                if apply else "Correzioni lette ma non applicate.")
+
+
+def _render_forms(blocks, analyses: list[Analysis]) -> None:
+    """Schede «Forma» accanto alle correzioni: solo informazione, mai nel calcolo (colonna «Forma» del registro)."""
+    import dashboard
+    from ui_memory import remember_form
+
+    cards = []
+    for block in blocks:
+        if block.matched is None:
+            continue
+        match = analyses[block.matched].match
+        remember_form(match.home, match.away, block.form.summary() if block.form is not None else "")
+        if block.form is not None:
+            cards.append(dashboard.form_card(match.home, match.away, block.form))
+            for warning in block.form.warnings:
+                st.caption(f"{match.label}: {warning}")
+    if cards:
+        st.html(dashboard.grid(cards))
 
 
 def _record_dataset(analyses: list[Analysis], by_index: dict) -> None:

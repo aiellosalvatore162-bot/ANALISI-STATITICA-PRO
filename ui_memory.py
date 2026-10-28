@@ -239,3 +239,37 @@ def _delete_rows() -> None:
     deleted = registry_log().delete(st.session_state.get("registry_remove") or [], session_id())
     st.session_state["registry_remove"] = []
     st.session_state["registry_remove_report"] = f"{deleted} {'riga eliminata' if deleted == 1 else 'righe eliminate'}."
+
+
+# --- Forma dal report dell'Analista (solo informativa) ---------------------------------------------------
+
+FORMS_KEY = "analyst_forms"
+
+
+def remember_form(home: str, away: str, text: str) -> None:
+    """Forma della partita letta dal blocco FORMA del report (testo della colonna «Forma»)."""
+    from datasources.names import match_team
+
+    forms = [entry for entry in st.session_state.get(FORMS_KEY, [])
+             if not (match_team(home, [entry["home"]]) and match_team(away, [entry["away"]]))]
+    st.session_state[FORMS_KEY] = forms + ([{"home": home, "away": away, "text": text}] if text else [])
+
+
+def form_for(match: str) -> str:
+    from datasources.names import match_team
+    from performance import split_match
+
+    teams = split_match(match)
+    if teams is None:
+        return ""
+    for entry in reversed(st.session_state.get(FORMS_KEY, [])):
+        if match_team(teams[0], [entry["home"]]) and match_team(teams[1], [entry["away"]]):
+            return entry["text"]
+    return ""
+
+
+def with_form(rows: list[dict]) -> list[dict]:
+    """Righe del registro con la colonna «Forma» compilata quando il report ne ha una (mai nel calcolo)."""
+    from prediction_log import FORM_COLUMN
+
+    return [{**row, FORM_COLUMN: row.get(FORM_COLUMN) or form_for(row.get("Partita", "")) or None} for row in rows]

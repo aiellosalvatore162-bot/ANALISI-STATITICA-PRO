@@ -25,9 +25,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date, datetime
 import re
-from typing import Iterable, Sequence
+from typing import Any, Iterable, Sequence
 
 from claude_bridge import HEADER, ClaudeResponse, ResponseError, parse_response
+from match_form import parse_form, without_section
 from match_keys import MatchKey, keys_section, parse_keys, swap_text
 
 
@@ -71,6 +72,8 @@ class ReportBlock:
     keys_text: str = ""               # blocco CHIAVI_MATCH (informativo)
     swapped: bool = False             # casa e ospite invertite rispetto alla partita della pagina
     original: tuple[str, str] = ("", "")  # correzioni e chiavi come scritte nel report
+    form: Any = None                  # match_form.MatchForm: solo informativa, mai nel motore
+    form_original: Any = None         # forma come scritta nel report (prima di un eventuale scambio di squadre)
 
     @property
     def notice(self) -> str:
@@ -127,6 +130,9 @@ def parse_report(text: str) -> list[ReportBlock]:
     blocks = []
     for header in headers:
         body = text[header.end():_end(text, header.start())]
+        # Blocco FORMA facoltativo: letto a parte e tolto dal corpo, così correzioni e commento restano come prima.
+        form = parse_form(body)
+        body = without_section(body)
         parts = [part.strip().strip("*_").strip() for part in header["body"].split("|")]
         teams = split_match(parts[0].strip("*_ "))
         block = ReportBlock(header=header.group(0).strip().strip("*_# >").strip(), home=teams[0] if teams else None,
@@ -148,6 +154,7 @@ def parse_report(text: str) -> list[ReportBlock]:
                 block.error = str(exc)
         block.keys_text = keys_section(body)
         block.original = (block.corrections_text, block.keys_text)
+        block.form = block.form_original = form
         blocks.append(block)
     return blocks
 
@@ -171,6 +178,7 @@ def match_blocks(blocks: Sequence[ReportBlock], targets: Iterable[Target], *, to
     taken: dict[int, str] = {}
     for block in blocks:
         block.matched, block.reason, block.swapped = None, "", False
+        block.form = block.form_original
         if block.original != ("", ""):
             block.corrections_text, block.keys_text = block.original
         if block.error:
@@ -196,6 +204,10 @@ def match_blocks(blocks: Sequence[ReportBlock], targets: Iterable[Target], *, to
             candidates = dated
         target = candidates[0]
         if block.swapped:
+            if block.form is not None:
+                from dataclasses import replace
+
+                block.form = replace(block.form, home=block.form.away, away=block.form.home)
             block.corrections_text, block.keys_text = swap_text(block.corrections_text), swap_text(block.keys_text)
             block.response = parse_response(block.corrections_text)
         if target.index in taken:
@@ -216,6 +228,7 @@ def report_rows(blocks: Sequence[ReportBlock], names: dict[int, str]) -> list[di
         "Correzioni scartate": ", ".join(block.discarded()),
         "Confidenza": (block.response.confidence or "") if block.response else "",
         "Chiavi del match": len(block.keys()[0]),
+        "Forma": block.form.summary() if block.form is not None else "",
         "Avviso": block.notice,
         "Non abbinato perché": block.reason,
     } for block in blocks]

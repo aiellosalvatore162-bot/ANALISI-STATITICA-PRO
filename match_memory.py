@@ -121,6 +121,7 @@ def analysis_rows(records: Iterable[Mapping[str, Any]]) -> list[dict]:
             "risposta incollata" if record.get("claude_answer") else "")
         row["Eurobet"] = "incollata" if record.get("eurobet_text") else ""
         row["Segnalazioni"] = " · ".join(record.get("warnings") or [])
+        row["Forma"] = record.get("form") or ""  # dal report dell'Analista, solo informativa
         row["Salvata"] = record.get("saved_at")
         rows.append(row)
     return rows
@@ -249,6 +250,17 @@ def read_day_workbook(content: bytes) -> DayFile:
                 result.registry_rows.append(row)
         result.warnings.extend(warning for warning in registry.warnings if "non contiene righe" not in warning)
     workbook = load_workbook(BytesIO(content), read_only=True)
+    if REGISTRY_SHEET in workbook.sheetnames and result.registry_rows:
+        # Colonna «Forma» (Z) fuori dal blocco A–S: si rilegge per ID.
+        from prediction_log import FORM_COLUMN, FORM_COLUMN_INDEX
+
+        forms = {}
+        for values in workbook[REGISTRY_SHEET].iter_rows(min_row=1, values_only=True):
+            if len(values) >= FORM_COLUMN_INDEX and values[0] and values[0] != "ID" and values[FORM_COLUMN_INDEX - 1]:
+                forms[str(values[0])] = str(values[FORM_COLUMN_INDEX - 1])
+        for row in result.registry_rows:
+            if row["ID"] in forms:
+                row[FORM_COLUMN] = forms[row["ID"]]
     if TECHNICAL_SHEET in workbook.sheetnames:
         for values in workbook[TECHNICAL_SHEET].iter_rows(min_row=2, values_only=True):
             if not values or values[0] not in ("partita", "scheda", "doppio", "report", "schedina", "dataset"):
