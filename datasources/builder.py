@@ -16,6 +16,7 @@ import numpy as np
 import pandas as pd
 
 from datasources.cache import SourceCache
+from timing import fase
 from datasources.clubelo import ClubElo
 from datasources.names import display_name, match_team
 from datasources.sources import (
@@ -327,7 +328,8 @@ class DataProvider:
         self.warnings = []
         coaches = coaches or {}
         match_date = match_date or self.today
-        leagues = {side: self.competition_of(team) for side, team in (("home", home), ("away", away))}
+        with fase("ricerca del campionato"):
+            leagues = {side: self.competition_of(team) for side, team in (("home", home), ("away", away))}
         if self.max_age <= timedelta(0):
             # Aggiornamento forzato: i profili di stile di questi campionati vanno ricalcolati.
             store = ProfileStore(self.cache)
@@ -344,26 +346,30 @@ class DataProvider:
                 profiles[side] = TeamProfile(team, side, {key: missing(note) for key, _ in TEAM_FIELDS if key not in ("elo", "corners")}
                                              | {"corners_for": missing(note), "corners_against": missing(note)}, {}, None, [])
                 continue
-            matches = self.league_matches(league)
-            understat, us_updated = self.understat_matches(league)
-            league_rows[league] = matches.data
-            updated[side] = matches.updated
-            profiles[side] = team_profile(
-                team, team_match_rows(matches.data), understat, as_of=match_date, venue=side,
-                matches=self.matches, half_life=self.half_life,
-                footballdata_updated=matches.updated, understat_updated=us_updated, coach=coaches.get(side),
-            )
+            with fase("statistiche squadre (CSV e Understat)"):
+                matches = self.league_matches(league)
+                understat, us_updated = self.understat_matches(league)
+                league_rows[league] = matches.data
+                updated[side] = matches.updated
+                profiles[side] = team_profile(
+                    team, team_match_rows(matches.data), understat, as_of=match_date, venue=side,
+                    matches=self.matches, half_life=self.half_life,
+                    footballdata_updated=matches.updated, understat_updated=us_updated, coach=coaches.get(side),
+                )
             self.warnings.extend(profiles[side].warnings)
 
-        self._schedule_strengths(profiles, leagues, league_rows, match_date)
-        elo = self._elo(home, away, match_date, leagues)
+        with fase("forza Dixon-Coles"):
+            self._schedule_strengths(profiles, leagues, league_rows, match_date)
+        with fase("Elo ClubElo"):
+            elo = self._elo(home, away, match_date, leagues)
         sheet_fields = {}
         for side in ("home", "away"):
             fields = dict(profiles[side].fields)
             fields["elo"] = elo[side]
             fields["corners"] = _pair(fields.pop("corners_for"), fields.pop("corners_against"))
             sheet_fields[side] = fields
-            self._freshness(profiles[side], elo[side])
+            with fase("Elo ClubElo"):
+                self._freshness(profiles[side], elo[side])
 
         if leagues["home"] and leagues["away"] and leagues["home"] != leagues["away"]:
             self.warnings.append(
@@ -372,8 +378,9 @@ class DataProvider:
             )
         referee_data = pd.concat([league_rows[league] for league in {leagues["home"], leagues["away"]} if league in league_rows],
                                  ignore_index=True) if league_rows else pd.DataFrame()
-        ref = referee_profile(referee, referee_data, as_of=match_date,
-                              footballdata_updated=max((value for value in updated.values() if value), default=None))
+        with fase("arbitro"):
+            ref = referee_profile(referee, referee_data, as_of=match_date,
+                                  footballdata_updated=max((value for value in updated.values() if value), default=None))
         self.warnings.extend(ref.warnings)
 
         sheet = MatchSheet(
@@ -385,7 +392,8 @@ class DataProvider:
             referee_fields={"yellow": ref.yellow, "fouls": ref.fouls},
             extras={"home": profiles["home"].extra, "away": profiles["away"].extra},
         )
-        sheet.odds = self._odds(sheet, odds)
+        with fase("quote dal calendario"):
+            sheet.odds = self._odds(sheet, odds)
         sheet.warnings = list(dict.fromkeys(self.warnings + self.clubelo.warnings))
         return sheet
 

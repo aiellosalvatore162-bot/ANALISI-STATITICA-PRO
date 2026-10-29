@@ -135,14 +135,23 @@ class SourceCache:
         headers: Mapping[str, str] | None = None,
     ) -> FetchResult:
         """Dato fresco dalla cache, altrimenti dalla rete; se la rete fallisce, ultimo dato in cache."""
+        from timing import attivo
+
+        registro = attivo()
         cached = self.cached(url)
         now = datetime.now(timezone.utc)
         if cached is not None and now - cached[1] <= max_age:
+            if registro is not None:
+                registro.http(source, hit=True)
             return FetchResult(cached[0], cached[1], from_cache=True)
+        start = time.perf_counter()
         self._pause(source)
+        paused = time.perf_counter() - start
         try:
             body = self.opener(url, {"User-Agent": USER_AGENT, **(headers or {})}, self.timeout)
         except Exception as exc:  # rete, HTTP, timeout: la fonte è considerata non disponibile
+            if registro is not None:
+                registro.http(source, hit=False, network=time.perf_counter() - start - paused, pause=paused)
             reason = f"{type(exc).__name__}: {str(exc)[:120]}"
             if cached is not None:
                 return FetchResult(
@@ -151,6 +160,8 @@ class SourceCache:
                             f"{cached[1].astimezone():%d/%m/%Y %H:%M}.",
                 )
             return FetchResult(None, None, from_cache=False, warning=f"{source} non raggiungibile ({reason}) e nessun dato in cache.")
+        if registro is not None:
+            registro.http(source, hit=False, network=time.perf_counter() - start - paused, pause=paused)
         self.store(url, source, body, now)
         return FetchResult(body, now, from_cache=False)
 

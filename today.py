@@ -20,6 +20,7 @@ from typing import Any, Callable, Iterable, Mapping, Sequence
 from claude_bridge import BOUNDS, HEADER, RESPONSE_FORMAT, ClaudeResponse, ResponseError, parse_response, probability_lines
 from engine import ClaudeAdjustment, MatchConfig, config_from_input, simulate_match
 from multiples import load_settings
+from timing import fase
 
 
 @dataclass(frozen=True)
@@ -84,8 +85,9 @@ def analyze(match: TodayMatch, build: Callable[..., Any], odds_fields: Mapping[s
         analysis.tactical = match_effects(sheets, match.home, match.away)
         coaches = analysis.tactical.coaches()
     try:
-        sheet = build(match.home, match.away, match_date=match.commence_time.date(), competition=competition,
-                      **({"coaches": coaches} if coaches else {}))
+        with fase("dati automatici (totale)"):
+            sheet = build(match.home, match.away, match_date=match.commence_time.date(), competition=competition,
+                          **({"coaches": coaches} if coaches else {}))
     except Exception as exc:  # fonti remote: si degrada con un avviso, mai un blocco dell'intera giornata
         analysis.skipped = f"dati automatici non disponibili ({type(exc).__name__}: {str(exc)[:120]})"
         return analysis
@@ -132,7 +134,8 @@ def simulate(analysis: Analysis, *, flags: Sequence[str] | None = None, claude: 
                      referee_yellow_avg=referee if referee is not None else analysis.config.referee_yellow_avg)
     if effects is not None:
         config = replace(config, timeline=effects.timeline(config.timeline))
-    analysis.result = simulate_match(config)
+    with fase("simulazione"):
+        analysis.result = simulate_match(config)
     if effects is not None:
         analysis.result["tactical_sheet"] = effects.any_sheet
         analysis.result["analyst_rules"] = effects.analyst_rules
