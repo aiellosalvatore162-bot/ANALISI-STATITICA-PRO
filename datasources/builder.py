@@ -16,10 +16,11 @@ import numpy as np
 import pandas as pd
 
 from datasources.cache import SourceCache
+from timing import fase
 from datasources.clubelo import ClubElo
 from datasources.names import display_name, match_team
 from datasources.sources import (
-    COMPETITIONS, CUP_COMPETITIONS, FootballDataCoUk, FootballDataOrg, Understat, football_data_org_key,
+    COMPETITIONS, CUP_COMPETITIONS, FootballDataCoUk, FootballDataOrg, Understat, _merge, football_data_org_key,
     season_start,
 )
 from datasources.similar import (
@@ -105,37 +106,63 @@ class DataProvider:
         self.matches = matches
         self.half_life = half_life
         self.today = today or date.today()
-        self.clubelo = ClubElo(self.cache)
+        self.clubelo = ClubElo(self.cache, self.today)
         self.understat = Understat(self.cache)
         self.footballdata = FootballDataCoUk(self.cache)
         self.footballdata_org = FootballDataOrg(self.cache, football_data_key if football_data_key is not None else football_data_org_key())
         self.warnings: list[str] = []
+        # Fase V: letture già fatte in questa istanza (una per fonte, campionato e stagione), azzerate da refresh().
+        self._memo: dict[tuple, object] = {}
+        self._memo_elo: dict[tuple, dict] = {}
 
     def refresh(self) -> None:
         self.max_age = timedelta(0)
+        self._memo.clear()
+        self._memo_elo.clear()
+
+    def _remember(self, key: tuple, compute):
+        if key not in self._memo:
+            self._memo[key] = compute()
+        return self._memo[key]
+
+    def _season(self, code: str, start: int, max_age: timedelta):
+        """CSV football-data.co.uk di una stagione, letto e convertito una sola volta."""
+        return self._remember(("csv", code, start), lambda: self.footballdata.season(code, start, max_age))
 
     # --- Fonti -------------------------------------------------------------------------
 
     def league_matches(self, competition: str):
-        code = COMPETITIONS[competition]["footballdata"]
-        frame = self.footballdata.recent(code, self.today, self.max_age)
+        """Stagione in corso e precedente (come ``FootballDataCoUk.recent``), una volta per campionato."""
+        def load():
+            code, current = COMPETITIONS[competition]["footballdata"], season_start(self.today)
+            return _merge([self._season(code, current, self.max_age), self._season(code, current - 1, timedelta(days=30))],
+                          "football-data.co.uk")
+
+        frame = self._remember(("league", competition), load)
         self.warnings.extend(frame.warnings)
         return frame
+
+    def team_rows(self, competition: str) -> pd.DataFrame:
+        return self._remember(("rows", competition), lambda: team_match_rows(self.league_matches(competition).data))
 
     def understat_matches(self, competition: str):
         if not COMPETITIONS[competition]["understat"]:
             return pd.DataFrame(), None
+        data, updated, warnings = self._remember(("understat", competition), lambda: self._understat(competition))
+        self.warnings.extend(warnings)
+        return data, updated
+
+    def _understat(self, competition: str):
         start = season_start(self.today)
         frames = [self.understat.league(COMPETITIONS[competition]["understat"], season, self.max_age if season == start else timedelta(days=30))
                   for season in (start, start - 1)]
-        for frame in frames:
-            self.warnings.extend(frame.warnings)
+        warnings = [warning for frame in frames for warning in frame.warnings]
         data = pd.concat([frame.data for frame in frames if not frame.data.empty], ignore_index=True) if any(
             not frame.data.empty for frame in frames) else pd.DataFrame()
         if not data.empty:
             data = data.sort_values(["team", "date"]).reset_index(drop=True)
         updated = max((frame.updated for frame in frames if frame.updated), default=None)
-        return data, updated
+        return data, updated, warnings
 
     def style_profiles(self, competition: str) -> dict[str, StyleProfile]:
         """Profili di stile del campionato: dalla cache se più giovani della soglia, altrimenti ricalcolati."""
@@ -248,11 +275,18 @@ class DataProvider:
 
     def competition_of(self, team: str) -> str | None:
         """Campionato nazionale (tra quelli coperti) in cui gioca la squadra nella stagione in corso."""
+        return self._remember(("competition", team), lambda: self._competition_of(team))
+
+    def _competition_of(self, team: str) -> str | None:
         for competition, codes in COMPETITIONS.items():
-            frame = self.footballdata.season(codes["footballdata"], season_start(self.today), self.max_age)
-            if not frame.data.empty and match_team(team, pd.concat([frame.data["home_team"], frame.data["away_team"]]).unique()):
+            teams = self._remember(("teams", competition), lambda codes=codes: self._season_teams(codes["footballdata"]))
+            if teams and match_team(team, teams):
                 return competition
         return None
+
+    def _season_teams(self, code: str) -> list[str]:
+        frame = self._season(code, season_start(self.today), self.max_age)
+        return [] if frame.data.empty else list(pd.concat([frame.data["home_team"], frame.data["away_team"]]).unique())
 
     def fixtures(self) -> pd.DataFrame:
         """Prossime partite dei campionati coperti (football-data.co.uk) e coppe (football-data.org)."""
@@ -286,17 +320,8 @@ class DataProvider:
         for side, league in leagues.items():
             if league is None or league not in league_rows or profiles[side].fields.get("attack") is None:
                 continue
-            history = league_rows[league].copy()
-            understat, _ = self.understat_matches(league)
-            if not understat.empty:
-                home_rows = understat[understat["venue"] == "home"]
-                lookup = {(team, day): (xg_for, xg_against) for team, day, xg_for, xg_against in
-                          home_rows[["team", "date", "xg_for", "xg_against"]].itertuples(index=False)}
-                names = {team: match_team(team, list(home_rows["team"].unique())) for team in history["home_team"].unique()}
-                values = [lookup.get((names.get(team), pd.Timestamp(day).normalize()), (np.nan, np.nan))
-                          for team, day in zip(history["home_team"], history["date"])]
-                history["home_xg"], history["away_xg"] = [value[0] for value in values], [value[1] for value in values]
-            fitted = ratings.fit(history, match_date, params)
+            fitted = self._remember(("strength", league, match_date, params),
+                                    lambda league=league: ratings.fit(self._strength_history(league), match_date, params))
             team = match_team(profiles[side].team, list(fitted.attack)) if fitted else None
             if team is None:
                 self.warnings.append(f"{profiles[side].team}: forza Dixon-Coles non stimabile, restano le medie.")
@@ -327,7 +352,8 @@ class DataProvider:
         self.warnings = []
         coaches = coaches or {}
         match_date = match_date or self.today
-        leagues = {side: self.competition_of(team) for side, team in (("home", home), ("away", away))}
+        with fase("ricerca del campionato"):
+            leagues = {side: self.competition_of(team) for side, team in (("home", home), ("away", away))}
         if self.max_age <= timedelta(0):
             # Aggiornamento forzato: i profili di stile di questi campionati vanno ricalcolati.
             store = ProfileStore(self.cache)
@@ -344,26 +370,30 @@ class DataProvider:
                 profiles[side] = TeamProfile(team, side, {key: missing(note) for key, _ in TEAM_FIELDS if key not in ("elo", "corners")}
                                              | {"corners_for": missing(note), "corners_against": missing(note)}, {}, None, [])
                 continue
-            matches = self.league_matches(league)
-            understat, us_updated = self.understat_matches(league)
-            league_rows[league] = matches.data
-            updated[side] = matches.updated
-            profiles[side] = team_profile(
-                team, team_match_rows(matches.data), understat, as_of=match_date, venue=side,
-                matches=self.matches, half_life=self.half_life,
-                footballdata_updated=matches.updated, understat_updated=us_updated, coach=coaches.get(side),
-            )
+            with fase("statistiche squadre (CSV e Understat)"):
+                matches = self.league_matches(league)
+                understat, us_updated = self.understat_matches(league)
+                league_rows[league] = matches.data
+                updated[side] = matches.updated
+                profiles[side] = team_profile(
+                    team, self.team_rows(league), understat, as_of=match_date, venue=side,
+                    matches=self.matches, half_life=self.half_life,
+                    footballdata_updated=matches.updated, understat_updated=us_updated, coach=coaches.get(side),
+                )
             self.warnings.extend(profiles[side].warnings)
 
-        self._schedule_strengths(profiles, leagues, league_rows, match_date)
-        elo = self._elo(home, away, match_date, leagues)
+        with fase("forza Dixon-Coles"):
+            self._schedule_strengths(profiles, leagues, league_rows, match_date)
+        with fase("Elo ClubElo"):
+            elo = self._elo(home, away, match_date, leagues)
         sheet_fields = {}
         for side in ("home", "away"):
             fields = dict(profiles[side].fields)
             fields["elo"] = elo[side]
             fields["corners"] = _pair(fields.pop("corners_for"), fields.pop("corners_against"))
             sheet_fields[side] = fields
-            self._freshness(profiles[side], elo[side])
+            with fase("Elo ClubElo"):
+                self._freshness(profiles[side], elo[side])
 
         if leagues["home"] and leagues["away"] and leagues["home"] != leagues["away"]:
             self.warnings.append(
@@ -372,8 +402,9 @@ class DataProvider:
             )
         referee_data = pd.concat([league_rows[league] for league in {leagues["home"], leagues["away"]} if league in league_rows],
                                  ignore_index=True) if league_rows else pd.DataFrame()
-        ref = referee_profile(referee, referee_data, as_of=match_date,
-                              footballdata_updated=max((value for value in updated.values() if value), default=None))
+        with fase("arbitro"):
+            ref = referee_profile(referee, referee_data, as_of=match_date,
+                                  footballdata_updated=max((value for value in updated.values() if value), default=None))
         self.warnings.extend(ref.warnings)
 
         sheet = MatchSheet(
@@ -385,7 +416,8 @@ class DataProvider:
             referee_fields={"yellow": ref.yellow, "fouls": ref.fouls},
             extras={"home": profiles["home"].extra, "away": profiles["away"].extra},
         )
-        sheet.odds = self._odds(sheet, odds)
+        with fase("quote dal calendario"):
+            sheet.odds = self._odds(sheet, odds)
         sheet.warnings = list(dict.fromkeys(self.warnings + self.clubelo.warnings))
         return sheet
 
@@ -400,24 +432,52 @@ class DataProvider:
             }
         # Ripiego: Elo calcolato dai risultati, solo se entrambe giocano nello stesso campionato
         # (scale diverse non sono confrontabili).
+        reason = "ClubElo non disponibile" if not self.clubelo.responded() else "ClubElo senza dati per la partita"
         if leagues["home"] and leagues["home"] == leagues["away"]:
-            code = COMPETITIONS[leagues["home"]]["footballdata"]
-            start = season_start(self.today)
-            seasons = [self.footballdata.season(code, start - offset, self.max_age if offset == 0 else timedelta(days=30)).data
-                       for offset in range(5, -1, -1)]
-            table = elo_table(pd.concat([frame for frame in seasons if not frame.empty], ignore_index=True), pd.Timestamp(match_date))
+            table = self._results_elo(leagues["home"], match_date)
             result = {}
             for side, team in (("home", home), ("away", away)):
                 name = match_team(team, table)
-                result[side] = (FieldValue(round(table[name][0], 1), "Elo calcolato dai risultati (ripiego)", None, table[name][1].date(),
-                                           "ClubElo non disponibile: Elo calcolato da football-data.co.uk (6 stagioni)", "avviso")
-                                if name else missing("ClubElo non disponibile e squadra non trovata nei risultati"))
-            self.warnings.append("ClubElo non disponibile: uso l'Elo calcolato dai risultati (ripiego).")
+                result[side] = (FieldValue(round(table[name][0], 1), f"Elo da risultati ({reason})", None, table[name][1].date(),
+                                           "Elo calcolato da football-data.co.uk (6 stagioni di campionato)", "avviso")
+                                if name else missing(f"{reason} e squadra non trovata nei risultati: inserire l'Elo a mano "
+                                                     "nel blocco CASA/OSPITE"))
+            self.warnings.append(f"Elo da risultati ({reason}).")
             return result
-        note = "ClubElo non disponibile per entrambe le squadre: inserire l'Elo a mano"
+        note = (f"{reason} ed Elo non calcolabile dai risultati (squadre di campionati diversi o non coperti): "
+                "inserire l'Elo a mano nel blocco CASA/OSPITE")
         self.warnings.append(note)
         return {side: (FieldValue(r.value, "ClubElo", r.updated, r.as_of, "l'altra squadra non ha l'Elo: confronto non possibile", "avviso")
                        if r else missing(note)) for side, r in ratings.items()}
+
+    def _strength_history(self, league: str) -> pd.DataFrame:
+        """Partite del campionato con gli xG Understat della partita (forza Dixon-Coles), una volta per campionato."""
+        def load() -> pd.DataFrame:
+            history = self.league_matches(league).data.copy()
+            understat, _ = self.understat_matches(league)
+            if not understat.empty:
+                home_rows = understat[understat["venue"] == "home"]
+                lookup = {(team, day): (xg_for, xg_against) for team, day, xg_for, xg_against in
+                          home_rows[["team", "date", "xg_for", "xg_against"]].itertuples(index=False)}
+                names = {team: match_team(team, list(home_rows["team"].unique())) for team in history["home_team"].unique()}
+                values = [lookup.get((names.get(team), pd.Timestamp(day).normalize()), (np.nan, np.nan))
+                          for team, day in zip(history["home_team"], history["date"])]
+                history["home_xg"], history["away_xg"] = [value[0] for value in values], [value[1] for value in values]
+            return history
+
+        return self._remember(("strength_history", league), load)
+
+    def _results_elo(self, competition: str, match_date: date) -> dict:
+        """Elo calcolato dai risultati di 6 stagioni del campionato, una volta per campionato e data."""
+        key = (competition, match_date)
+        if key not in self._memo_elo:
+            code = COMPETITIONS[competition]["footballdata"]
+            start = season_start(self.today)
+            seasons = [self._season(code, start - offset, self.max_age if offset == 0 else timedelta(days=30)).data
+                       for offset in range(5, -1, -1)]
+            frames = [frame for frame in seasons if not frame.empty]
+            self._memo_elo[key] = elo_table(pd.concat(frames, ignore_index=True), pd.Timestamp(match_date)) if frames else {}
+        return self._memo_elo[key]
 
     def _freshness(self, profile: TeamProfile, elo: FieldValue) -> None:
         """Avvisa se ClubElo conosce una partita più recente dell'ultima inclusa nelle statistiche."""
@@ -437,7 +497,7 @@ class DataProvider:
     def _odds(self, sheet: MatchSheet, odds: dict[str, float] | None) -> dict[str, FieldValue]:
         if odds:
             return {key: FieldValue(value, "inserita dall'utente") for key, value in odds.items()}
-        fixtures = self.footballdata.fixtures(min(self.max_age, timedelta(hours=6)))
+        fixtures = self._remember(("fixtures",), lambda: self.footballdata.fixtures(min(self.max_age, timedelta(hours=6))))
         if fixtures.data.empty:
             return {}
         data = fixtures.data

@@ -8,6 +8,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
+import requests
 
 import engine
 from datasources.builder import (
@@ -394,3 +395,85 @@ def test_data_older_than_the_threshold_is_downloaded_again(tmp_path):
     DataProvider(cache, today=TODAY, max_age=timedelta(hours=24), football_data_key=None).build(
         "Napoli", "Roma", match_date=date(2026, 10, 25))
     assert url in web.calls  # 30 ore > soglia di 24: riscaricato prima di compilare
+
+
+# --- Fase V: ClubElo bloccato e letture una volta per campionato ---------------------------------------------
+
+class BlockedClubElo(FakeWeb):
+    """ClubElo che risponde 403 (verifica Cloudflare); le altre fonti come negli esempi."""
+
+    def __call__(self, url, headers, timeout):
+        if "clubelo.com" in url:
+            self.calls.append(url)
+            raise requests.HTTPError(f"403 Client Error: Forbidden for url: {url}")
+        return super().__call__(url, headers, timeout)
+
+
+def test_clubelo_block_is_detected_once_per_day_and_cached(tmp_path):
+    web = BlockedClubElo(_web().pages)
+    cache = _cache(tmp_path, web)
+    elo = ClubElo(cache, today=date(2026, 10, 29))
+    assert elo.rating("Napoli", date(2026, 10, 25)) is None and elo.rating("Roma", date(2026, 10, 25)) is None
+    clubelo_calls = [url for url in web.calls if "clubelo.com" in url]
+    assert len(clubelo_calls) == 1 and not elo.available()
+    assert any("ClubElo non disponibile" in warning for warning in elo.warnings)
+    # Stessa giornata, nuova istanza (altra sessione): il blocco è in cache, nessuna richiesta.
+    ClubElo(cache, today=date(2026, 10, 29)).rating("Inter", date(2026, 10, 25))
+    assert len([url for url in web.calls if "clubelo.com" in url]) == 1
+    # Il giorno dopo si riprova una volta.
+    ClubElo(cache, today=date(2026, 10, 30)).rating("Inter", date(2026, 10, 25))
+    assert len([url for url in web.calls if "clubelo.com" in url]) == 2
+
+
+def test_cloudflare_page_with_status_200_is_a_block(tmp_path):
+    page = b"<html><head><title>Just a moment...</title></head></html>"
+    web = FakeWeb({"https://clubelo.com/": page})
+    elo = ClubElo(_cache(tmp_path, web), today=date(2026, 10, 29))
+    assert elo.rating("Napoli", date(2026, 10, 25)) is None and not elo.available()
+
+
+def test_pages_already_in_cache_are_used_when_clubelo_is_blocked(tmp_path):
+    cache = _cache(tmp_path)
+    assert ClubElo(cache, today=date(2026, 10, 29)).rating("Napoli", date(2026, 10, 20)) is not None
+    cache.opener = BlockedClubElo({})
+    blocked = ClubElo(cache, today=date(2026, 10, 29))
+    blocked._mark_blocked("403 Client Error (test)")
+    rating = blocked.rating("Napoli", date(2026, 10, 20))
+    assert rating is not None and rating.source == "ClubElo"
+
+
+def test_results_elo_is_declared_and_cups_stay_missing(tmp_path):
+    cache = _cache(tmp_path, BlockedClubElo(_web().pages))
+    sheet = DataProvider(cache, today=TODAY, football_data_key=None).build("Napoli", "Roma", match_date=date(2026, 10, 25))
+    assert sheet.home_fields["elo"].source == "Elo da risultati (ClubElo non disponibile)"
+    assert sheet.away_fields["elo"].level == "avviso"
+    provider = DataProvider(cache, today=TODAY, football_data_key=None)
+    cup = provider.build("Napoli", "Real Madrid", match_date=date(2026, 10, 25))
+    assert cup.away_fields["elo"].missing and "inserire l'Elo a mano nel blocco CASA/OSPITE" in cup.away_fields["elo"].note
+    assert any("ClubElo non disponibile" in warning for warning in cup.warnings)
+
+
+def test_each_league_and_season_is_read_once_per_day(tmp_path):
+    cache = _cache(tmp_path, BlockedClubElo(_web().pages))
+    reads: list[str] = []
+    original = cache.get
+
+    def counting_get(url, **kwargs):
+        reads.append(url)
+        return original(url, **kwargs)
+
+    cache.get = counting_get
+    provider = DataProvider(cache, today=TODAY, football_data_key=None)
+    sheets = [provider.build(home, away, match_date=date(2026, 10, 25))
+              for home, away in (("Napoli", "Roma"), ("Roma", "Napoli"), ("Napoli", "Roma"))]
+    csv = "https://www.football-data.co.uk/mmz4281/2627/I1.csv"
+    assert reads.count(csv) == 1
+    assert reads.count("https://understat.com/getLeagueData/Serie_A/2026") == 1
+    assert len([url for url in reads if "clubelo.com" in url]) == 1
+    # Le letture condivise non cambiano il blocco: stessa partita, stessi valori.
+    assert render_block(sheets[0]) == render_block(sheets[2])
+    fresh = DataProvider(_cache(tmp_path / "altro", BlockedClubElo(_web().pages)), today=TODAY, football_data_key=None)
+    assert render_block(fresh.build("Napoli", "Roma", match_date=date(2026, 10, 25))) == render_block(sheets[0])
+    provider.refresh()
+    provider.build("Napoli", "Roma", match_date=date(2026, 10, 25))
+    assert reads.count(csv) == 2  # «Aggiorna dati» rilegge

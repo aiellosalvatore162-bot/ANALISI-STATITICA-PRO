@@ -151,7 +151,7 @@ def test_teams_outside_understat_leagues_get_their_block_from_footballdata(tmp_p
             assert not side[key].missing, key
         assert side["xg_for"].source.startswith("football-data.co.uk")
     # ClubElo non risponde nel test: stesso campionato, quindi Elo calcolato dai risultati e segnalato.
-    assert sheet.home_fields["elo"].source == "Elo calcolato dai risultati (ripiego)"
+    assert sheet.home_fields["elo"].source == "Elo da risultati (ClubElo non disponibile)"
     assert any("ClubElo non disponibile" in warning for warning in sheet.warnings)
     match = parse_match_input(render_block(sheet))
     assert match.home.name == "Porto" and match.home.corners_for > 0
