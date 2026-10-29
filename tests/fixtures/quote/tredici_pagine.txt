@@ -1,0 +1,289 @@
+MENU
+SPORT
+LIVE
+Man Utd - Tottenham
+25/10 16:00
+1X2
+1
+1.50
+X
+3.40
+2
+4.00
+U/O GOAL
+2.5
+UNDER
+1.85
+OVER
+1.95
+GG/NG
+GG
+1.75
+NG
+2.05
+Gioco responsabile
+SPORT
+Inter - Milan
+26/10 20:45
+1X2
+1
+1.60
+X
+3.40
+2
+4.10
+U/O GOAL
+2.5
+UNDER
+1.85
+OVER
+1.95
+GG/NG
+GG
+1.75
+NG
+2.05
+Gioco responsabile
+SPORT
+PSG - Marseille
+26/10 21:00
+1X2
+1
+1.70
+X
+3.40
+2
+4.20
+U/O GOAL
+2.5
+UNDER
+1.85
+OVER
+1.95
+GG/NG
+GG
+1.75
+NG
+2.05
+Gioco responsabile
+SPORT
+Atletico Madrid - Sevilla
+26/10 16:15
+1X2
+1
+1.80
+X
+3.40
+2
+4.30
+U/O GOAL
+2.5
+UNDER
+1.85
+OVER
+1.95
+GG/NG
+GG
+1.75
+NG
+2.05
+Gioco responsabile
+SPORT
+Bayern Monaco - Borussia Dortmund
+25/10 18:30
+1X2
+1
+1.90
+X
+3.40
+2
+4.40
+U/O GOAL
+2.5
+UNDER
+1.85
+OVER
+1.95
+GG/NG
+GG
+1.75
+NG
+2.05
+Gioco responsabile
+SPORT
+Napoli - Roma
+26/10 18:00
+1X2
+1
+2.00
+X
+3.40
+2
+4.50
+U/O GOAL
+2.5
+UNDER
+1.85
+OVER
+1.95
+GG/NG
+GG
+1.75
+NG
+2.05
+Gioco responsabile
+SPORT
+Lazio - Juventus
+26/10 15:00
+1X2
+1
+2.10
+X
+3.40
+2
+4.60
+U/O GOAL
+2.5
+UNDER
+1.85
+OVER
+1.95
+GG/NG
+GG
+1.75
+NG
+2.05
+Gioco responsabile
+SPORT
+Wolves - Nottingham Forest
+25/10 16:00
+1X2
+1
+2.20
+X
+3.40
+2
+4.70
+U/O GOAL
+2.5
+UNDER
+1.85
+OVER
+1.95
+GG/NG
+GG
+1.75
+NG
+2.05
+Gioco responsabile
+SPORT
+Real Madrid - Barcellona
+26/10 16:15
+1X2
+1
+2.30
+X
+3.40
+2
+4.80
+U/O GOAL
+2.5
+UNDER
+1.85
+OVER
+1.95
+GG/NG
+GG
+1.75
+NG
+2.05
+Gioco responsabile
+SPORT
+Leverkusen - RB Leipzig
+25/10 15:30
+1X2
+1
+2.40
+X
+3.40
+2
+4.90
+U/O GOAL
+2.5
+UNDER
+1.85
+OVER
+1.95
+GG/NG
+GG
+1.75
+NG
+2.05
+Gioco responsabile
+SPORT
+Atalanta - Bologna
+25/10 20:45
+1X2
+1
+2.50
+X
+3.40
+2
+5.00
+U/O GOAL
+2.5
+UNDER
+1.85
+OVER
+1.95
+GG/NG
+GG
+1.75
+NG
+2.05
+Gioco responsabile
+SPORT
+Fiorentina - Torino
+27/10 18:30
+1X2
+1
+2.60
+X
+3.40
+2
+5.10
+U/O GOAL
+2.5
+UNDER
+1.85
+OVER
+1.95
+GG/NG
+GG
+1.75
+NG
+2.05
+Gioco responsabile
+SPORT
+Inter - Milan
+02/11 20:45
+1X2
+1
+2.70
+X
+3.40
+2
+5.20
+U/O GOAL
+2.5
+UNDER
+1.85
+OVER
+1.95
+GG/NG
+GG
+1.75
+NG
+2.05
+Gioco responsabile
+SPORT
