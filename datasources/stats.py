@@ -23,6 +23,9 @@ REFEREE_PRIOR_MATCHES = 10
 REFEREE_RELIABLE_MATCHES = 10
 
 
+MANUAL_SOURCE = "inserito a mano"
+
+
 @dataclass(frozen=True)
 class FieldValue:
     """Un valore con la sua provenienza; ``value=None`` significa campo mancante."""
@@ -37,6 +40,20 @@ class FieldValue:
     @property
     def missing(self) -> bool:
         return self.value is None
+
+    @property
+    def origin(self) -> str:
+        """Origine del dato (fase R): «manuale» > «automatico» > «proxy/stima»; «mancante» se non c'è valore.
+
+        La precedenza vale quando si compone la scheda: un valore manuale sostituisce sempre quello automatico."""
+        if self.value is None:
+            return "mancante"
+        source = self.source.lower()
+        if source.startswith("inserit"):
+            return "manuale"
+        if self.level == "avviso" or any(word in source for word in ("stima", "ripiego", "da risultati", "proxy", "calcolat")):
+            return "proxy/stima"
+        return "automatico"
 
 
 def missing(note: str, source: str = "—") -> FieldValue:
