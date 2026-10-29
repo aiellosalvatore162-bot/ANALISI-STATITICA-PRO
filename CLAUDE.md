@@ -277,6 +277,16 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   (probabilità, gol attesi, EV, semaforo, ancoraggio). Scheda `dashboard.form_card` nella pagina Oggi, colonna
   «Forma» del registro (SQLite e colonna Z dell'Excel, scritta solo se c'è almeno una forma: A–S e le formule
   T–Y del file dell'utente restano intatte) e del foglio Analisi (`ui_memory.with_form`/`form_for`).
+- Fase V/L (velocità di Oggi, nessun calcolo del modello cambiato): ClubElo (`datasources/clubelo.py`) rileva il
+  blocco (403/502/503 o pagina Cloudflare), si segna «non disponibile» per la giornata nella cache e non si aggira;
+  l'Elo si calcola dai risultati (6 stagioni di CSV, `DataProvider._results_elo`), dichiarato «Elo da risultati
+  (ClubElo non disponibile)», e resta MANCANTE per le coppe tra campionati diversi (da inserire a mano nel blocco
+  CASA/OSPITE). `DataProvider` legge una volta per campionato e stagione (`_remember`, azzerato da `refresh`).
+  `today.prepare` (dati, blocco, configurazione, niente simulazione né The Odds API) è usata da «Prepara la
+  giornata» e da `today.analyze`; ogni partita non analizzata ha `Analysis.problem` (fase, fonte, messaggio) e
+  compare in «Partite non analizzate» (`today.problem_rows`). Cronometro per fase in `timing.py` (`fase`,
+  `registra`, `Registro.breakdown`), expander «Tempi» in Oggi. Benchmark: `python -m tools.bench_oggi [--offline]`
+  (`docs/bench/oggi_prima.md`, `oggi_dopo.md`). Nessun parallelismo (scelta voluta).
 - Le fonti remote devono degradare con un avviso (come `historical.py` ricade
   al 100% manuale), mai bloccare la simulazione manuale.
 

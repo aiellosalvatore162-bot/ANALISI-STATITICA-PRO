@@ -151,7 +151,7 @@ class SourceCache:
             body = self.opener(url, {"User-Agent": USER_AGENT, **(headers or {})}, self.timeout)
         except Exception as exc:  # rete, HTTP, timeout: la fonte è considerata non disponibile
             if registro is not None:
-                registro.http(source, hit=False, network=time.perf_counter() - start - paused, pause=paused)
+                registro.http(source, hit=False, network=time.perf_counter() - start - paused, pause=paused, error=True)
             reason = f"{type(exc).__name__}: {str(exc)[:120]}"
             if cached is not None:
                 return FetchResult(

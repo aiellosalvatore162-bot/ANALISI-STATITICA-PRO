@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from datetime import date, datetime, timezone
+import time
 
 import pandas as pd
 import streamlit as st
@@ -18,9 +19,10 @@ from multiples import (
     OBJECTIVES, Leg, Multiple, build_doubles, comparison_line, format_probability, build_long, build_short, candidate_legs, filter_legs, load_settings,
     multiple_row,
 )
+from timing import registra
 from today import (
-    Analysis, TodayMatch, analyze, match_ids, multi_analysis_prompt, parse_multi_response, simulate, split_multi_response,
-    value_picks,
+    Analysis, TodayMatch, analyze, match_ids, multi_analysis_prompt, parse_multi_response, mark_failed, prepare, problem_rows, simulate,
+    split_multi_response, value_picks,
 )
 
 
@@ -122,6 +124,8 @@ def render_today() -> None:
 
     render_manager(sorted(set(events["home_team"]) | set(events["away_team"])))
     _render_analyze_all(api, events, events_day, labels, simulations, settings, mode)
+    _render_problems()
+    _render_timing()
     analyses = _analyses()
     if not analyses:
         return
@@ -156,6 +160,10 @@ def _render_analyze_all(api, events: pd.DataFrame, day: date, labels: dict, simu
     targeted = 0 if mode == "Veloce" else min(int(api.settings.get("max_partite_mirate", 10)), len(events))
     render_day_summary(day_cost(api, leagues, targeted), title="Costo previsto di «Analizza tutte»"
                        + (" (i mercati mirati si scaricano dopo, solo per le partite selezionate)" if targeted else ""))
+    if st.button("Prepara la giornata", key="today_prepare",
+                 help="Scalda la cache (CSV, Understat, calendario, Elo da risultati) per tutte le partite del giorno: "
+                      "non simula e non usa crediti The Odds API."):
+        _prepare_day(events, simulations, settings)
     approved = _approve(api, cost, cached, "today_confirm_league")
     if approved is None or not st.button("Analizza tutte", type="primary", key="today_analyze"):
         return
@@ -168,27 +176,96 @@ def _render_analyze_all(api, events: pd.DataFrame, day: date, labels: dict, simu
     league_events = {event["id"]: (event, fetched) for payload, fetched in league_data.values() for event in payload}
     progress = st.progress(0.0, text="Analisi in corso…")
     analyses = []
-    for position, row in enumerate(events.itertuples(), start=1):
-        commence = pd.Timestamp(row.commence_time).to_pydatetime().replace(tzinfo=timezone.utc)
-        match = TodayMatch(row.event_id, row.sport, row.competition, commence, row.home_team, row.away_team)
-        event, fetched = league_events.get(row.event_id, (None, None))
-        quotes = reference_quotes(quotes_frame(event), api.settings.get("riferimento")) if event else {}
-        competition = row.competition if row.competition in COMPETITIONS or row.competition in CUP_COMPETITIONS else None
-        analysis = analyze(match, provider.build, sheet_odds(quotes, fetched) if quotes else {}, simulations=simulations,
-                           competition=competition, settings=settings, sheets=saved_sheets())
-        if analysis.ok:
-            if not quotes:
-                analysis.warnings.append("nessuna quota per campionato: simulazione del solo modello")
-            sharp = {key: quotes[key].price for key in GOAL_ANCHOR_KEYS if key in quotes}
-            if sharp:
-                save_sharp(match.home, match.away, sharp, quotes["1"].reference if "1" in quotes else "")
-            _with_eurobet(analysis, sharp)
-            _remember(analysis)
-        analyses.append(analysis)
-        progress.progress(position / len(events), text=f"{position}/{len(events)} · {match.label}")
+    with registra() as registro:
+        started = time.perf_counter()
+        for position, row in enumerate(events.itertuples(), start=1):
+            match = _today_match(row)
+            event, fetched = league_events.get(row.event_id, (None, None))
+            quotes = reference_quotes(quotes_frame(event), api.settings.get("riferimento")) if event else {}
+            competition = row.competition if row.competition in COMPETITIONS or row.competition in CUP_COMPETITIONS else None
+            analysis = analyze(match, provider.build, sheet_odds(quotes, fetched) if quotes else {}, simulations=simulations,
+                               competition=competition, settings=settings, sheets=saved_sheets())
+            if analysis.ok:
+                try:
+                    if not quotes:
+                        analysis.warnings.append("nessuna quota per campionato: simulazione del solo modello")
+                    sharp = {key: quotes[key].price for key in GOAL_ANCHOR_KEYS if key in quotes}
+                    if sharp:
+                        save_sharp(match.home, match.away, sharp, quotes["1"].reference if "1" in quotes else "")
+                    _with_eurobet(analysis, sharp)
+                    _remember(analysis)
+                except Exception as exc:  # una partita in errore non ferma le altre e resta nella tabella
+                    analysis.result = None
+                    mark_failed(analysis, "salvataggio", "app", f"errore dopo la simulazione ({type(exc).__name__}: {str(exc)[:120]})")
+            analyses.append(analysis)
+            progress.progress(position / len(events), text=f"{position}/{len(events)} · {match.label}")
+        elapsed = time.perf_counter() - started
     progress.empty()
     st.session_state["today_analyses"] = analyses
+    st.session_state["today_problems"] = problem_rows(analyses)
+    st.session_state["today_timing"] = {"label": "Analizza tutte", "total": elapsed, "phases": registro.breakdown(elapsed),
+                                        "sources": registro.sources(), "matches": len(events)}
     st.session_state.pop("today_overrides", None)
+
+
+def _today_match(row) -> TodayMatch:
+    commence = pd.Timestamp(row.commence_time).to_pydatetime().replace(tzinfo=timezone.utc)
+    return TodayMatch(row.event_id, row.sport, row.competition, commence, row.home_team, row.away_team)
+
+
+def _prepare_day(events: pd.DataFrame, simulations: int, settings: dict) -> None:
+    """«Prepara la giornata»: ``today.prepare`` per ogni partita (cache dei dati), senza simulare né The Odds API."""
+    from datasources.builder import DataProvider
+    from datasources.sources import COMPETITIONS, CUP_COMPETITIONS, football_data_org_key
+    from ui_data import source_cache
+    from ui_tactical import saved_sheets
+
+    provider = DataProvider(source_cache(), football_data_key=football_data_org_key())
+    progress = st.progress(0.0, text="Preparazione in corso…")
+    live = st.empty()
+    prepared = []
+    with registra() as registro:
+        started = time.perf_counter()
+        for position, row in enumerate(events.itertuples(), start=1):
+            match = _today_match(row)
+            competition = row.competition if row.competition in COMPETITIONS or row.competition in CUP_COMPETITIONS else None
+            prepared.append(prepare(match, provider.build, {}, simulations=simulations, competition=competition,
+                                    settings=settings, sheets=saved_sheets()))
+            progress.progress(position / len(events), text=f"{position}/{len(events)} · {match.label}")
+            live.dataframe(pd.DataFrame([{**source, "Partite da preparare": len(events) - position}
+                                         for source in registro.sources()]), hide_index=True, width="stretch")
+        elapsed = time.perf_counter() - started
+    progress.empty()
+    live.empty()
+    problems = problem_rows(prepared)
+    st.session_state["today_problems"] = problems
+    st.session_state["today_timing"] = {"label": "Prepara la giornata", "total": elapsed, "phases": registro.breakdown(elapsed),
+                                        "sources": registro.sources(), "matches": len(events)}
+    st.success(f"Giornata preparata in {elapsed:.1f} s: {len(prepared) - len(problems)} partite pronte, "
+               f"{len(problems)} con dati da sistemare. Ora «Analizza tutte» usa la cache.")
+
+
+def _render_problems() -> None:
+    """Tabella «Partite non analizzate» dell'ultimo giro (Prepara o Analizza): una riga per partita, mai nascoste."""
+    problems = st.session_state.get("today_problems") or []
+    if not problems:
+        return
+    st.subheader(f"Partite non analizzate ({len(problems)})")
+    st.caption("Dati mancanti non vengono mai inventati. Le altre partite non sono state fermate.")
+    st.dataframe(pd.DataFrame(problems), hide_index=True, width="stretch")
+
+
+def _render_timing() -> None:
+    """Expander «Tempi» (chiuso): fase / secondi, fonti con richieste HTTP, hit di cache ed errori, totale."""
+    timing = st.session_state.get("today_timing")
+    if not timing:
+        return
+    with st.expander(f"Tempi · {timing['label']}: {timing['total']:.1f} s per {timing['matches']} partite", expanded=False):
+        st.dataframe(pd.DataFrame(timing["phases"]), hide_index=True, width="stretch")
+        if timing["sources"]:
+            st.markdown("**Fonti**")
+            st.dataframe(pd.DataFrame(timing["sources"]), hide_index=True, width="stretch")
+        st.caption("Ultimo giro. Le fasi sommano al totale (la riga «altro» raccoglie cicli e tabelle).")
 
 
 def _pct(result: dict, key: str) -> float | None:
@@ -201,10 +278,6 @@ def _render_overview(analyses: list[Analysis], settings: dict) -> None:
     ok = [(index, analysis) for index, analysis in enumerate(analyses) if analysis.ok]
     skipped = [analysis for analysis in analyses if not analysis.ok]
     st.subheader(f"Partite analizzate: {len(ok)}" + (f" · saltate {len(skipped)}" if skipped else ""))
-    if skipped:
-        with st.expander(f"Partite saltate ({len(skipped)}): dati mancanti, mai inventati", expanded=False):
-            st.dataframe(pd.DataFrame([{"Partita": analysis.match.label, "Competizione": analysis.match.competition,
-                                        "Motivo": analysis.skipped} for analysis in skipped]), hide_index=True, width="stretch")
     if not ok:
         return
     rows = []

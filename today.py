@@ -19,6 +19,7 @@ from typing import Any, Callable, Iterable, Mapping, Sequence
 
 from claude_bridge import BOUNDS, HEADER, RESPONSE_FORMAT, ClaudeResponse, ResponseError, parse_response, probability_lines
 from engine import ClaudeAdjustment, MatchConfig, config_from_input, simulate_match
+from datasources.builder import TEAM_FIELDS as TEAM_FIELD_LABELS
 from multiples import load_settings
 from timing import fase
 
@@ -51,6 +52,7 @@ class Analysis:
     warnings: list[str] = field(default_factory=list)
     sources: list[dict] = field(default_factory=list)
     tactical: Any = None                       # tactical_sheets.MatchEffects (fase Q), None = schede non cercate
+    problem: tuple[str, str, str] | None = None  # (fase, fonte, messaggio) se non analizzata (fase V)
 
     @property
     def ok(self) -> bool:
@@ -66,10 +68,36 @@ class Analysis:
 
 # --- Analisi in blocco ----------------------------------------------------------------------------
 
-def analyze(match: TodayMatch, build: Callable[..., Any], odds_fields: Mapping[str, Any], *,
+ELO_MISSING_MESSAGE = "Elo MANCANTE: inseriscilo a mano nel blocco CASA/OSPITE"
+
+
+def mark_failed(analysis: Analysis, phase: str, source: str, message: str) -> Analysis:
+    """Partita non analizzata: motivo breve (tabella «Partite non analizzate») e fase/fonte per il filtro."""
+    analysis.skipped = message
+    analysis.problem = (phase, source, message)
+    return analysis
+
+
+def _missing_problem(sheet: Any, missing: Sequence[str]) -> tuple[str, str, str]:
+    """(fase, fonte, messaggio) per i campi mancanti: gli Elo mancanti (coppe tra campionati diversi) hanno la loro riga."""
+    if all(label.endswith(" · Elo") for label in missing):
+        return "dati", "Elo da risultati", ELO_MISSING_MESSAGE
+    other = next(label for label in missing if not label.endswith(" · Elo"))
+    subject, _, field_label = other.partition(" · ")
+    fields = {sheet.home: sheet.home_fields, sheet.away: sheet.away_fields}.get(subject, sheet.referee_fields)
+    keys = {label: key for key, label in (*TEAM_FIELD_LABELS, ("yellow", "Gialli medi"), ("fouls", "Falli medi"))}
+    value = fields.get(keys.get(field_label, ""))
+    source = (value.source if value is not None and value.source != "—" else "fonti dati")
+    return "dati", source, "dati mancanti: " + ", ".join(missing[:6]) + ("…" if len(missing) > 6 else "")
+
+
+def prepare(match: TodayMatch, build: Callable[..., Any], odds_fields: Mapping[str, Any], *,
             simulations: int, competition: str | None = None, settings: Mapping[str, Any] | None = None,
             sheets: Sequence[Mapping[str, Any]] | None = None) -> Analysis:
-    """Dati automatici + quote del passaggio economico + simulazione; salta la partita se manca un dato.
+    """Tutto quello che precede la simulazione: dati automatici, quote del passaggio economico, blocco e
+    configurazione. Scalda anche le cache delle fonti (CSV, Understat, calendario, Elo da risultati), senza
+    simulare e senza The Odds API: «Prepara la giornata» chiama solo questa. Una partita che non si può preparare
+    resta nell'``Analysis`` con ``problem`` (mai un'eccezione verso l'alto).
 
     ``build`` è ``DataProvider.build`` (o un sostituto nei test); ``odds_fields`` sono i campi quota del blocco
     (``oddsapi.sheet_odds``).
@@ -78,41 +106,63 @@ def analyze(match: TodayMatch, build: Callable[..., Any], odds_fields: Mapping[s
     from parser import MatchInputError, parse_match_input
 
     analysis = Analysis(match)
-    coaches = {}
-    if sheets is not None:
-        from tactical_sheets import match_effects
-
-        analysis.tactical = match_effects(sheets, match.home, match.away)
-        coaches = analysis.tactical.coaches()
     try:
-        with fase("dati automatici (totale)"):
-            sheet = build(match.home, match.away, match_date=match.commence_time.date(), competition=competition,
-                          **({"coaches": coaches} if coaches else {}))
-    except Exception as exc:  # fonti remote: si degrada con un avviso, mai un blocco dell'intera giornata
-        analysis.skipped = f"dati automatici non disponibili ({type(exc).__name__}: {str(exc)[:120]})"
+        coaches = {}
+        if sheets is not None:
+            from tactical_sheets import match_effects
+
+            analysis.tactical = match_effects(sheets, match.home, match.away)
+            coaches = analysis.tactical.coaches()
+        try:
+            with fase("dati automatici (totale)", contiene_fasi=True):
+                sheet = build(match.home, match.away, match_date=match.commence_time.date(), competition=competition,
+                              **({"coaches": coaches} if coaches else {}))
+        except Exception as exc:  # fonti remote: si degrada con un avviso, mai un blocco dell'intera giornata
+            return mark_failed(analysis, "dati automatici", "fonti dati",
+                         f"dati automatici non disponibili ({type(exc).__name__}: {str(exc)[:120]})")
+        with fase("blocco e configurazione"):
+            sheet.odds = dict(odds_fields)
+            sheet.competition = sheet.competition or match.competition
+            analysis.warnings = list(sheet.warnings)
+            analysis.sources = provenance_rows(sheet)
+            missing = missing_fields(sheet)
+            if missing:
+                phase, source, message = _missing_problem(sheet, missing)
+                return mark_failed(analysis, phase, source, message)
+            analysis.block = render_block(sheet)
+            try:
+                parsed = parse_match_input(analysis.block)
+            except MatchInputError as exc:
+                return mark_failed(analysis, "blocco", "parser", f"blocco non valido: {exc}")
+            analysis.odds = dict(parsed.odds)
+            from datasources.builder import strength_inputs
+            from datasources.sources import league_code
+
+            analysis.config = replace(config_from_input(parsed, simulations=simulations), league=league_code(sheet.competition),
+                                      strength_inputs=strength_inputs(sheet) if hasattr(sheet, "extras") else None)
+    except Exception as exc:  # ultima rete di sicurezza: nessuna partita sparisce, nessuna ferma le altre
+        return mark_failed(analysis, "preparazione", "app", f"errore imprevisto ({type(exc).__name__}: {str(exc)[:120]})")
+    return analysis
+
+
+def analyze(match: TodayMatch, build: Callable[..., Any], odds_fields: Mapping[str, Any], *,
+            simulations: int, competition: str | None = None, settings: Mapping[str, Any] | None = None,
+            sheets: Sequence[Mapping[str, Any]] | None = None) -> Analysis:
+    """``prepare`` + simulazione; salta la partita (con il motivo) se manca un dato."""
+    analysis = prepare(match, build, odds_fields, simulations=simulations, competition=competition, settings=settings,
+                       sheets=sheets)
+    if analysis.config is None:
         return analysis
-    sheet.odds = dict(odds_fields)
-    sheet.competition = sheet.competition or match.competition
-    analysis.warnings = list(sheet.warnings)
-    analysis.sources = provenance_rows(sheet)
-    missing = missing_fields(sheet)
-    if missing:
-        analysis.skipped = "dati mancanti: " + ", ".join(missing[:6]) + ("…" if len(missing) > 6 else "")
-        return analysis
-    analysis.block = render_block(sheet)
     try:
-        parsed = parse_match_input(analysis.block)
-    except MatchInputError as exc:
-        analysis.skipped = f"blocco non valido: {exc}"
-        return analysis
-    analysis.odds = dict(parsed.odds)
-    from datasources.sources import league_code
+        return simulate(analysis, settings=settings)
+    except Exception as exc:
+        return mark_failed(analysis, "simulazione", "motore", f"simulazione non riuscita ({type(exc).__name__}: {str(exc)[:120]})")
 
-    from datasources.builder import strength_inputs
 
-    analysis.config = replace(config_from_input(parsed, simulations=simulations), league=league_code(sheet.competition),
-                              strength_inputs=strength_inputs(sheet) if hasattr(sheet, "extras") else None)
-    return simulate(analysis, settings=settings)
+def problem_rows(analyses: Iterable[Analysis]) -> list[dict]:
+    """Righe della tabella «Partite non analizzate»: partita, fase, fonte, messaggio breve (una per partita)."""
+    return [{"Partita": analysis.match.label, "Fase": analysis.problem[0], "Fonte": analysis.problem[1],
+             "Messaggio": analysis.problem[2]} for analysis in analyses if analysis.problem is not None]
 
 
 def simulate(analysis: Analysis, *, flags: Sequence[str] | None = None, claude: ClaudeResponse | None = None,
