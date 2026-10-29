@@ -742,6 +742,22 @@ Nella pagina Prestazioni ci sono:
 L'Excel della giornata ha il foglio «Doppio pronostico» con le tre colonne;
 «Riprendi da file» lo ricarica.
 
+## Quote da qualunque bookmaker, selezione e combo builder (fase Z)
+
+- **Selezione del giorno** in Oggi: caselle «Seleziona» (max 8) e «Da giocare» (max 5), limiti in
+  `config/oggi.json` → `selezione`. Solo le selezionate entrano in Prepara, Analizza tutte e nella raccolta quote.
+- **Archivio unico della giornata** (`day_archive.py`): quote, pagine incollate e dati a mano per partita, letti da
+  Oggi, pagina Partita, «I miei mercati», combo builder, registro ed Excel (fogli «Quote» e «I miei mercati»).
+  Valori diversi si mostrano e si confermano, mai sovrascritti.
+- **Incolla quote**: un solo campo per più pagine (titolo «Casa - Ospite» + riga «gg/mm hh:mm»); formato riconosciuto
+  per pagina (Eurobet, generico, sconosciuto = segnalato); abbinamento con nomi tolleranti, data ±1 giorno, ora ±3 h;
+  le pagine ambigue si assegnano a mano.
+- **Più bookmaker**: al motore va la quota a mano, altrimenti Pinnacle, altrimenti la mediana; scarto > 5% segnalato.
+- **The Odds API a due livelli** con pre-conto e conferma: A (selezionate, 1X2 + Over/Under, una chiamata per
+  campionato), B («Da giocare», corner e cartellini per evento). Tetto giornaliero = budget/30, timeout 8 s, un solo
+  nuovo tentativo, registro crediti `quote_crediti`. «Analizza tutte» non chiama mai l'API.
+- **Combo builder**: probabilità congiunta dai campioni della simulazione (mai il prodotto, mostrato solo come confronto).
+
 ## Partite analizzate ed Excel della giornata
 
 Ogni partita simulata entra da sola nell'elenco **Partite analizzate** della

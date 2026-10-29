@@ -32,6 +32,7 @@ from ui_memory import RESTART_WARNING, flags_key, remember, remember_claude, ren
 from ui_odds import render_credits, render_odds
 from ui_performance import render_performance
 from ui_tactical import current_effects, render_match as render_match_sheets
+import day_archive
 from datasources.sources import league_code
 
 
@@ -253,6 +254,8 @@ with st.container(border=True):
     )
     if "pending_input_mode" in st.session_state:
         st.session_state["input_mode"] = st.session_state.pop("pending_input_mode")
+    if "pending_input_text" in st.session_state:  # «Usa i dati inseriti a mano»: prima che il campo di testo esista
+        st.session_state["input_text"] = st.session_state.pop("pending_input_text")
     input_mode = st.radio("Modalità input", ["Copia-incolla", "Dati automatici", "Quote del giorno", "Crea partita"],
                           horizontal=True, key="input_mode")
 with st.expander("Quali dati inserire per un’analisi affidabile"):
@@ -500,6 +503,48 @@ if parsed_preview is not None and st.session_state.get("input_touched", False):
                     "Confronta le colonne prima di interpretare la previsione come accuratezza dimostrata."
                 )
 
+def _day_entry_for_result(result: dict) -> dict | None:
+    from ui_quotes import entry_for
+
+    meta = st.session_state.get("match_meta") or {}
+    return entry_for(result["input"]["home"]["name"], result["input"]["away"]["name"],
+                     meta.get("date") if isinstance(meta.get("date"), date) else None)
+
+
+def _day_entry(parsed: MatchInput | None) -> dict | None:
+    """Voce della partita nell'archivio della giornata (stesse squadre, data del blocco se nota)."""
+    from ui_quotes import entry_for
+
+    if parsed is None:
+        return None
+    meta = st.session_state.get("match_meta") or {}
+    return entry_for(parsed.home.name, parsed.away.name, meta.get("date") if isinstance(meta.get("date"), date) else None)
+
+
+def _render_day_conflicts(parsed: MatchInput | None, entry: dict | None, day_odds: dict, field_keys: dict, block: str) -> None:
+    """Quote e dati a mano della giornata diversi da quelli del blocco: si mostrano e si applicano solo con un clic."""
+    import manual_data
+
+    if parsed is None or entry is None:
+        return
+    differing = {key: price for key, price in day_odds.items() if key in parsed.odds and abs(parsed.odds[key] - price) > 1e-9}
+    if differing:
+        st.info("Quote della giornata diverse da quelle del blocco: " + ", ".join(
+            f"{key} {parsed.odds[key]:.2f} → {price:.2f}" for key, price in differing.items()))
+        if st.button("Usa le quote della giornata", key=f"use_day_odds_{entry['key']}"):
+            for key, price in differing.items():
+                if key in field_keys:
+                    st.session_state[field_keys[key]] = float(price)
+            st.rerun()
+    rows = manual_data.block_differences(block, entry.get("manual"))
+    if rows:
+        st.warning("Dati inseriti a mano in Oggi diversi dal blocco (precedenza: manuale > automatico):")
+        st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+        if st.button("Usa i dati inseriti a mano", key=f"use_day_manual_{entry['key']}"):
+            st.session_state["pending_input_text"] = manual_data.overlay_block(block, entry.get("manual"))
+            st.rerun()
+
+
 with st.container(border=True):
     st.markdown('<div class="input-card-title">Parametri simulazione</div>', unsafe_allow_html=True)
     st.markdown('<div class="input-card-subtitle">Controlla precisione e riproducibilità del calcolo.</div>', unsafe_allow_html=True)
@@ -516,9 +561,14 @@ with st.container(border=True):
         'Ogni campo valorizzato qui sotto sovrascrive la quota letta; lascia 0 per non inserirla.</div>',
         unsafe_allow_html=True,
     )
-    quote_source = parsed_preview.odds if parsed_preview else {}
+    # Fase Z: le quote della giornata (archivio unico) completano quelle del blocco; un valore diverso si mostra e si
+    # conferma, mai sovrascritto in silenzio.
+    day_entry = _day_entry(parsed_preview)
+    day_odds = day_archive.engine_odds(day_entry) if day_entry else {}
+    quote_source = {**day_odds, **(parsed_preview.odds if parsed_preview else {})}
     quote_editor_token = str(abs(hash(text)))
     field_keys = {definition.event_key: f"odd_{quote_editor_token}_{definition.key}" for definition in MARKET_CATALOG}
+    _render_day_conflicts(parsed_preview, day_entry, day_odds, field_keys, text)
     if parsed_preview is not None:
         with st.expander("Incolla quote Eurobet", expanded=bool(find_paste(parsed_preview.home.name, parsed_preview.away.name))):
             st.caption("Le quote Eurobet sono quelle che giochi: EV e semaforo si calcolano su di esse. L'ancoraggio dei "
@@ -634,6 +684,13 @@ if st.button("Esegui simulazione", type="primary", width="stretch") or st.sessio
                 merged_odds[market] = odd
             else:
                 merged_odds.pop(market, None)
+        # Fase Z: le quote scritte o confermate qui valgono per tutta la giornata (archivio unico, bookmaker «a mano»).
+        from ui_quotes import archive as day_store
+
+        meta_day = (st.session_state.get("match_meta") or {}).get("date")
+        day_key = day_archive.ensure(day_store(), parsed.home.name, parsed.away.name,
+                                     meta_day if isinstance(meta_day, date) else None)
+        day_archive.record_manual_odds(day_store(), day_key, merged_odds)
         paste = find_paste(parsed.home.name, parsed.away.name)
         sharp = sharp_for(parsed.home.name, parsed.away.name)
         anchor, anchor_sources = anchor_odds(merged_odds, sharp, paste) if (paste or sharp) else (None, {})
@@ -779,6 +836,12 @@ def _overview_tab(result: dict, financial_rows: dict) -> None:
     st.html(dashboard.grid([dashboard.outcome_card(result), dashboard.goals_card(result), dashboard.value_card(result)]))
     st.html(dashboard.solid_picks_box(result))
     st.html(dashboard.goleada_line(result))
+    with st.expander("I miei mercati", expanded=False):
+        from my_markets import rows_for as my_market_rows
+        _mine_entry = _day_entry_for_result(result)
+        st.dataframe(pd.DataFrame(my_market_rows(f"{result['input']['home']['name']} - {result['input']['away']['name']}", result,
+                                                 day_archive.consolidated(_mine_entry) if _mine_entry else {})),
+                     hide_index=True, width="stretch")
     keys, _ = parse_keys(st.session_state.get("claude_answer") or "")
     if keys:
         st.html(dashboard.keys_card(keys))

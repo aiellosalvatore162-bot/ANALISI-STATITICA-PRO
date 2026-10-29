@@ -97,7 +97,7 @@ def _missing_problem(sheet: Any, missing: Sequence[str]) -> tuple[str, str, str]
 def prepare(match: TodayMatch, build: Callable[..., Any], odds_fields: Mapping[str, Any], *,
             simulations: int, competition: str | None = None, settings: Mapping[str, Any] | None = None,
             sheets: Sequence[Mapping[str, Any]] | None = None, manual: Mapping[str, Any] | None = None,
-            auto_sheet: Any = None) -> Analysis:
+            auto_sheet: Any = None, keep_samples: bool = False) -> Analysis:
     """Tutto quello che precede la simulazione: dati automatici, quote del passaggio economico, blocco e
     configurazione. Scalda anche le cache delle fonti (CSV, Understat, calendario, Elo da risultati), senza
     simulare e senza The Odds API: «Prepara la giornata» chiama solo questa. Una partita che non si può preparare
@@ -153,7 +153,8 @@ def prepare(match: TodayMatch, build: Callable[..., Any], odds_fields: Mapping[s
             from datasources.sources import league_code
 
             analysis.config = replace(config_from_input(parsed, simulations=simulations), league=league_code(sheet.competition),
-                                      strength_inputs=strength_inputs(sheet) if hasattr(sheet, "extras") else None)
+                                      strength_inputs=strength_inputs(sheet) if hasattr(sheet, "extras") else None,
+                                      keep_samples=keep_samples)
     except Exception as exc:  # ultima rete di sicurezza: nessuna partita sparisce, nessuna ferma le altre
         return mark_failed(analysis, "preparazione", "app", f"errore imprevisto ({type(exc).__name__}: {str(exc)[:120]})")
     return analysis
@@ -162,10 +163,10 @@ def prepare(match: TodayMatch, build: Callable[..., Any], odds_fields: Mapping[s
 def analyze(match: TodayMatch, build: Callable[..., Any], odds_fields: Mapping[str, Any], *,
             simulations: int, competition: str | None = None, settings: Mapping[str, Any] | None = None,
             sheets: Sequence[Mapping[str, Any]] | None = None, manual: Mapping[str, Any] | None = None,
-            auto_sheet: Any = None) -> Analysis:
+            auto_sheet: Any = None, keep_samples: bool = False) -> Analysis:
     """``prepare`` + simulazione; salta la partita (con il motivo) se manca un dato."""
     analysis = prepare(match, build, odds_fields, simulations=simulations, competition=competition, settings=settings,
-                       sheets=sheets, manual=manual, auto_sheet=auto_sheet)
+                       sheets=sheets, manual=manual, auto_sheet=auto_sheet, keep_samples=keep_samples)
     if analysis.config is None:
         return analysis
     try:

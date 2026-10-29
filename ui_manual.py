@@ -1,6 +1,7 @@
 """«Modifica o completa i dati» nella pagina Oggi (fase R): integrazioni a mano partita per partita.
 
-I manuali stanno in ``st.session_state["manual_fields"]`` (chiave data|Casa - Ospite, vedi ``manual_data``): un nuovo
+Fase Z: i manuali stanno nell'archivio unico della giornata (``day_archive``, campo ``manual`` di ogni voce, chiave
+data|Casa - Ospite; ``manual_store`` ne è una vista): un nuovo
 «Prepara» o «Analizza» li applica sopra i dati automatici (manuale > automatico > proxy/stima) e non li tocca;
 «Ripristina dati automatici» li toglie. «Applica e ricalcola» rifà SOLO quella partita, con lo stesso seed e senza
 rete (usa la scheda automatica già costruita), e aggiorna la sua riga.
@@ -8,18 +9,19 @@ rete (usa la scheda automatica già costruita), e aggiorna la sua riga.
 
 from __future__ import annotations
 
+from collections.abc import MutableMapping
 from dataclasses import replace
 import hashlib
 
 import pandas as pd
 import streamlit as st
 
+import day_archive
 import manual_data
 from datasources.builder import empty_sheet, missing_fields
 from manual_data import apply_manual, has_manual
 from today import Analysis, prepare, problem_rows, simulate
 
-STORE_KEY = "manual_fields"
 EXAMPLE = "CASA: Napoli | Elo: 1650\nOSPITE: Roma | Elo: 1620 | Forma: W-D-L-W-W"
 
 
@@ -29,8 +31,41 @@ def match_key(match) -> str:
     return match_id(match.commence_time.date(), match.home, match.away)
 
 
-def manual_store() -> dict:
-    return st.session_state.setdefault(STORE_KEY, {})
+class ManualView(MutableMapping):
+    """Vista dei dati inseriti a mano dentro l'archivio della giornata: nessuna copia separata."""
+
+    def __init__(self, store: dict) -> None:
+        self.store = store
+
+    def __getitem__(self, key: str) -> dict:
+        entry = self.store.get(key)
+        if entry is None or not has_manual(entry.get("manual")):
+            raise KeyError(key)
+        return entry["manual"]
+
+    def __setitem__(self, key: str, value: dict) -> None:
+        if key not in self.store:
+            day, _, teams = key.partition("|")
+            home, _, away = teams.partition(" - ")
+            self.store[key] = day_archive.new_entry(key, home=home, away=away, commence=f"{day}T00:00:00")
+        self.store[key]["manual"] = value
+
+    def __delitem__(self, key: str) -> None:
+        if key not in self:
+            raise KeyError(key)
+        self.store[key]["manual"] = {}
+
+    def __iter__(self):
+        return (key for key, entry in self.store.items() if has_manual(entry.get("manual")))
+
+    def __len__(self) -> int:
+        return sum(1 for _ in self)
+
+
+def manual_store() -> ManualView:
+    from ui_quotes import archive
+
+    return ManualView(archive())
 
 
 def manual_for(match) -> dict | None:
@@ -62,25 +97,26 @@ def _auto_sheet(analysis: Analysis):
 
 def recompute(index: int, settings: dict) -> Analysis:
     """Ricalcola la partita ``index`` di Oggi con i manuali correnti: una sola simulazione, stesso seed, nessuna rete."""
-    from ui_eurobet import find_paste, sharp_for
+    from eurobet import anchor_odds
+    from ui_quotes import entry_for
     from ui_tactical import saved_sheets
     from ui_today import _analyses, _remember
-    from eurobet import anchor_odds
 
     analyses = _analyses()
     old = analyses[index]
     simulations = old.config.simulations if old.config is not None else int(
         st.session_state.get("today_simulations") or settings["simulazioni"])
+    entry = entry_for(old.match.home, old.match.away, old.match.commence_time.date())
     fresh = prepare(old.match, None, old.odds_fields, simulations=simulations, competition=old.match.competition, settings=settings,
-                    sheets=saved_sheets(), manual=manual_for(old.match), auto_sheet=_auto_sheet(old))
+                    sheets=saved_sheets(), manual=manual_for(old.match), auto_sheet=_auto_sheet(old),
+                    keep_samples=bool(entry and entry.get("to_play")))
     if fresh.config is not None:
         fresh.flags, fresh.claude, fresh.claude_text = old.flags, old.claude, old.claude_text
-        extra = None
-        paste = find_paste(fresh.match.home, fresh.match.away)
-        if paste is not None and not paste.empty:  # come «Analizza»: quote Eurobet per EV e ancoraggio, in una sola simulazione
-            anchor, _ = anchor_odds({**fresh.odds, **paste.odds()}, sharp_for(fresh.match.home, fresh.match.away) or {}, paste)
+        extra = day_archive.engine_odds(entry) if entry else {}
+        if extra:  # come «Analizza»: quote dell'archivio per EV e ancoraggio, in una sola simulazione
+            anchor, _ = anchor_odds({**fresh.odds, **extra}, day_archive.sharp_odds(entry), day_archive.eurobet_paste(entry))
             fresh.config = replace(fresh.config, anchor_odds=anchor)
-            extra = paste.odds()
+        extra = extra or None
         try:
             simulate(fresh, flags=old.flags, claude=old.claude, extra_odds=extra, settings=settings)
             _remember(fresh)

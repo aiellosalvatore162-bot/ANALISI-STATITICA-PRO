@@ -42,11 +42,11 @@ def registry_log() -> PredictionLog:
 
 def remember(result: dict, *, block: str, odds: dict, simulations: int, seed: int, warnings=(), flags=()) -> dict:
     """Salva (o aggiorna) la partita appena simulata nella memoria della giornata."""
-    from ui_eurobet import _find
+    from ui_eurobet import pasted_text
 
     meta = st.session_state.get("match_meta") or {}
     home, away = result["input"]["home"]["name"], result["input"]["away"]["name"]
-    paste = _find("eurobet_pastes", home, away)
+    paste_text = pasted_text(home, away)
     previous = _store().get(st.session_state.get("current_match_id") or "")
     same_match = previous is not None and (previous["home"], previous["away"]) == (home, away)
     if not same_match:
@@ -55,7 +55,7 @@ def remember(result: dict, *, block: str, odds: dict, simulations: int, seed: in
         st.session_state["claude_apply"] = False
     record = make_record(
         result, block=block, odds=odds, day=meta.get("date") or date.today(), competition=meta.get("competition") or "",
-        eurobet_text=paste["text"] if paste else "", warnings=warnings, simulations=simulations, seed=seed,
+        eurobet_text=paste_text, warnings=warnings, simulations=simulations, seed=seed,
         claude_answer=previous.get("claude_answer", "") if same_match else "",
         claude_applied=previous.get("claude_applied", False) if same_match else False, flags=flags,
     )
@@ -80,9 +80,8 @@ def remember_claude(result: dict, claude_result: dict | None) -> None:
 
 def _reopen(record_id: str) -> None:
     """Callback: rimette blocco, quote dei campi, incollata Eurobet e risposta di Claude, poi risimula."""
-    from eurobet import parse_eurobet
     from market_catalog import MARKET_CATALOG
-    from ui_eurobet import _store as store_paste
+    from ui_eurobet import save_paste
 
     record = _store()[record_id]
     block = record["block"]
@@ -92,8 +91,7 @@ def _reopen(record_id: str) -> None:
     for definition in MARKET_CATALOG:
         st.session_state[f"odd_{token}_{definition.key}"] = float(record["odds"].get(definition.event_key, 0.0))
     if record.get("eurobet_text"):
-        store_paste("eurobet_pastes", record["home"], record["away"], text=record["eurobet_text"],
-                    paste=parse_eurobet(record["eurobet_text"]))
+        save_paste(record["home"], record["away"], record["eurobet_text"])
     st.session_state[flags_key(record["home"], record["away"])] = list(record.get("flags") or [])
     st.session_state["claude_answer"] = record.get("claude_answer", "")
     st.session_state["claude_apply"] = bool(record.get("claude_applied"))
@@ -124,7 +122,22 @@ def day_file_bytes() -> bytes:
     return day_workbook(registry_log().rows(session_id()), list(_store().values()),
                         st.session_state.get("tactical_sheets", []), st.session_state.get("dual_choices", []),
                         st.session_state.get("analyst_reports", []), st.session_state.get("saved_slips", []),
-                        analyst_records(), manual_items())
+                        analyst_records(), manual_items(), _archive(), _my_market_rows())
+
+
+def _archive() -> dict:
+    from ui_quotes import archive
+
+    return archive()
+
+
+def _my_market_rows() -> list[dict]:
+    from ui_quotes import my_market_rows
+
+    try:
+        return my_market_rows(st.session_state.get("today_analyses", []))
+    except Exception:  # il file della giornata si scarica anche se una partita non ha il risultato completo
+        return []
 
 
 def analyst_records() -> list[dict]:
@@ -196,6 +209,11 @@ def restore(content: bytes) -> None:
         st.session_state["tactical_sheets"] = upsert(
             st.session_state.get("tactical_sheets", []),
             [TacticalSheet.from_dict(row) for row in day.tactical_rows if row.get("team")])
+    if day.archive:
+        import day_archive
+        from ui_quotes import archive
+
+        day_archive.restore(archive(), day.archive)
     if day.manual:
         from ui_manual import restore_items
 

@@ -130,7 +130,8 @@ def analysis_rows(records: Iterable[Mapping[str, Any]]) -> list[dict]:
 def day_workbook(registry_rows: Sequence[Mapping[str, Any]], records: Iterable[Mapping[str, Any]],
                  tactical_rows: Sequence[Mapping[str, Any]] = (), dual_choices: Sequence[Mapping[str, Any]] = (),
                  reports: Sequence[Mapping[str, Any]] = (), slips: Sequence[Mapping[str, Any]] = (),
-                 dataset: Sequence[Mapping[str, Any]] = (), manual: Sequence[Mapping[str, Any]] = ()) -> bytes:
+                 dataset: Sequence[Mapping[str, Any]] = (), manual: Sequence[Mapping[str, Any]] = (),
+                 quotes_archive: Mapping[str, Any] | None = None, my_markets: Sequence[Mapping[str, Any]] = ()) -> bytes:
     """Un unico file: Registro (A–S), Analisi, Doppio pronostico, Schede tattiche e il foglio tecnico nascosto."""
     from openpyxl import Workbook
 
@@ -214,10 +215,24 @@ def day_workbook(registry_rows: Sequence[Mapping[str, Any]], records: Iterable[M
     for row in manual_rows(manual):
         manual_sheet.append([_clean(row.get(column)) for column in MANUAL_COLUMNS])
 
+    # Fase Z: archivio unico della giornata (selezione, quote di ogni fonte) e «I miei mercati».
+    import day_archive
+    from my_markets import COLUMNS as MY_MARKET_COLUMNS
+
+    quotes_sheet = workbook.create_sheet("Quote")
+    quotes_sheet.append(list(day_archive.SHEET_COLUMNS))
+    for row in day_archive.sheet_rows(quotes_archive or {}):
+        quotes_sheet.append([_clean(row.get(column)) for column in day_archive.SHEET_COLUMNS])
+    markets_sheet = workbook.create_sheet("I miei mercati")
+    markets_sheet.append(list(MY_MARKET_COLUMNS))
+    for row in my_markets:
+        markets_sheet.append([_clean(row.get(column)) for column in MY_MARKET_COLUMNS])
+
     technical = workbook.create_sheet(TECHNICAL_SHEET)
     technical.append(["Tipo", "ID", "JSON (diviso su più colonne se lungo)"])
     for kind, items in (("partita", records), ("scheda", tactical_rows), ("doppio", dual_choices), ("report", reports),
-                        ("schedina", slips), ("dataset", dataset), ("manuale", manual)):
+                        ("schedina", slips), ("dataset", dataset), ("manuale", manual),
+                        ("archivio", day_archive.items(quotes_archive or {}))):
         for item in items:
             text = json.dumps(_clean(item), ensure_ascii=False)
             technical.append([kind, item.get("id") or item.get("ID"), *[text[i:i + _CHUNK] for i in range(0, len(text), _CHUNK)]])
@@ -237,6 +252,7 @@ class DayFile:
     slips: list[dict] = field(default_factory=list)
     dataset: list[dict] = field(default_factory=list)
     manual: list[dict] = field(default_factory=list)
+    archive: list[dict] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
 
@@ -272,7 +288,7 @@ def read_day_workbook(content: bytes) -> DayFile:
                 row[FORM_COLUMN] = forms[row["ID"]]
     if TECHNICAL_SHEET in workbook.sheetnames:
         for values in workbook[TECHNICAL_SHEET].iter_rows(min_row=2, values_only=True):
-            if not values or values[0] not in ("partita", "scheda", "doppio", "report", "schedina", "dataset", "manuale"):
+            if not values or values[0] not in ("partita", "scheda", "doppio", "report", "schedina", "dataset", "manuale", "archivio"):
                 continue
             try:
                 item = json.loads("".join(str(part) for part in values[2:] if part is not None))
@@ -281,7 +297,7 @@ def read_day_workbook(content: bytes) -> DayFile:
                 continue
             {"partita": result.records, "scheda": result.tactical_rows, "doppio": result.dual_choices,
              "report": result.reports, "schedina": result.slips, "dataset": result.dataset,
-             "manuale": result.manual}[values[0]].append(item)
+             "manuale": result.manual, "archivio": result.archive}[values[0]].append(item)
     elif ANALYSIS_SHEET in workbook.sheetnames:
         result.warnings.append("Foglio tecnico assente: le partite del foglio Analisi non si possono riaprire.")
     workbook.close()

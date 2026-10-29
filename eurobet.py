@@ -151,6 +151,16 @@ def _simple(mapping: Mapping[str, str]) -> Mapper:
     return lambda param, label: mapping.get(label)
 
 
+def _goal_sum(param: str | None, label: str) -> str | None:
+    """«0» … «4» e «5+» (o «> 4») sui campi «Somma gol»; le altre voci non sono simulate."""
+    text = label.replace(" ", "")
+    if re.fullmatch(r"[0-4]", text):
+        return f"Somma gol {text}"
+    if text in ("5+", ">4"):
+        return "Somma gol 5+"
+    return None
+
+
 def _exact(param: str | None, label: str) -> str | None:
     match = re.fullmatch(r"(\d+)-(\d+)", label)
     return f"{int(match[1])}-{int(match[2])}" if match else None
@@ -246,6 +256,7 @@ SECTIONS: tuple[SectionSpec, ...] = (
     SectionSpec(r"1x \+ u/o", rf"(?:1x|2) \+ (?:{UO})", LINE, _result_uo, "gruppi"),
     SectionSpec(r"x2 \+ u/o", rf"(?:1|x2) \+ (?:{UO})", LINE, _result_uo, "gruppi"),
     SectionSpec(r"gg/ng \+ u/o", rf"(?:{GGNG}) \+ (?:{UO})", LINE, _goal_uo, "gruppi"),
+    SectionSpec(r"somma goal|somma gol", r"\d+\s*\+?|>\s*\d+", None, _goal_sum, "gruppi"),
     SectionSpec(r"risultato esatto(?: xl)?", r"\d+-\d+", None, _exact),
     SectionSpec(r"ris\. esatto a gruppi|risultato esatto a gruppi", r"\d+-\d+(?:/\d+-\d+)+|sq\.[12] altro|x", None, _exact_group),
     SectionSpec(r"1t/finale|parziale/finale", r"[12x]-[12x]", None, None, "gruppi"),

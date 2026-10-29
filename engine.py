@@ -526,6 +526,8 @@ class MatchConfig:
     v2: ModelV2Params = DEFAULT_MODEL_V2
     # Fase Y: (attacco, difesa) Dixon-Coles per lato «home»/«away» (``datasources.builder.strength_inputs``).
     strength_inputs: Mapping[str, tuple[float, float]] | None = None
+    # Fase Z: conserva i campioni simulati degli eventi (bit compressi) per il combo builder; le probabilità non cambiano.
+    keep_samples: bool = False
 
     def __post_init__(self) -> None:
         if self.goal_model not in GOAL_MODELS:
@@ -2140,6 +2142,11 @@ def simulate_match(config: MatchConfig) -> dict[str, Any]:
         events, getattr(config, "odds", None), config.market_anchor.no_value_markets
     )
     result["joint_pairs"] = joint_pair_probabilities(events)
+    if config.keep_samples:
+        # Fase Z: un bit per simulazione e per evento (stessa estrazione di tutte le probabilità qui sopra).
+        result["event_samples"] = {key: np.packbits(np.asarray(values, dtype=bool)) for key, values in events.items()
+                                   if getattr(values, "dtype", None) == bool}
+        result["sample_size"] = int(config.simulations)
     result["statistical_report"] = statistical_report(config, result)
     result["dashboard"] = {
         "goals_distribution": {

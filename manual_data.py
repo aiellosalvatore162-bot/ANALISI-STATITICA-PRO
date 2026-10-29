@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from datetime import datetime
+import re
 from typing import Any, Mapping, Sequence
 
 from datasources.builder import MatchSheet, TEAM_FIELDS, _format
@@ -176,3 +177,61 @@ def sheet_rows(entries: Sequence[Mapping]) -> list[dict]:
                              "Valore": _shown(key, item["value"]), "Origine": item.get("origin", "manuale"),
                              "Fonte": item.get("source", MANUAL_SOURCE), "Quando": item.get("when", "")})
     return rows
+
+
+# --- Pagina Partita (fase Z): i dati a mano della giornata nel blocco di testo ------------------------------
+
+_HEADER = re.compile(r"^\s*(CASA|OSPITE|ARBITRO)\s*:", re.IGNORECASE)
+
+
+def _field_text(side: str, key: str, value: Any) -> tuple[str, str]:
+    label = LABELS[key]
+    if side == "referee":
+        return label, f"{label} {_shown(key, value)}"
+    return label, f"{label}: {_shown(key, value)}"
+
+
+def block_differences(block_text: str, entry: Mapping | None) -> list[dict]:
+    """Campi a mano della giornata diversi dal blocco (o assenti): campo | blocco | a mano. Righe # ignorate."""
+    if not has_manual(entry):
+        return []
+    parsed = parse_partial_input(block_text)
+    current = {"home": parsed.home, "away": parsed.away, "referee": parsed.referee}
+    rows = []
+    for side in SIDES:
+        for key, item in entry.get(side, {}).items():
+            value = current[side].get(key)
+            if value is None or _shown(key, value) != _shown(key, item["value"]):
+                rows.append({"Campo": f"{SIDE_LABEL[side]} · {LABELS.get(key, key)}",
+                             "Blocco": "assente" if value is None else _shown(key, value), "A mano": _shown(key, item["value"])})
+    return rows
+
+
+def overlay_block(block_text: str, entry: Mapping | None) -> str:
+    """Il blocco con i valori a mano al posto di quelli scritti (o aggiunti alla riga d'intestazione della sezione)."""
+    if not has_manual(entry):
+        return block_text
+    lines = block_text.splitlines()
+    sections: dict[str, list[int]] = {"home": [], "away": [], "referee": []}
+    current = None
+    for index, line in enumerate(lines):
+        header = _HEADER.match(line)
+        if header:
+            current = {"casa": "home", "ospite": "away", "arbitro": "referee"}[header[1].lower()]
+        if current and not line.lstrip().startswith("#"):
+            sections[current].append(index)
+    for side in SIDES:
+        for key, item in entry.get(side, {}).items():
+            label, replacement = _field_text(side, key, item["value"])
+            pattern = (re.compile(rf"{re.escape(label)}\s+[-+]?\d+(?:[.,]\d+)?", re.IGNORECASE) if side == "referee"
+                       else re.compile(rf"{re.escape(label)}\s*:\s*[^|]+?(?=\s*(?:\||$))", re.IGNORECASE))
+            done = False
+            for index in sections[side]:
+                if pattern.search(lines[index]):
+                    lines[index] = pattern.sub(replacement, lines[index], count=1)
+                    done = True
+                    break
+            if not done and sections[side]:
+                first = sections[side][0]
+                lines[first] = f"{lines[first].rstrip()} | {replacement}"
+    return "\n".join(lines)

@@ -78,6 +78,20 @@ def use_in_simulator(block: str, *, match_date: date | None = None, competition:
     st.rerun()
 
 
+def _with_day_data(sheet: MatchSheet, home: str, away: str, match_date) -> MatchSheet:
+    """Fase Z: dati a mano e quote della giornata (archivio unico) sopra i dati automatici, con la stessa precedenza
+    di Oggi (manuale > automatico > proxy/stima)."""
+    from manual_data import apply_manual
+    from ui_quotes import entry_for, odds_fields
+
+    entry = entry_for(home, away, match_date) or entry_for(sheet.home, sheet.away, match_date)
+    if entry is None:
+        return sheet
+    sheet = apply_manual(sheet, entry.get("manual"))
+    sheet.odds = {**(sheet.odds or {}), **odds_fields(entry)}
+    return sheet
+
+
 def _use_block(sheet: MatchSheet) -> None:
     from datasources.builder import strength_inputs
 
@@ -128,7 +142,7 @@ def render_automatic() -> None:
             coaches = current_effects(home, away).coaches()
             sheet = _provider(settings, refresh).build(home, away, match_date=match_date, competition=competition,
                                                        referee=referee, coaches=coaches)
-        _use_block(sheet)
+        _use_block(_with_day_data(sheet, home, away, match_date))
 
 
 def render_create() -> None:
