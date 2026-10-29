@@ -4,7 +4,7 @@
 oppure ``None`` se il simulatore non la calcola), linea, selezione come scritta, quota (``None`` = sospesa, mai
 zero), bookmaker, fonte (incollata / API / CSV / a mano) e ora di lettura.
 
-Al motore va UNA quota per mercato (``consolidate``): quella del bookmaker «sharp» (Pinnacle o quelli in
+Al motore va UNA quota per mercato (``consolidate``): quella scritta a mano se c'è, poi quella del bookmaker «sharp» (Pinnacle o quelli in
 ``config/oggi.json``, ``bookmaker_sharp``) se c'è, altrimenti la mediana dei bookmaker. Uno scarto oltre
 ``SPREAD_LIMIT`` tra bookmaker sulla stessa selezione viene segnalato.
 """
@@ -21,6 +21,7 @@ from typing import Iterable, Mapping
 CONFIG_PATH = Path(__file__).resolve().parents[1] / "config" / "oggi.json"
 SPREAD_LIMIT = 0.05
 DEFAULT_SHARP = ("pinnacle",)
+MANUAL_BOOKMAKER = "a mano"
 
 
 @dataclass(frozen=True)
@@ -82,7 +83,9 @@ def consolidate(quotes: Iterable[QuoteMercato], sharp: Iterable[str] | None = No
     result = {}
     for market, prices in by_market.items():
         sharp_name = next((name for name in prices if name.lower() in sharp), None)
-        if sharp_name is not None:
+        if MANUAL_BOOKMAKER in prices:  # quota scritta a mano: scelta esplicita, vince su tutte
+            price, label, book = prices[MANUAL_BOOKMAKER], "a mano", MANUAL_BOOKMAKER
+        elif sharp_name is not None:
             price, label, book = prices[sharp_name], sharp_name.title(), sharp_name
         elif len(prices) == 1:
             book, price = next(iter(prices.items()))

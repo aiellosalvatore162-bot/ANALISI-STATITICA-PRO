@@ -42,9 +42,16 @@ def odds_fields(entry: dict) -> dict:
             continue
         when = reads.get(key)
         fields[key] = FieldValue(item.quota, f"quote della giornata · {item.riferimento}",
-                                 datetime.fromisoformat(when) if when else None,
+                                 _read_time(when),
                                  note=" · ".join(f"{name} {value:.2f}" for name, value in sorted(item.quote.items())))
     return fields
+
+
+def _read_time(text: str | None) -> datetime | None:
+    try:
+        return datetime.fromisoformat(text) if text else None
+    except ValueError:
+        return None  # ora di lettura non leggibile: il campo resta senza data, mai inventata
 
 
 # --- 1. Selezione del giorno --------------------------------------------------------------------------------
