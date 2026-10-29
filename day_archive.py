@@ -101,8 +101,8 @@ def counts(archive: Mapping) -> tuple[int, int, int, int]:
 
 
 def counter_text(archive: Mapping) -> str:
-    selected, max_selected, play, _ = counts(archive)
-    return f"Selezionate {selected}/{max_selected}, Da giocare {play}/{min(selected, limits()[1]) if selected else limits()[1]}"
+    selected, max_selected, play, max_play = counts(archive)
+    return f"Selezionate {selected}/{max_selected}, Da giocare {play}/{max_play}"
 
 
 def set_selection(archive: dict, key: str, *, selected: bool | None = None, to_play: bool | None = None) -> str | None:

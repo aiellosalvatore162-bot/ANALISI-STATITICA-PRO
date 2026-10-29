@@ -185,7 +185,7 @@ def test_ui_flow_complete_the_cup_recompute_one_match_and_restore(tmp_path, monk
     assert not at.exception and calls == [1]  # ricalcolata una sola partita, una sola simulazione
     after_ok, after_cup = at.session_state["today_analyses"]
     assert after_cup.ok and after_cup.config.home.elo == 1650.0 and after_ok is ok_match
-    assert at.session_state["today_problems"] == [] and key in at.session_state["manual_fields"]
+    assert at.session_state["today_problems"] == [] and at.session_state["day_archive"][key]["manual"]
     assert "con dati a mano" in at.expander[1].label and not at.expander[1].proto.expanded
     # Scheda partita: la memoria della giornata conserva valore, origine e fonte di ogni campo.
     record = next(item for item in at.session_state["analyzed_matches"].values() if "Porto" in item["away"])
@@ -198,5 +198,5 @@ def test_ui_flow_complete_the_cup_recompute_one_match_and_restore(tmp_path, monk
     restore_key = ui_manual._widget_key("manual_restore", key)
     at.button(key=restore_key).click().run()
     assert not at.exception and calls == [1]  # tornata «MANCANTE»: nessuna simulazione in più
-    assert not at.session_state["today_analyses"][1].ok and key not in at.session_state["manual_fields"]
+    assert not at.session_state["today_analyses"][1].ok and not at.session_state["day_archive"][key]["manual"]
     assert at.expander[1].proto.expanded

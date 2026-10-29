@@ -1,68 +1,88 @@
 """Sezione Streamlit «Incolla quote Eurobet»: tabella delle voci lette, margini e applicazione ai campi quota.
 
-Le pagine incollate restano in ``st.session_state["eurobet_pastes"]`` per partita (nomi delle squadre):
-la scheda partita, la pagina «Quote del giorno» e i risultati esatti leggono la stessa incollata. Le quote
-«sharp» dell'API salvate alla compilazione del blocco stanno in ``st.session_state["odds_sharp"]``.
+Fase Z: le pagine incollate e le quote «sharp» dell'API stanno nell'archivio unico della giornata (``day_archive``,
+``ui_quotes.archive()``): la scheda partita, la pagina Oggi, «Quote del giorno», i risultati esatti e il registro
+leggono le stesse voci. Nessuna copia parallela in sessione.
 """
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Callable, Mapping
 
 import pandas as pd
 import streamlit as st
 
-from datasources.names import match_team
+import day_archive
 from eurobet import (
     DUPLICATE, NOT_SIMULATED, OK, SOURCE, EurobetPaste, apply_plan, format_margin, parse_eurobet, table_rows,
 )
 
 
-def _find(store_name: str, home: str, away: str) -> dict | None:
-    """Voce salvata per la stessa partita (nomi riconosciuti anche con grafie diverse)."""
-    for entry in reversed(st.session_state.get(store_name, [])):
-        if match_team(home, [entry["home"]]) and match_team(away, [entry["away"]]):
-            return entry
-    return None
+def _entry(home: str | None, away: str | None, *, create: bool = False) -> dict | None:
+    from ui_quotes import archive
+
+    if not home or not away:
+        return None
+    meta = st.session_state.get("match_meta") or {}
+    day = meta.get("date") if isinstance(meta.get("date"), date) else None
+    key = day_archive.find(archive(), home, away, day)
+    if key is None and create:
+        key = day_archive.ensure(archive(), home, away, day, meta.get("competition") or "")
+    return archive()[key] if key else None
 
 
-def _store(store_name: str, home: str, away: str, **values) -> None:
-    entries = [entry for entry in st.session_state.get(store_name, [])
-               if not (match_team(home, [entry["home"]]) and match_team(away, [entry["away"]]))]
-    st.session_state[store_name] = entries + [{"home": home, "away": away, **values}]
+def pasted_text(home: str | None, away: str | None) -> str:
+    entry = _entry(home, away)
+    return day_archive.eurobet_text(entry) if entry else ""
 
 
 def find_paste(home: str | None, away: str | None) -> EurobetPaste | None:
-    entry = _find("eurobet_pastes", home, away) if home and away else None
-    return entry["paste"] if entry else None
+    entry = _entry(home, away)
+    return day_archive.eurobet_paste(entry) if entry else None
 
 
 def sharp_for(home: str | None, away: str | None) -> dict[str, float] | None:
-    entry = _find("odds_sharp", home, away) if home and away else None
-    return entry["quotes"] if entry else None
+    entry = _entry(home, away)
+    return day_archive.sharp_odds(entry) if entry else None
+
+
+def save_paste(home: str, away: str, text: str) -> None:
+    from ui_quotes import archive
+
+    entry = _entry(home, away, create=True)
+    day_archive.set_eurobet_text(archive(), entry["key"], text)
 
 
 def save_sharp(home: str, away: str, quotes: Mapping[str, float], label: str) -> None:
-    _store("odds_sharp", home, away, quotes=dict(quotes), label=label)
+    """Quote di riferimento dell'API (Pinnacle o mediana) nell'archivio, come bookmaker «label»."""
+    from quotes.model import QuoteMercato, now_iso
+    from ui_quotes import archive
+
+    entry = _entry(home, away, create=True)
+    book = "pinnacle" if label.lower().startswith("pinnacle") else (label or "riferimento API")
+    fresh = [QuoteMercato(f"{home} - {away}", key, None, key, float(price), book, "The Odds API", now_iso())
+             for key, price in quotes.items() if price and float(price) > 1.0]
+    day_archive.add_quotes(archive(), entry["key"], fresh, confirm=True)
 
 
 def render_paste(home: str, away: str, key: str) -> EurobetPaste | None:
     """Campo di incolla (una o più pagine, qualsiasi ordine), tabella, margini e voci non simulate."""
-    entry = _find("eurobet_pastes", home, away)
+    stored = pasted_text(home, away)
     text = st.text_area(
-        "Incolla quote Eurobet", value=entry["text"] if entry else "", height=160, key=f"{key}_text",
+        "Incolla quote Eurobet", value=stored, height=160, key=f"{key}_text",
         help="Copia dal sito Eurobet una o più pagine quote della partita (principali, multigol, corner, "
              "cartellini) e incollale qui una dopo l'altra, in qualsiasi ordine.",
     )
     if not text.strip():
-        if entry:
-            st.session_state["eurobet_pastes"] = [item for item in st.session_state["eurobet_pastes"] if item is not entry]
+        if stored:
+            save_paste(home, away, "")
             st.rerun()
         return None
     paste = parse_eurobet(text)
-    changed = entry is None or entry["text"] != text
-    _store("eurobet_pastes", home, away, text=text, paste=paste)
+    changed = stored != text
     if changed:
+        save_paste(home, away, text)
         st.rerun()  # le sezioni sopra (costo dei mercati API, ancoraggio) devono vedere la nuova incollata
     if paste.empty:
         st.warning("Nessuna voce Eurobet riconosciuta nel testo incollato.")

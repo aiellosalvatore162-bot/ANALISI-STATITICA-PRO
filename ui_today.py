@@ -64,17 +64,25 @@ def _open_card(index: int) -> None:
     st.session_state["page"] = "Partita"
 
 
-def _with_eurobet(analysis: Analysis, sharp: dict[str, float]) -> None:
-    """Quote Eurobet incollate per la partita: EV su Eurobet, ancoraggio come nella fase N3."""
+def _with_quotes(analysis: Analysis) -> bool:
+    """Quote dell'archivio della giornata per EV, semaforo e ancoraggio (sharp per i gol, scala Eurobet per corner e
+    cartellini, fase N3); una sola simulazione in più. False se la partita non ha quote: resta «solo modello»."""
     from eurobet import anchor_odds
-    from ui_eurobet import find_paste
+    from ui_quotes import entry_for
 
-    paste = find_paste(analysis.match.home, analysis.match.away)
-    if paste is None or paste.empty or analysis.config is None:
-        return
-    anchor, _ = anchor_odds({**analysis.odds, **paste.odds()}, sharp, paste)
+    entry = entry_for(analysis.match.home, analysis.match.away, analysis.match.commence_time.date())
+    if entry is None or analysis.config is None:
+        return False
+    import day_archive
+
+    extra = day_archive.engine_odds(entry)
+    if not extra:
+        return False
+    paste = day_archive.eurobet_paste(entry)
+    anchor, _ = anchor_odds({**analysis.odds, **extra}, day_archive.sharp_odds(entry), paste)
     analysis.config = replace(analysis.config, anchor_odds=anchor)
-    simulate(analysis, extra_odds=paste.odds())
+    simulate(analysis, extra_odds=extra)
+    return True
 
 
 # --- Pagina ---------------------------------------------------------------------------------------
@@ -86,28 +94,29 @@ def render_today() -> None:
     settings = load_settings()
     api = odds_client()
     st.title("Oggi")
-    st.caption("Partite del giorno delle competizioni scelte: «Analizza tutte» compila i dati automatici, scarica le "
-               "quote 1X2 e Over/Under per campionato e simula ogni partita. Le partite con dati mancanti sono "
-               "segnalate e saltate.")
+    st.caption("Cerca le partite (gratis), scegli le selezionate (e le «Da giocare»), incolla o raccogli le quote, poi "
+               "«Prepara» e «Analizza tutte». «Analizza tutte» non chiama mai l'API a crediti: usa solo le quote già "
+               "presenti nella giornata.")
     from ui_quick import render_slips
 
     render_slips()
     render_analyst_report()
-    if not api.configured:
-        st.info("Serve ODDS_API_KEY in .streamlit/secrets.toml per l'elenco partite e le quote del giorno.")
-        return
-    sports = _run(api.sports, "Elenco competizioni")
-    if sports is None:
-        return
-    labels = {sport["key"]: competition_label(sport["key"], sport.get("title"))
-              for sport in sports.payload if sport.get("active") and is_european_soccer(sport)}
-    defaults = [key for key in api.settings.get("competizioni_predefinite", []) if key in labels]
     columns = st.columns([4, 1, 1, 1])
+    labels: dict[str, str] = {}
+    if api.configured:
+        sports = _run(api.sports, "Elenco competizioni")
+        if sports is not None:
+            labels = {sport["key"]: competition_label(sport["key"], sport.get("title"))
+                      for sport in sports.payload if sport.get("active") and is_european_soccer(sport)}
+    else:
+        st.info("Serve ODDS_API_KEY in .streamlit/secrets.toml per l'elenco gratuito delle partite e le quote dell'API. "
+                "Le partite già selezionate (anche da «Riprendi da file») restano utilizzabili con le quote incollate.")
+    defaults = [key for key in api.settings.get("competizioni_predefinite", []) if key in labels]
     chosen = columns[0].multiselect("Competizioni", list(labels), defaults, format_func=labels.get, key="today_sports")
     day = columns[1].date_input("Giorno", key="today_day", **({} if "today_day" in st.session_state else {"value": date.today()}))
     mode = columns[2].radio("Modalità", ["Veloce", "Approfondita"], key="today_mode",
                             help="Veloce: giocate con valore e multiple. Approfondita: in più Claude per tutte le "
-                                 "partite selezionate e quote mirate di corner e cartellini.")
+                                 "partite analizzate.")
     simulations = int(columns[3].number_input("Simulazioni", 5_000, 100_000, int(settings["simulazioni"]), 5_000,
                                               key="today_simulations"))
     if st.button("Cerca le partite del giorno (gratis)", key="today_events_button", disabled=not chosen):
@@ -115,17 +124,27 @@ def render_today() -> None:
         for warning in warnings:
             st.warning(warning)
         st.session_state["today_events"] = (day, events)
+    from ui_quotes import (archive, render_collection, render_combo, render_my_markets, render_paste_box,
+                           render_paste_summary, render_selection)
+
     found = st.session_state.get("today_events")
-    if found is None:
-        return
-    events_day, events = found
-    if events.empty:
-        st.info("Nessuna partita nel giorno scelto per queste competizioni.")
+    events = found[1] if found else None
+    if events is not None and not events.empty:
+        events = events[events["sport"].isin(chosen)] if chosen else events
+    st.subheader("Selezione del giorno")
+    render_selection(events)
+    import day_archive
+
+    entries = day_archive.selected(archive())
+    if not entries:
         return
     from ui_tactical import render_manager
 
-    render_manager(sorted(set(events["home_team"]) | set(events["away_team"])))
-    _render_analyze_all(api, events, events_day, labels, simulations, settings, mode)
+    render_manager(sorted({entry["home"] for entry in entries} | {entry["away"] for entry in entries}))
+    render_paste_box()
+    render_paste_summary()
+    render_collection(api)
+    _render_analyze_all(entries, simulations, settings)
     _render_problems()
     _render_timing()
     analyses = _analyses()
@@ -144,85 +163,71 @@ def render_today() -> None:
     _render_analyst(analyses, settings)
     _render_dual(analyses, settings)
     _render_sharp_list(analyses)
+    render_my_markets(analyses)
+    render_combo(analyses)
     _render_quick(analyses, settings)
     _render_builder(analyses, settings)
 
 
-def _render_analyze_all(api, events: pd.DataFrame, day: date, labels: dict, simulations: int, settings: dict, mode: str) -> None:
+def _render_analyze_all(entries: list[dict], simulations: int, settings: dict) -> None:
+    """Pulsanti «Prepara la giornata» e «Analizza tutte» sulle partite selezionate: nessuna chiamata a crediti."""
+    st.subheader("Analisi")
+    st.caption(f"{len(entries)} partite selezionate. «Analizza tutte» usa solo le quote già presenti (incollate, CSV, "
+               "API già scaricate); senza quote la partita è «solo modello».")
+    columns = st.columns(2)
+    if columns[0].button("Prepara la giornata", key="today_prepare",
+                         help="Scalda la cache (CSV, Understat, calendario, Elo da risultati) per le selezionate: "
+                              "non simula e non usa crediti The Odds API."):
+        _prepare_day(entries, simulations, settings)
+    if columns[1].button("Analizza tutte", type="primary", key="today_analyze"):
+        _analyze_day(entries, simulations, settings)
+
+
+def _analyze_day(entries: list[dict], simulations: int, settings: dict) -> None:
     from datasources.builder import DataProvider
-    from datasources.oddsapi import day_cost, planned_cost, quotes_frame, reference_quotes, sheet_odds
     from datasources.sources import COMPETITIONS, CUP_COMPETITIONS, football_data_org_key
-    from eurobet import GOAL_ANCHOR_KEYS
+    import day_archive
     from ui_data import source_cache
-    from ui_eurobet import save_sharp
-    from ui_odds import _approve, _run, render_day_summary
+    from ui_quotes import odds_fields
     from ui_tactical import saved_sheets
 
-    leagues = sorted(events["sport"].unique())
-    st.caption(f"{len(events)} partite il {day:%d/%m/%Y} in {len(leagues)} competizioni.")
-    calls = [(f"/sports/{sport}/odds", api.league_params(), api.league_cost()) for sport in leagues]
-    cost, cached = planned_cost(api, calls)
-    targeted = 0 if mode == "Veloce" else min(int(api.settings.get("max_partite_mirate", 10)), len(events))
-    render_day_summary(day_cost(api, leagues, targeted), title="Costo previsto di «Analizza tutte»"
-                       + (" (i mercati mirati si scaricano dopo, solo per le partite selezionate)" if targeted else ""))
-    if st.button("Prepara la giornata", key="today_prepare",
-                 help="Scalda la cache (CSV, Understat, calendario, Elo da risultati) per tutte le partite del giorno: "
-                      "non simula e non usa crediti The Odds API."):
-        _prepare_day(events, simulations, settings)
-    approved = _approve(api, cost, cached, "today_confirm_league")
-    if approved is None or not st.button("Analizza tutte", type="primary", key="today_analyze"):
-        return
     provider = DataProvider(source_cache(), football_data_key=football_data_org_key())
-    league_data = {}
-    for sport in leagues:
-        result = _run(lambda: api.league_odds(sport, **approved), labels.get(sport, sport))
-        if result is not None:
-            league_data[sport] = (result.payload, result.fetched_at)
-    league_events = {event["id"]: (event, fetched) for payload, fetched in league_data.values() for event in payload}
     progress = st.progress(0.0, text="Analisi in corso…")
     analyses = []
     with registra() as registro:
         started = time.perf_counter()
-        for position, row in enumerate(events.itertuples(), start=1):
-            match = _today_match(row)
-            event, fetched = league_events.get(row.event_id, (None, None))
-            quotes = reference_quotes(quotes_frame(event), api.settings.get("riferimento")) if event else {}
-            competition = row.competition if row.competition in COMPETITIONS or row.competition in CUP_COMPETITIONS else None
-            analysis = analyze(match, provider.build, sheet_odds(quotes, fetched) if quotes else {}, simulations=simulations,
-                               competition=competition, settings=settings, sheets=saved_sheets(), manual=manual_for(match))
+        for position, entry in enumerate(entries, start=1):
+            match = day_archive.today_match(entry)
+            competition = match.competition if match.competition in COMPETITIONS or match.competition in CUP_COMPETITIONS else None
+            analysis = analyze(match, provider.build, odds_fields(entry), simulations=simulations, competition=competition,
+                               settings=settings, sheets=saved_sheets(), manual=manual_for(match),
+                               keep_samples=bool(entry.get("to_play")))
             if analysis.ok:
                 try:
-                    if not quotes:
-                        analysis.warnings.append("nessuna quota per campionato: simulazione del solo modello")
-                    sharp = {key: quotes[key].price for key in GOAL_ANCHOR_KEYS if key in quotes}
-                    if sharp:
-                        save_sharp(match.home, match.away, sharp, quotes["1"].reference if "1" in quotes else "")
-                    _with_eurobet(analysis, sharp)
+                    if not _with_quotes(analysis):
+                        analysis.warnings.append("solo modello: nessuna quota raccolta o incollata per questa partita")
                     _remember(analysis)
                 except Exception as exc:  # una partita in errore non ferma le altre e resta nella tabella
                     analysis.result = None
                     mark_failed(analysis, "salvataggio", "app", f"errore dopo la simulazione ({type(exc).__name__}: {str(exc)[:120]})")
             analyses.append(analysis)
-            progress.progress(position / len(events), text=f"{position}/{len(events)} · {match.label}")
+            progress.progress(position / len(entries), text=f"{position}/{len(entries)} · {match.label}")
         elapsed = time.perf_counter() - started
     progress.empty()
     st.session_state["today_analyses"] = analyses
     st.session_state["today_problems"] = problem_rows(analyses)
     st.session_state["today_timing"] = {"label": "Analizza tutte", "total": elapsed, "phases": registro.breakdown(elapsed),
-                                        "sources": registro.sources(), "matches": len(events)}
+                                        "sources": registro.sources(), "matches": len(entries)}
     st.session_state.pop("today_overrides", None)
 
 
-def _today_match(row) -> TodayMatch:
-    commence = pd.Timestamp(row.commence_time).to_pydatetime().replace(tzinfo=timezone.utc)
-    return TodayMatch(row.event_id, row.sport, row.competition, commence, row.home_team, row.away_team)
-
-
-def _prepare_day(events: pd.DataFrame, simulations: int, settings: dict) -> None:
-    """«Prepara la giornata»: ``today.prepare`` per ogni partita (cache dei dati), senza simulare né The Odds API."""
+def _prepare_day(entries: list[dict], simulations: int, settings: dict) -> None:
+    """«Prepara la giornata»: ``today.prepare`` per ogni selezionata (cache dei dati), senza simulare né The Odds API."""
     from datasources.builder import DataProvider
     from datasources.sources import COMPETITIONS, CUP_COMPETITIONS, football_data_org_key
+    import day_archive
     from ui_data import source_cache
+    from ui_quotes import odds_fields
     from ui_tactical import saved_sheets
 
     provider = DataProvider(source_cache(), football_data_key=football_data_org_key())
@@ -231,24 +236,24 @@ def _prepare_day(events: pd.DataFrame, simulations: int, settings: dict) -> None
     prepared = []
     with registra() as registro:
         started = time.perf_counter()
-        for position, row in enumerate(events.itertuples(), start=1):
-            match = _today_match(row)
-            competition = row.competition if row.competition in COMPETITIONS or row.competition in CUP_COMPETITIONS else None
-            prepared.append(prepare(match, provider.build, {}, simulations=simulations, competition=competition,
+        for position, entry in enumerate(entries, start=1):
+            match = day_archive.today_match(entry)
+            competition = match.competition if match.competition in COMPETITIONS or match.competition in CUP_COMPETITIONS else None
+            prepared.append(prepare(match, provider.build, odds_fields(entry), simulations=simulations, competition=competition,
                                     settings=settings, sheets=saved_sheets(), manual=manual_for(match)))
-            progress.progress(position / len(events), text=f"{position}/{len(events)} · {match.label}")
-            live.dataframe(pd.DataFrame([{**source, "Partite da preparare": len(events) - position}
+            progress.progress(position / len(entries), text=f"{position}/{len(entries)} · {match.label}")
+            live.dataframe(pd.DataFrame([{**source, "Partite da preparare": len(entries) - position}
                                          for source in registro.sources()]), hide_index=True, width="stretch")
         elapsed = time.perf_counter() - started
     progress.empty()
     live.empty()
     # Le partite preparate (o con dati da completare) entrano in elenco; quelle già analizzate restano come sono.
-    done = {analysis.match.event_id: analysis for analysis in _analyses() if analysis.ok}
-    st.session_state["today_analyses"] = [done.get(analysis.match.event_id, analysis) for analysis in prepared]
+    done = {analysis.match.event_id or analysis.match.label: analysis for analysis in _analyses() if analysis.ok}
+    st.session_state["today_analyses"] = [done.get(analysis.match.event_id or analysis.match.label, analysis) for analysis in prepared]
     problems = problem_rows(st.session_state["today_analyses"])
     st.session_state["today_problems"] = problems
     st.session_state["today_timing"] = {"label": "Prepara la giornata", "total": elapsed, "phases": registro.breakdown(elapsed),
-                                        "sources": registro.sources(), "matches": len(events)}
+                                        "sources": registro.sources(), "matches": len(entries)}
     st.success(f"Giornata preparata in {elapsed:.1f} s: {len(prepared) - len(problems)} partite pronte, "
                f"{len(problems)} con dati da sistemare (le trovi in «Modifica o completa i dati»). "
                "Ora «Analizza tutte» usa la cache.")
@@ -673,42 +678,15 @@ def _render_quick(analyses: list[Analysis], settings: dict) -> None:
 
 def _render_deep(api, analyses: list[Analysis], settings: dict) -> None:
     from claude_bridge import ResponseError, changes_table
-    from datasources.oddsapi import merged_quotes_frame, planned_cost, reference_quotes
-    from eurobet import skip_event_markets
     from ui_data import COPY_HINT
-    from ui_eurobet import find_paste
-    from ui_odds import _approve, _run
 
     st.subheader("Analisi approfondita")
     ok = {index: analysis.match.label for index, analysis in enumerate(analyses) if analysis.ok}
     selected = st.multiselect("Partite selezionate", list(ok), list(ok), format_func=ok.get, key="today_deep_selected")
     if not selected:
         return
-    st.markdown("**Quote mirate di corner e cartellini** (profilo «risparmio»)")
-    markets = api.profile_markets()
-    per_event = {index: skip_event_markets(find_paste(analyses[index].match.home, analyses[index].match.away), markets)
-                 for index in selected}
-    calls = [(f"/sports/{analyses[index].match.sport}/events/{analyses[index].match.event_id}/odds",
-              api.event_params(per_event[index]), api.event_cost(per_event[index])) for index in selected if per_event[index]]
-    cost, cached = planned_cost(api, calls)
-    approved = _approve(api, cost, cached, "today_confirm_event") if calls else None
-    if not calls:
-        st.caption("Corner e cartellini già coperti dalle quote Eurobet incollate: nessun download.")
-    if approved is not None and st.button("Scarica le quote mirate e ricalcola", key="today_event_button"):
-        for index in selected:
-            analysis = analyses[index]
-            if not per_event[index]:
-                continue
-            result = _run(lambda: api.event_odds(analysis.match.sport, analysis.match.event_id, per_event[index], **approved),
-                          analysis.match.label)
-            if result is None:
-                continue
-            quotes = reference_quotes(merged_quotes_frame([result.payload]), api.settings.get("riferimento"))
-            extra = {key: quote.price for key, quote in quotes.items() if key not in analysis.odds}
-            simulate(analysis, extra_odds=extra, settings=settings)
-            _remember(analysis)
-        st.session_state.pop("today_overrides", None)
-        st.rerun()
+    st.caption("Quote di corner e cartellini: raccoglile con il livello B in «Raccolta quote» (solo «Da giocare», con "
+               "pre-conto) o incollale; qui nessuno scarico a crediti.")
 
     st.markdown("**Claude: un solo testo per tutte le partite selezionate**")
     if st.button("Prepara analisi per Claude", key="today_claude_prepare"):
