@@ -83,5 +83,14 @@
   "eurobet_vs_sharp": {
     "soglia_pct": 3.0,
     "nota": "Fase Y: lista «Quote Eurobet sopra il prezzo equo sharp» con la quota Eurobet almeno questa percentuale sopra la quota equa (senza margine, Shin) del riferimento The Odds API."
-  }
+  },
+  "bookmaker_sharp": [
+    "pinnacle"
+  ],
+  "selezione": {
+    "max_partite": 8,
+    "max_da_giocare": 5,
+    "nota": "Fase Z: partite selezionate (Prepara, Analizza tutte, raccolta quote) e, tra queste, «Da giocare» (quote del livello B e combo builder)."
+  },
+  "scarto_bookmaker": 0.05
 }
