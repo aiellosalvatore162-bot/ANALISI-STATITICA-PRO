@@ -130,7 +130,7 @@ def analysis_rows(records: Iterable[Mapping[str, Any]]) -> list[dict]:
 def day_workbook(registry_rows: Sequence[Mapping[str, Any]], records: Iterable[Mapping[str, Any]],
                  tactical_rows: Sequence[Mapping[str, Any]] = (), dual_choices: Sequence[Mapping[str, Any]] = (),
                  reports: Sequence[Mapping[str, Any]] = (), slips: Sequence[Mapping[str, Any]] = (),
-                 dataset: Sequence[Mapping[str, Any]] = ()) -> bytes:
+                 dataset: Sequence[Mapping[str, Any]] = (), manual: Sequence[Mapping[str, Any]] = ()) -> bytes:
     """Un unico file: Registro (A–S), Analisi, Doppio pronostico, Schede tattiche e il foglio tecnico nascosto."""
     from openpyxl import Workbook
 
@@ -206,10 +206,18 @@ def day_workbook(registry_rows: Sequence[Mapping[str, Any]], records: Iterable[M
         row = dataset_row(item)
         archive.append([_clean(row.get(column)) for column in DATASET_COLUMNS])
 
+    from manual_data import MANUAL_COLUMNS, sheet_rows as manual_rows
+
+    # Fase R: dati inseriti a mano (valore, origine, fonte); i dati veri tornano dal foglio tecnico.
+    manual_sheet = workbook.create_sheet("Manuali")
+    manual_sheet.append(list(MANUAL_COLUMNS))
+    for row in manual_rows(manual):
+        manual_sheet.append([_clean(row.get(column)) for column in MANUAL_COLUMNS])
+
     technical = workbook.create_sheet(TECHNICAL_SHEET)
     technical.append(["Tipo", "ID", "JSON (diviso su più colonne se lungo)"])
     for kind, items in (("partita", records), ("scheda", tactical_rows), ("doppio", dual_choices), ("report", reports),
-                        ("schedina", slips), ("dataset", dataset)):
+                        ("schedina", slips), ("dataset", dataset), ("manuale", manual)):
         for item in items:
             text = json.dumps(_clean(item), ensure_ascii=False)
             technical.append([kind, item.get("id") or item.get("ID"), *[text[i:i + _CHUNK] for i in range(0, len(text), _CHUNK)]])
@@ -228,6 +236,7 @@ class DayFile:
     reports: list[dict] = field(default_factory=list)
     slips: list[dict] = field(default_factory=list)
     dataset: list[dict] = field(default_factory=list)
+    manual: list[dict] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
 
@@ -263,7 +272,7 @@ def read_day_workbook(content: bytes) -> DayFile:
                 row[FORM_COLUMN] = forms[row["ID"]]
     if TECHNICAL_SHEET in workbook.sheetnames:
         for values in workbook[TECHNICAL_SHEET].iter_rows(min_row=2, values_only=True):
-            if not values or values[0] not in ("partita", "scheda", "doppio", "report", "schedina", "dataset"):
+            if not values or values[0] not in ("partita", "scheda", "doppio", "report", "schedina", "dataset", "manuale"):
                 continue
             try:
                 item = json.loads("".join(str(part) for part in values[2:] if part is not None))
@@ -271,7 +280,8 @@ def read_day_workbook(content: bytes) -> DayFile:
                 result.warnings.append(f"Voce tecnica {values[1]} illeggibile: saltata.")
                 continue
             {"partita": result.records, "scheda": result.tactical_rows, "doppio": result.dual_choices,
-             "report": result.reports, "schedina": result.slips, "dataset": result.dataset}[values[0]].append(item)
+             "report": result.reports, "schedina": result.slips, "dataset": result.dataset,
+             "manuale": result.manual}[values[0]].append(item)
     elif ANALYSIS_SHEET in workbook.sheetnames:
         result.warnings.append("Foglio tecnico assente: le partite del foglio Analisi non si possono riaprire.")
     workbook.close()

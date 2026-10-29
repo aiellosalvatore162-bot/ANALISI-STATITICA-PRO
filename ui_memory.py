@@ -102,6 +102,9 @@ def _reopen(record_id: str) -> None:
     st.session_state["match_meta"] = {"date": date.fromisoformat(day[:10]) if day else None,
                                       "competition": record.get("competition", "")}
     st.session_state["current_match_id"] = record_id
+    if record.get("fields"):  # valore, origine e fonte di ogni campo, anche per i dati a mano (fase R)
+        st.session_state["auto_sheet_rows"] = record["fields"]
+        st.session_state["auto_sheet_warnings"] = []
     st.session_state["auto_simulate"] = True
 
 
@@ -111,11 +114,17 @@ def _forget(record_id: str) -> None:
         st.session_state.pop("current_match_id", None)
 
 
+def manual_items() -> list[dict]:
+    from ui_manual import manual_items as items
+
+    return items()
+
+
 def day_file_bytes() -> bytes:
     return day_workbook(registry_log().rows(session_id()), list(_store().values()),
                         st.session_state.get("tactical_sheets", []), st.session_state.get("dual_choices", []),
                         st.session_state.get("analyst_reports", []), st.session_state.get("saved_slips", []),
-                        analyst_records())
+                        analyst_records(), manual_items())
 
 
 def analyst_records() -> list[dict]:
@@ -187,6 +196,10 @@ def restore(content: bytes) -> None:
         st.session_state["tactical_sheets"] = upsert(
             st.session_state.get("tactical_sheets", []),
             [TacticalSheet.from_dict(row) for row in day.tactical_rows if row.get("team")])
+    if day.manual:
+        from ui_manual import restore_items
+
+        restore_items(day.manual)
     if day.dataset:
         from analyst_dataset import upsert as upsert_record
 

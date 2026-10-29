@@ -287,6 +287,17 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   compare in «Partite non analizzate» (`today.problem_rows`). Cronometro per fase in `timing.py` (`fase`,
   `registra`, `Registro.breakdown`), expander «Tempi» in Oggi. Benchmark: `python -m tools.bench_oggi [--offline]`
   (`docs/bench/oggi_prima.md`, `oggi_dopo.md`). Nessun parallelismo (scelta voluta).
+- Fase R («Modifica o completa i dati» in Oggi): `manual_data.py` (store `st.session_state["manual_fields"]`, chiave
+  data|Casa - Ospite; per campo valore, origine «manuale», fonte «inserito a mano», momento). Precedenza fissa
+  manuale > automatico > proxy/stima (`FieldValue.origin`): `today.prepare(manual=..., auto_sheet=...)` mette i
+  manuali sopra la scheda automatica, quindi un nuovo Prepara/Analizza non li tocca; «Ripristina dati
+  automatici» li toglie. Blocchi anche parziali con `parser.parse_partial_input` (stesso tokenizer e stessi
+  validatori di `parse_match_input`, righe # ignorate; la pagina Partita non cambia); squadre controllate con
+  `match_team`, se non corrispondono niente viene applicato. Interfaccia in `ui_manual.py` (expander per partita,
+  aperto se mancano dati; anteprima campo | automatico con fonte | blocco | cosa succede; ricalcolo di una sola
+  partita senza rete e con una sola simulazione). `Analysis.auto_sheet`/`odds_fields`/`manual`. Scheda partita:
+  `provenance_rows` ha la colonna «Origine» e il record in memoria conserva `fields`. Excel: foglio «Manuali» +
+  voci «manuale» nel Tecnico (tornano con «Riprendi da file»). Non fatto: «Incolla per più partite».
 - Le fonti remote devono degradare con un avviso (come `historical.py` ricade
   al 100% manuale), mai bloccare la simulazione manuale.
 
