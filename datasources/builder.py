@@ -579,7 +579,7 @@ def provenance_rows(sheet: MatchSheet) -> list[dict]:
             rows.append({
                 "Soggetto": subject, "Campo": label,
                 "Valore": "" if value.missing else _format(key, value.value) if key in dict(TEAM_FIELDS) else str(value.value),
-                "Fonte": value.source, "Aggiornato": _date(value.updated),
+                "Origine": value.origin, "Fonte": value.source, "Aggiornato": _date(value.updated),
                 "Ultima partita inclusa": _date(value.last_match), "Nota": value.note,
                 "Stato": {"ok": "ok", "avviso": "da verificare", "mancante": "MANCANTE"}[value.level],
             })
@@ -589,7 +589,7 @@ def provenance_rows(sheet: MatchSheet) -> list[dict]:
                 continue
             rows.append({
                 "Soggetto": subject, "Campo": f"(info) {EXTRA_LABELS.get(key, key)}", "Valore": str(value.value),
-                "Fonte": value.source, "Aggiornato": _date(value.updated),
+                "Origine": value.origin, "Fonte": value.source, "Aggiornato": _date(value.updated),
                 "Ultima partita inclusa": _date(value.last_match), "Nota": value.note, "Stato": "informativo",
             })
     return rows

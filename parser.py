@@ -212,6 +212,48 @@ def _section_lines(text: str) -> tuple[dict[str, str], dict[str, str], dict[str,
     return sections["home"], sections["away"], sections["referee"], odds
 
 
+_NUMERIC_TEAM = {"attacco": "Attacco", "difesa": "Difesa", "elo": "Elo", "xg fatti": "xG Fatti", "xg subiti": "xG Subiti"}
+
+
+def _team_value(key: str, raw: str, label: str):
+    """Valore validato di un campo squadra (stesse regole e messaggi di ``parse_match_input``).
+
+    Numeri come float, ``forma`` come stringa W-D-L, ``corner pro/sub`` come coppia (pro, sub)."""
+    if key in _NUMERIC_TEAM:
+        value = _number(raw, f"{label} {_NUMERIC_TEAM[key]}")
+        if key in ("attacco", "difesa") and not 0.2 <= value <= 3.0:
+            raise MatchInputError(f"{label} {key.title()}: usare un coefficiente relativo tra 0.2 e 3.0")
+        if key == "elo" and not 800.0 <= value <= 2400.0:
+            raise MatchInputError(f"{label} Elo: usare un rating tra 800 e 2400")
+        if key in ("xg fatti", "xg subiti") and not 0.0 <= value <= 10.0:
+            raise MatchInputError(f"{label} {key}: usare una media per partita tra 0 e 10")
+        return value
+    if key == "forma":
+        form = raw.strip().upper().replace(" ", "")
+        if not re.fullmatch(r"[WDL](?:-[WDL]){0,4}", form):
+            raise MatchInputError(f"{label} Forma: usare token W-D-L, massimo cinque risultati")
+        return form
+    if key == "corner pro/sub":
+        parts = re.split(r"\s*/\s*", raw)
+        if len(parts) != 2:
+            raise MatchInputError(f"{label} Corner pro/sub: usare il formato valore/valore")
+        corners_for, corners_against = _number(parts[0], f"{label} Corner pro"), _number(parts[1], f"{label} Corner sub")
+        if not 0.0 <= corners_for <= 15.0 or not 0.0 <= corners_against <= 15.0:
+            raise MatchInputError(f"{label} Corner pro/sub: usare medie per squadra tra 0 e 15 a partita")
+        return corners_for, corners_against
+    if key == "cartellini pro":
+        value = _number(raw, f"{label} Cartellini pro")
+        if not 0.0 <= value <= 10.0:
+            raise MatchInputError(f"{label} Cartellini pro: usare una media per squadra tra 0 e 10 a partita")
+        return value
+    if key == "cartellini provocati":
+        value = _number(raw, f"{label} Cartellini provocati")
+        if not 0.0 <= value <= 10.0:
+            raise MatchInputError(f"{label} Cartellini provocati: usare una media per partita tra 0 e 10")
+        return value
+    raise KeyError(key)
+
+
 def _team(
     section: dict[str, str], label: str, warnings: list[str], *, strict: bool
 ) -> ParsedTeam:
@@ -228,34 +270,12 @@ def _team(
     if missing:
         raise MatchInputError(f"{label}: campi obbligatori mancanti: {', '.join(missing)}")
 
-    values = {
-        key: _number(section[key], f"{label} {name}")
-        for key, name in required.items()
-        if key != "name" and key != "forma"
-    }
-    for key in ("attacco", "difesa"):
-        if not 0.2 <= values[key] <= 3.0:
-            raise MatchInputError(f"{label} {key.title()}: usare un coefficiente relativo tra 0.2 e 3.0")
-    if not 800.0 <= values["elo"] <= 2400.0:
-        raise MatchInputError(f"{label} Elo: usare un rating tra 800 e 2400")
-    for key in ("xg fatti", "xg subiti"):
-        if not 0.0 <= values[key] <= 10.0:
-            raise MatchInputError(f"{label} {key}: usare una media per partita tra 0 e 10")
-    form = section["forma"].strip().upper().replace(" ", "")
-    if not re.fullmatch(r"[WDL](?:-[WDL]){0,4}", form):
-        raise MatchInputError(f"{label} Forma: usare token W-D-L, massimo cinque risultati")
+    values = {key: _team_value(key, section[key], label) for key in required if key not in ("name", "forma")}
+    form = _team_value("forma", section["forma"], label)
 
     corners = section.get("corner pro/sub")
     if corners:
-        parts = re.split(r"\s*/\s*", corners)
-        if len(parts) != 2:
-            raise MatchInputError(f"{label} Corner pro/sub: usare il formato valore/valore")
-        corners_for, corners_against = (
-            _number(parts[0], f"{label} Corner pro"),
-            _number(parts[1], f"{label} Corner sub"),
-        )
-        if not 0.0 <= corners_for <= 15.0 or not 0.0 <= corners_against <= 15.0:
-            raise MatchInputError(f"{label} Corner pro/sub: usare medie per squadra tra 0 e 15 a partita")
+        corners_for, corners_against = _team_value("corner pro/sub", corners, label)
     else:
         if strict:
             raise MatchInputError(f"{label}: campo obbligatorio mancante: Corner pro/sub")
@@ -264,9 +284,7 @@ def _team(
 
     cards = section.get("cartellini pro")
     if cards:
-        cards_for = _number(cards, f"{label} Cartellini pro")
-        if not 0.0 <= cards_for <= 10.0:
-            raise MatchInputError(f"{label} Cartellini pro: usare una media per squadra tra 0 e 10 a partita")
+        cards_for = _team_value("cartellini pro", cards, label)
     else:
         if strict:
             raise MatchInputError(f"{label}: campo obbligatorio mancante: Cartellini pro")
@@ -274,11 +292,7 @@ def _team(
         warnings.append(f"{label}: Cartellini pro mancante, fallback neutro 1.0")
 
     provoked = section.get("cartellini provocati")
-    cards_provoked = None
-    if provoked:
-        cards_provoked = _number(provoked, f"{label} Cartellini provocati")
-        if not 0.0 <= cards_provoked <= 10.0:
-            raise MatchInputError(f"{label} Cartellini provocati: usare una media per partita tra 0 e 10")
+    cards_provoked = _team_value("cartellini provocati", provoked, label) if provoked else None
 
     return ParsedTeam(
         name=section["name"],
@@ -368,3 +382,85 @@ def parse_match_input(text: str, *, strict: bool = True) -> MatchInput:
         odds=odds,
         warnings=tuple(warnings),
     )
+
+
+# --- Modalità parziale (fase R) -----------------------------------------------------------------------------
+# Un blocco con solo alcuni campi (es. «CASA: Napoli» + «Elo: 1650»): stessi tokenizer e stessi validatori di
+# ``parse_match_input``, ma i campi mancanti non sono un errore. Non cambia la pagina Partita.
+
+PARTIAL_TEAM_KEYS = {"attacco": "attack", "difesa": "defense", "elo": "elo", "forma": "form", "xg fatti": "xg_for",
+                     "xg subiti": "xg_against", "corner pro/sub": "corners", "cartellini pro": "cards_for",
+                     "cartellini provocati": "cards_provoked"}
+_PARTIAL_REFEREE_KEYS = {"gialli medi": "yellow", "falli medi": "fouls"}
+
+
+@dataclass(frozen=True)
+class PartialBlock:
+    home_name: Optional[str]
+    away_name: Optional[str]
+    home: dict = field(default_factory=dict)       # chiave della scheda -> valore validato (corner come "x/y")
+    away: dict = field(default_factory=dict)
+    referee: dict = field(default_factory=dict)
+    errors: tuple[str, ...] = ()                   # valori non validi: non si applicano
+    unrecognized: tuple[str, ...] = ()             # righe che il parser non riconosce
+
+    @property
+    def empty(self) -> bool:
+        return not (self.home or self.away or self.referee)
+
+
+def _unrecognized_lines(text: str) -> list[str]:
+    """Righe (non vuote, non commento) con parti che nessun campo del formato riconosce."""
+    found = []
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or _QUOTE_SECTION.match(line):
+            continue
+        for index, part in enumerate(piece.strip() for piece in line.split("|")):
+            if not part:
+                continue
+            header = _MATCH_HEADER.match(part)
+            if header:
+                continue  # «CASA: Napoli»: il nome è la parte dopo l'intestazione
+            if index == 0 and _MATCH_HEADER.match(line):
+                continue
+            if _TEAM_LINE.match(part) or _REF_LINE.match(part):
+                continue
+            try:
+                if _collect_odds(part, allow_unprefixed=False):
+                    continue
+            except MatchInputError:
+                pass
+            found.append(part)
+    return found
+
+
+def parse_partial_input(text: str) -> PartialBlock:
+    """Campi presenti di un blocco anche incompleto, con valori validati e righe non riconosciute."""
+    home_raw, away_raw, referee_raw, _ = _section_lines(text)
+    errors: list[str] = []
+    sides: dict[str, dict] = {"home": {}, "away": {}, "referee": {}}
+    for side, raw, label in (("home", home_raw, "CASA"), ("away", away_raw, "OSPITE")):
+        for key, sheet_key in PARTIAL_TEAM_KEYS.items():
+            if not raw.get(key):
+                continue
+            try:
+                value = _team_value(key, raw[key], label)
+            except MatchInputError as exc:
+                errors.append(str(exc))
+                continue
+            sides[side][sheet_key] = f"{value[0]:.1f}/{value[1]:.1f}" if key == "corner pro/sub" else value
+    for key, sheet_key in _PARTIAL_REFEREE_KEYS.items():
+        if key not in referee_raw:
+            continue
+        try:
+            value = _number(referee_raw[key], f"ARBITRO {key.title()}")
+        except MatchInputError as exc:
+            errors.append(str(exc))
+            continue
+        if not (0.0 <= value <= 15.0 if sheet_key == "yellow" else 0.0 <= value <= 60.0):
+            errors.append("ARBITRO: usare medie per partita tra 0-15 gialli e 0-60 falli")
+            continue
+        sides["referee"][sheet_key] = value
+    return PartialBlock(home_raw.get("name"), away_raw.get("name"), sides["home"], sides["away"], sides["referee"],
+                        tuple(errors), tuple(_unrecognized_lines(text)))

@@ -20,6 +20,7 @@ from multiples import (
     multiple_row,
 )
 from timing import registra
+from ui_manual import manual_for
 from today import (
     Analysis, TodayMatch, analyze, match_ids, multi_analysis_prompt, parse_multi_response, mark_failed, prepare, problem_rows, simulate,
     split_multi_response, value_picks,
@@ -49,6 +50,7 @@ def _remember(analysis: Analysis) -> None:
     from ui_memory import form_for
 
     record["form"] = form_for(analysis.match.label)  # colonna «Forma» del foglio Analisi (informativa)
+    record["fields"] = list(analysis.sources)  # valore, origine (manuale/automatico/proxy-stima) e fonte di ogni campo
     upsert(_store(), record)
 
 
@@ -129,6 +131,9 @@ def render_today() -> None:
     analyses = _analyses()
     if not analyses:
         return
+    from ui_manual import render_manual_section
+
+    render_manual_section(analyses, settings)
     _render_overview(analyses, settings)
     _render_team_cards_switch(settings)
     if mode == "Approfondita":
@@ -184,7 +189,7 @@ def _render_analyze_all(api, events: pd.DataFrame, day: date, labels: dict, simu
             quotes = reference_quotes(quotes_frame(event), api.settings.get("riferimento")) if event else {}
             competition = row.competition if row.competition in COMPETITIONS or row.competition in CUP_COMPETITIONS else None
             analysis = analyze(match, provider.build, sheet_odds(quotes, fetched) if quotes else {}, simulations=simulations,
-                               competition=competition, settings=settings, sheets=saved_sheets())
+                               competition=competition, settings=settings, sheets=saved_sheets(), manual=manual_for(match))
             if analysis.ok:
                 try:
                     if not quotes:
@@ -230,19 +235,23 @@ def _prepare_day(events: pd.DataFrame, simulations: int, settings: dict) -> None
             match = _today_match(row)
             competition = row.competition if row.competition in COMPETITIONS or row.competition in CUP_COMPETITIONS else None
             prepared.append(prepare(match, provider.build, {}, simulations=simulations, competition=competition,
-                                    settings=settings, sheets=saved_sheets()))
+                                    settings=settings, sheets=saved_sheets(), manual=manual_for(match)))
             progress.progress(position / len(events), text=f"{position}/{len(events)} · {match.label}")
             live.dataframe(pd.DataFrame([{**source, "Partite da preparare": len(events) - position}
                                          for source in registro.sources()]), hide_index=True, width="stretch")
         elapsed = time.perf_counter() - started
     progress.empty()
     live.empty()
-    problems = problem_rows(prepared)
+    # Le partite preparate (o con dati da completare) entrano in elenco; quelle già analizzate restano come sono.
+    done = {analysis.match.event_id: analysis for analysis in _analyses() if analysis.ok}
+    st.session_state["today_analyses"] = [done.get(analysis.match.event_id, analysis) for analysis in prepared]
+    problems = problem_rows(st.session_state["today_analyses"])
     st.session_state["today_problems"] = problems
     st.session_state["today_timing"] = {"label": "Prepara la giornata", "total": elapsed, "phases": registro.breakdown(elapsed),
                                         "sources": registro.sources(), "matches": len(events)}
     st.success(f"Giornata preparata in {elapsed:.1f} s: {len(prepared) - len(problems)} partite pronte, "
-               f"{len(problems)} con dati da sistemare. Ora «Analizza tutte» usa la cache.")
+               f"{len(problems)} con dati da sistemare (le trovi in «Modifica o completa i dati»). "
+               "Ora «Analizza tutte» usa la cache.")
 
 
 def _render_problems() -> None:
@@ -276,8 +285,10 @@ def _pct(result: dict, key: str) -> float | None:
 def _render_overview(analyses: list[Analysis], settings: dict) -> None:
     flags = list(settings["segnalazioni"])
     ok = [(index, analysis) for index, analysis in enumerate(analyses) if analysis.ok]
-    skipped = [analysis for analysis in analyses if not analysis.ok]
-    st.subheader(f"Partite analizzate: {len(ok)}" + (f" · saltate {len(skipped)}" if skipped else ""))
+    skipped = [analysis for analysis in analyses if not analysis.ok and analysis.problem is not None]
+    waiting = [analysis for analysis in analyses if not analysis.ok and analysis.problem is None]
+    st.subheader(f"Partite analizzate: {len(ok)}" + (f" · da analizzare {len(waiting)}" if waiting else "")
+                 + (f" · non analizzate {len(skipped)}" if skipped else ""))
     if not ok:
         return
     rows = []
