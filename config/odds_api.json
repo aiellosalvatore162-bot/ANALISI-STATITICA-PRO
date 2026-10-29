@@ -43,5 +43,30 @@
     "quote_campionato": "mercati × regioni (gratuito se non ci sono partite)",
     "quote_evento": "mercati restituiti × regioni (gratuito se vuoto)",
     "punteggi": "1 senza daysFrom, 2 con daysFrom (partite concluse fino a 3 giorni prima)"
+  },
+  "raccolta": {
+    "nota": "Fase Z: raccolta a due livelli dalla pagina Oggi, sempre con pre-conto e conferma. Livello A (selezionate): 1X2 e Over/Under goal con UNA chiamata per campionato (mercati del campionato: h2h, totals). GG/NG (btts) esiste solo per evento: 1 credito a partita per regione, spento per default. Livello B (solo «Da giocare», chiamata per evento): corner e cartellini totali (2 crediti a partita per regione); primo tempo (h2h_h1, totals_h1) +2 se acceso. Cartellini per squadra, multigol e risultati esatti non sono offerti da The Odds API: si incollano. Costo stimato = mercati × regioni (documentazione v4); costo reale dalle intestazioni.",
+    "tetto_giornaliero": null,
+    "timeout_s": 8,
+    "nuovi_tentativi": 1,
+    "livello_a": {
+      "mercati_campionato": [
+        "h2h",
+        "totals"
+      ],
+      "gg_ng_per_evento": false
+    },
+    "livello_b": {
+      "mercati_evento": [
+        "alternate_totals_corners",
+        "alternate_totals_cards"
+      ],
+      "primo_tempo": false
+    },
+    "non_offerti": {
+      "cartellini per squadra": "Casa/Ospite Over x.5 cartellini",
+      "multigol": "Multigol",
+      "risultati esatti": "Risultati esatti"
+    }
   }
 }
