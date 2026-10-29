@@ -298,10 +298,21 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   partita senza rete e con una sola simulazione). `Analysis.auto_sheet`/`odds_fields`/`manual`. Scheda partita:
   `provenance_rows` ha la colonna «Origine» e il record in memoria conserva `fields`. Excel: foglio «Manuali» +
   voci «manuale» nel Tecnico (tornano con «Riprendi da file»). Non fatto: «Incolla per più partite».
+- Fase Z (quote da qualunque bookmaker): modello neutro `quotes/model.py` (`QuoteMercato`, sospesa = None, mai zero;
+  `consolidate`: a mano > sharp `bookmaker_sharp` > mediana, scarto > `scarto_bookmaker` segnalato), pagine incollate in
+  `quotes/pages.py` (`split_pages`, `detect_format` per pagina, `assign_pages` abbinata/ambigua/non trovata), adattatori
+  in `quotes/adapters/` (eurobet sul parser esistente, generico, oddsapi, csv_chiusura). Archivio unico della giornata
+  `day_archive.py` (`st.session_state["day_archive"]`, chiave `match_memory.match_id`; selezione max 8 / «Da giocare»
+  max 5 da `config/oggi.json`; conflitti in `pending`, confermati con `resolve_pending`; dati a mano della fase R nelle
+  voci, `ui_manual.ManualView`), interfaccia `ui_quotes.py`. Raccolta The Odds API in `quotes/collect.py` (livelli A/B,
+  `preconto`, tetto giornaliero, un nuovo tentativo, tabella `quote_crediti`, sezione `raccolta` di
+  `config/odds_api.json`); «Analizza tutte» (`ui_today._analyze_day`) usa solo l'archivio. «I miei mercati» in
+  `my_markets.py`, combo builder in `combo.py` su `result["event_samples"]` (`MatchConfig.keep_samples`, solo «Da
+  giocare»). Test in `test_quotes.py` con fixture `tests/fixtures/quote/`.
 - Le fonti remote devono degradare con un avviso (come `historical.py` ricade
   al 100% manuale), mai bloccare la simulazione manuale.
 
-## Stato del progetto (28/10/2026, dopo la fase Y)
+## Stato del progetto (29/10/2026, dopo la fase Z)
 
 - Fasi completate e unite a `main`: modello gol log-lineare (1), ancoraggio al
   mercato (2), mercati secondari (C2), livello dati (D), football-data.org,
@@ -318,7 +329,8 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   del giorno (W), ricerca rapida, schedine salvate, marcatori e chiavi del match (X),
   cartellini per squadra (T), motore minuto per minuto come opzione spenta (O, parte 1), schede
   tattiche, cambio allenatore, incroci di stile (spenti), nuovi mercati e goleade (Q), motore statistico
-  v2 con opzioni verificate una per una (P), dati dell'Analista nel modello e storico proprio (Y).
+  v2 con opzioni verificate una per una (P), dati dell'Analista nel modello e storico proprio (Y), modifica
+  dei dati in Oggi (R), quote da qualunque bookmaker con archivio unico e combo builder (Z).
 - Test: `python -m pytest -q` (solo fixture salvate, nessuna rete); 2 `xfail`
   noti (PSG-Barcellona, Napoli-Bodø, input stimati).
 
