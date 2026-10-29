@@ -53,6 +53,9 @@ class Analysis:
     sources: list[dict] = field(default_factory=list)
     tactical: Any = None                       # tactical_sheets.MatchEffects (fase Q), None = schede non cercate
     problem: tuple[str, str, str] | None = None  # (fase, fonte, messaggio) se non analizzata (fase V)
+    auto_sheet: Any = None                     # scheda automatica (prima dei manuali), per «Modifica o completa i dati»
+    odds_fields: dict = field(default_factory=dict)   # campi quota del passaggio economico, per ricalcolare
+    manual: Any = None                         # voce di manual_data usata per questa analisi (None = nessun manuale)
 
     @property
     def ok(self) -> bool:
@@ -93,7 +96,8 @@ def _missing_problem(sheet: Any, missing: Sequence[str]) -> tuple[str, str, str]
 
 def prepare(match: TodayMatch, build: Callable[..., Any], odds_fields: Mapping[str, Any], *,
             simulations: int, competition: str | None = None, settings: Mapping[str, Any] | None = None,
-            sheets: Sequence[Mapping[str, Any]] | None = None) -> Analysis:
+            sheets: Sequence[Mapping[str, Any]] | None = None, manual: Mapping[str, Any] | None = None,
+            auto_sheet: Any = None) -> Analysis:
     """Tutto quello che precede la simulazione: dati automatici, quote del passaggio economico, blocco e
     configurazione. Scalda anche le cache delle fonti (CSV, Understat, calendario, Elo da risultati), senza
     simulare e senza The Odds API: «Prepara la giornata» chiama solo questa. Una partita che non si può preparare
@@ -101,11 +105,16 @@ def prepare(match: TodayMatch, build: Callable[..., Any], odds_fields: Mapping[s
 
     ``build`` è ``DataProvider.build`` (o un sostituto nei test); ``odds_fields`` sono i campi quota del blocco
     (``oddsapi.sheet_odds``).
+
+    Fase R: ``manual`` (``manual_data``, valori inseriti a mano) va sopra la scheda automatica con la precedenza
+    manuale > automatico > proxy/stima. Con ``auto_sheet`` (la scheda automatica già costruita) non si richiama
+    ``build``: è il ricalcolo di una sola partita dopo un'integrazione, senza rete.
     """
     from datasources.builder import missing_fields, provenance_rows, render_block
+    from manual_data import apply_manual
     from parser import MatchInputError, parse_match_input
 
-    analysis = Analysis(match)
+    analysis = Analysis(match, odds_fields=dict(odds_fields), manual=manual)
     try:
         coaches = {}
         if sheets is not None:
@@ -113,14 +122,19 @@ def prepare(match: TodayMatch, build: Callable[..., Any], odds_fields: Mapping[s
 
             analysis.tactical = match_effects(sheets, match.home, match.away)
             coaches = analysis.tactical.coaches()
-        try:
-            with fase("dati automatici (totale)", contiene_fasi=True):
-                sheet = build(match.home, match.away, match_date=match.commence_time.date(), competition=competition,
-                              **({"coaches": coaches} if coaches else {}))
-        except Exception as exc:  # fonti remote: si degrada con un avviso, mai un blocco dell'intera giornata
-            return mark_failed(analysis, "dati automatici", "fonti dati",
-                         f"dati automatici non disponibili ({type(exc).__name__}: {str(exc)[:120]})")
+        if auto_sheet is not None:
+            sheet = replace(auto_sheet)
+        else:
+            try:
+                with fase("dati automatici (totale)", contiene_fasi=True):
+                    sheet = build(match.home, match.away, match_date=match.commence_time.date(), competition=competition,
+                                  **({"coaches": coaches} if coaches else {}))
+            except Exception as exc:  # fonti remote: si degrada con un avviso, mai un blocco dell'intera giornata
+                return mark_failed(analysis, "dati automatici", "fonti dati",
+                                   f"dati automatici non disponibili ({type(exc).__name__}: {str(exc)[:120]})")
+        analysis.auto_sheet = sheet
         with fase("blocco e configurazione"):
+            sheet = apply_manual(sheet, manual)
             sheet.odds = dict(odds_fields)
             sheet.competition = sheet.competition or match.competition
             analysis.warnings = list(sheet.warnings)
@@ -147,10 +161,11 @@ def prepare(match: TodayMatch, build: Callable[..., Any], odds_fields: Mapping[s
 
 def analyze(match: TodayMatch, build: Callable[..., Any], odds_fields: Mapping[str, Any], *,
             simulations: int, competition: str | None = None, settings: Mapping[str, Any] | None = None,
-            sheets: Sequence[Mapping[str, Any]] | None = None) -> Analysis:
+            sheets: Sequence[Mapping[str, Any]] | None = None, manual: Mapping[str, Any] | None = None,
+            auto_sheet: Any = None) -> Analysis:
     """``prepare`` + simulazione; salta la partita (con il motivo) se manca un dato."""
     analysis = prepare(match, build, odds_fields, simulations=simulations, competition=competition, settings=settings,
-                       sheets=sheets)
+                       sheets=sheets, manual=manual, auto_sheet=auto_sheet)
     if analysis.config is None:
         return analysis
     try:
@@ -162,7 +177,10 @@ def analyze(match: TodayMatch, build: Callable[..., Any], odds_fields: Mapping[s
 def problem_rows(analyses: Iterable[Analysis]) -> list[dict]:
     """Righe della tabella «Partite non analizzate»: partita, fase, fonte, messaggio breve (una per partita)."""
     return [{"Partita": analysis.match.label, "Fase": analysis.problem[0], "Fonte": analysis.problem[1],
-             "Messaggio": analysis.problem[2]} for analysis in analyses if analysis.problem is not None]
+             "Messaggio": analysis.problem[2],
+             "Cosa fare": ("apri «Modifica o completa i dati» sotto la partita" if analysis.problem[0] == "dati"
+                           else "riprova con «Prepara la giornata»; se resta, completa i dati a mano")}
+            for analysis in analyses if analysis.problem is not None]
 
 
 def simulate(analysis: Analysis, *, flags: Sequence[str] | None = None, claude: ClaudeResponse | None = None,
