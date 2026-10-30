@@ -29,6 +29,7 @@ from typing import Any, Iterable, Sequence
 
 from claude_bridge import HEADER, ClaudeResponse, ResponseError, parse_response
 from match_form import parse_form, without_section
+from match_extras import MatchExtras, parse_extras, without_extras
 from match_keys import MatchKey, keys_section, parse_keys, swap_text
 
 
@@ -74,6 +75,8 @@ class ReportBlock:
     original: tuple[str, str] = ("", "")  # correzioni e chiavi come scritte nel report
     form: Any = None                  # match_form.MatchForm: solo informativa, mai nel motore
     form_original: Any = None         # forma come scritta nel report (prima di un eventuale scambio di squadre)
+    extras: MatchExtras = field(default_factory=MatchExtras)   # ASSENTI_PESATI, RIPOSO, TURNOVER (fase AH)
+    extras_original: MatchExtras = field(default_factory=MatchExtras)
 
     @property
     def notice(self) -> str:
@@ -133,6 +136,8 @@ def parse_report(text: str) -> list[ReportBlock]:
         # Blocco FORMA facoltativo: letto a parte e tolto dal corpo, così correzioni e commento restano come prima.
         form = parse_form(body)
         body = without_section(body)
+        extras = parse_extras(body)           # campi facoltativi della fase AH, tolti dal corpo come la forma
+        body = without_extras(body)
         parts = [part.strip().strip("*_").strip() for part in header["body"].split("|")]
         teams = split_match(parts[0].strip("*_ "))
         block = ReportBlock(header=header.group(0).strip().strip("*_# >").strip(), home=teams[0] if teams else None,
@@ -155,6 +160,7 @@ def parse_report(text: str) -> list[ReportBlock]:
         block.keys_text = keys_section(body)
         block.original = (block.corrections_text, block.keys_text)
         block.form = block.form_original = form
+        block.extras = block.extras_original = extras
         blocks.append(block)
     return blocks
 
@@ -179,6 +185,7 @@ def match_blocks(blocks: Sequence[ReportBlock], targets: Iterable[Target], *, to
     for block in blocks:
         block.matched, block.reason, block.swapped = None, "", False
         block.form = block.form_original
+        block.extras = block.extras_original
         if block.original != ("", ""):
             block.corrections_text, block.keys_text = block.original
         if block.error:
@@ -208,6 +215,7 @@ def match_blocks(blocks: Sequence[ReportBlock], targets: Iterable[Target], *, to
                 from dataclasses import replace
 
                 block.form = replace(block.form, home=block.form.away, away=block.form.home)
+            block.extras = block.extras_original.swapped()
             block.corrections_text, block.keys_text = swap_text(block.corrections_text), swap_text(block.keys_text)
             block.response = parse_response(block.corrections_text)
         if target.index in taken:
@@ -304,10 +312,7 @@ def parse_profiles(text: str, day: date | None = None):
 
     sheets, warnings = [], []
     for found in _PROFILE.finditer(text):
-        part, part_warnings = parse_one(text[found.start():_end(text, found.start())])
-        for sheet in part:
-            sheet.origine = "Analista"
-            sheet.aggiornata = (day or date.today()).isoformat()
+        part, part_warnings = parse_one(text[found.start():_end(text, found.start())], origin="Analista", day=day)
         sheets += part
         warnings += part_warnings
     return sheets, warnings

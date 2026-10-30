@@ -1,0 +1,90 @@
+{
+  "nota": "Fase AH. Il profilo qualitativo dell'Analista entra come PRIOR: valore = w·dato + (1−w)·prior con w = n/(n+k_dati). Il prior di ogni categoria è la mediana del parametro misurato sulle squadre che hanno quel profilo E i dati (python -m tools.stile_prior --salva); resta null finché non ci sono almeno `campione_minimo_categoria` squadre: allora vale il dato (o la media del campionato). Mai inventato.",
+  "k_dati": 8.0,
+  "campione_minimo_categoria": 5,
+  "soglia_elo_adattabilita": 100.0,
+  "soglie_etichette": {
+    "forma": 0.25,
+    "territorio": 0.03,
+    "pressing": 0.1
+  },
+  "mappa": {
+    "transizione": {
+      "parametro": "deep",
+      "categorie": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5"
+      ],
+      "descrizione": "deep completions fatte (verticalità)"
+    },
+    "blocco": {
+      "parametro": "deep_concessi",
+      "categorie": [
+        "basso",
+        "medio",
+        "alto"
+      ],
+      "descrizione": "deep completions concesse (altezza del blocco)"
+    },
+    "pressing": {
+      "parametro": "ppda",
+      "categorie": [
+        "basso",
+        "medio",
+        "alto"
+      ],
+      "descrizione": "PPDA (più basso = pressing più alto)"
+    },
+    "non_possesso": {
+      "parametro": "quota_tiri",
+      "categorie": [
+        "uomo",
+        "mista",
+        "zona"
+      ],
+      "descrizione": "quota di tiri (sostituto del possesso)"
+    },
+    "fasce_cross": {
+      "parametro": "corner_per_tiro",
+      "categorie": [
+        "basso",
+        "medio",
+        "alto"
+      ],
+      "descrizione": "corner per tiro (gioco sulle fasce)"
+    }
+  },
+  "prior": {
+    "transizione": {
+      "1": null,
+      "2": null,
+      "3": null,
+      "4": null,
+      "5": null
+    },
+    "blocco": {
+      "basso": null,
+      "medio": null,
+      "alto": null
+    },
+    "pressing": {
+      "basso": null,
+      "medio": null,
+      "alto": null
+    },
+    "non_possesso": {
+      "uomo": null,
+      "mista": null,
+      "zona": null
+    },
+    "fasce_cross": {
+      "basso": null,
+      "medio": null,
+      "alto": null
+    }
+  },
+  "stimato": null
+}

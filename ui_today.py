@@ -22,7 +22,7 @@ from multiples import (
 from timing import registra
 from ui_manual import manual_for
 from today import (
-    Analysis, TodayMatch, analyze, match_ids, multi_analysis_prompt, parse_multi_response, mark_failed, prepare, problem_rows, simulate,
+    Analysis, TodayMatch, analyze, apply_report_context, match_ids, multi_analysis_prompt, parse_multi_response, mark_failed, prepare, problem_rows, simulate,
     split_multi_response, value_picks,
 )
 
@@ -168,6 +168,9 @@ def render_today() -> None:
     from ui_lineup import render_lineups
 
     render_lineups(analyses)
+    from ui_style import render_styles
+
+    render_styles(analyses)
     render_combo(analyses)
     _render_quick(analyses, settings)
     _render_builder(analyses, settings)
@@ -452,6 +455,8 @@ def _render_analyst(analyses: list[Analysis], settings: dict) -> None:
             if not analysis.ok or (block is None and index not in previous):
                 continue
             use = block is not None and apply and block.response is not None
+            if block is not None:
+                apply_report_context(analysis, block, _lineup_loader())
             analysis.claude_text = block.full_text if use else ""  # correzioni e chiavi del match
             simulate(analysis, claude=block.response if use else None, keep_claude=False, settings=settings)
             _remember(analysis)
@@ -484,6 +489,12 @@ def _render_forms(blocks, analyses: list[Analysis]) -> None:
         st.html(dashboard.grid(cards))
 
 
+def _context_summary(analysis: Analysis) -> dict | None:
+    from match_context import dataset_summary
+
+    return dataset_summary(analysis.context, analysis.extras) if analysis.context else None
+
+
 def _record_dataset(analyses: list[Analysis], by_index: dict) -> None:
     """Fase Y: le partite abbinate entrano nel dataset dell'Analista con i profili alla data della partita."""
     from analyst_dataset import from_result, upsert
@@ -499,7 +510,8 @@ def _record_dataset(analyses: list[Analysis], by_index: dict) -> None:
         home, away = analysis.match.home, analysis.match.away
         records = upsert(records, from_result(analysis.match.commence_time.astimezone().date(), analysis.match.competition,
                                               home, away, analysis.result, analysis.odds, find_sheet(saved_sheets(), home),
-                                              find_sheet(saved_sheets(), away), analysis.tactical))
+                                              find_sheet(saved_sheets(), away), analysis.tactical,
+                                              context=_context_summary(analysis)))
     save_analyst_records(records)
 
 

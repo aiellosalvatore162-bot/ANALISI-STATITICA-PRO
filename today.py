@@ -57,6 +57,8 @@ class Analysis:
     odds_fields: dict = field(default_factory=dict)   # campi quota del passaggio economico, per ricalcolare
     manual: Any = None                         # voce di manual_data usata per questa analisi (None = nessun manuale)
     style_profiles: list = field(default_factory=list)   # profili di stile casa/ospite (fase AD), per il foglio «Stile»
+    extras: Any = None                         # match_extras.MatchExtras del report (fase AH)
+    context: dict | None = None                # match_context.match_context (riquadro «Stile»)
     lineup: dict | None = None                 # ``lineup.get_lineup_params`` (fase AL): XI atteso, minuti, assenti pesati, rigorista
 
     @property
@@ -210,6 +212,33 @@ def _attach_lineup(analysis: "Analysis", lineup_loader: Callable[[], Any] | None
     analysis.warnings.extend(f"Formazione: {message}" for message in data["avvisi"][:3])
     if data.get("motore"):
         analysis.config = replace(analysis.config, lineup=data["motore"])
+
+
+def apply_report_context(analysis: "Analysis", block: Any, lineup_loader: Callable[[], Any] | None = None) -> None:
+    """Fase AH: ASSENTI_PESATI, RIPOSO e TURNOVER del report entrano nella configurazione (prima della simulazione).
+
+    Il riposo del report vale solo se manca il calendario (``rest_days`` vuoto); assenti e turnover passano dalla formazione
+    (AL): un assente noto a Understat conta una volta sola. Senza report non cambia nulla."""
+    extras = getattr(block, "extras", None)
+    analysis.extras = extras
+    if analysis.config is None or not extras:
+        return
+    if analysis.config.rest_days is None and extras.rest_days:
+        analysis.config = replace(analysis.config, rest_days=(extras.rest_days.get("casa"), extras.rest_days.get("ospite")))
+    if extras.absent or extras.turnover:
+        try:
+            import lineup as lineup_module
+
+            store = lineup_loader() if lineup_loader else None
+            if store is not None and len(store.table) and analysis.config.league:
+                data = lineup_module.get_lineup_params(
+                    analysis.config.home.name, analysis.config.away.name, analysis.match.commence_time.date(), store,
+                    league=analysis.config.league, report=lineup_module.report_from_response(block.response, extras))
+                analysis.lineup = data
+                if data.get("motore"):
+                    analysis.config = replace(analysis.config, lineup=data["motore"])
+        except Exception as exc:
+            analysis.warnings.append(f"Assenti pesati/turnover non applicati ({type(exc).__name__}).")
 
 
 def analyze(match: TodayMatch, build: Callable[..., Any], odds_fields: Mapping[str, Any], *,
@@ -559,44 +588,10 @@ def outcome_prompt(targets: Sequence[Mapping[str, Any]]) -> str:
 
 
 def parse_outcomes(text: str, targets: Sequence[Mapping[str, Any]]):
-    """Blocchi ``ESITI_CLAUDE`` -> (risultati per ``performance.fill_from_results`` con la fonte, avvisi)."""
-    import pandas as pd
+    """Blocchi ``ESITI_CLAUDE`` -> (risultati per ``performance.fill_from_results`` con la fonte, avvisi).
 
-    from performance import split_match
+    Dalla fase AH la lettura sta in ``outcomes.parse_esiti_claude`` (unificata con CSV ed ESITO)."""
+    from outcomes import parse_esiti_claude
 
-    by_id = {target["id"]: target for target in targets}
-    found = list(_OUTCOME_BLOCK.finditer(text))
-    if not found:
-        raise ResponseError(f"Nella risposta non ci sono blocchi «{OUTCOME_HEADER} E1».")
-    results, warnings = [], []
-    for position, header in enumerate(found):
-        target = by_id.get(header.group(1).upper())
-        end = found[position + 1].start() if position + 1 < len(found) else len(text)
-        if target is None:
-            warnings.append(f"Blocco {header.group(1)}: ID non presente nel testo inviato, ignorato.")
-            continue
-        values: dict[str, Any] = {}
-        source = None
-        for raw in text[header.end():end].splitlines():
-            key, _, value = raw.strip().strip("`*-").strip().partition(":")
-            key = key.strip().lower().replace(" ", "_")
-            if key == "fonte":
-                url = _URL.search(value)
-                source = url.group(0).rstrip(").,;") if url else None
-                continue
-            pair = re.fullmatch(r"\s*(\d+)\s*[-–:]\s*(\d+)\s*", value)
-            columns = {"risultato": ("home_goals", "away_goals"), "primo_tempo": ("home_ht_goals", "away_ht_goals"),
-                       "corner": ("home_corners", "away_corners"), "gialli": ("home_yellows", "away_yellows"),
-                       "rossi": ("home_reds", "away_reds")}.get(key)
-            if columns and pair:
-                values[columns[0]], values[columns[1]] = int(pair[1]), int(pair[2])
-        if source is None:
-            warnings.append(f"{target['id']} {target['match']}: senza fonte, ignorato.")
-            continue
-        if "home_goals" not in values:
-            warnings.append(f"{target['id']} {target['match']}: manca il risultato finale, ignorato.")
-            continue
-        teams = split_match(target["match"]) or (target["match"], "")
-        results.append({"date": pd.Timestamp(target["date"]), "home_team": teams[0], "away_team": teams[1],
-                        "source": source, **values})
-    return results, warnings
+    outcomes, warnings = parse_esiti_claude(text, targets)
+    return [item.as_row() for item in outcomes], warnings

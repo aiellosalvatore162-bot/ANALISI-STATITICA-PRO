@@ -105,7 +105,8 @@ def _match_names(names: Iterable[str], index: Mapping[str, Mapping]) -> tuple[li
 
 
 def team_lineup(store: pl.PlayerStore, league: str, key: str, when: pd.Timestamp, *, confirmed: Sequence[str] | None = None,
-                absent: Sequence[Mapping[str, str]] = (), source: str = "", light: bool = False) -> dict[str, Any]:
+                absent: Sequence[Mapping[str, str]] = (), source: str = "", light: bool = False,
+                turnover: bool = False, extra_absent: Sequence[Mapping[str, Any]] = ()) -> dict[str, Any]:
     """Tutto ciò che serve del lato di una squadra: XI, minuti, assenti pesati, fattori, rigorista, performando."""
     squad = pl.squad_stats(store, league, key, when)
     cfg = store.config
@@ -125,6 +126,18 @@ def team_lineup(store: pl.PlayerStore, league: str, key: str, when: pd.Timestamp
             absent_ids[found[0]] = item
         else:
             warnings.append(f"Assente «{item['nome']}» non trovato nella rosa Understat: ignorato.")
+    # Fase AH: ASSENTI_PESATI del report. Se Understat conosce il giocatore conta come assente normale (UNA volta sola, vale
+    # Understat); solo se Understat non lo ha entra con il peso scritto dall'Analista.
+    external: list[dict[str, Any]] = []
+    for item in extra_absent:
+        found, _ = _match_names([item["nome"]], index)
+        if found:
+            if found[0] not in absent_ids:
+                absent_ids[found[0]] = {"nome": item["nome"], "fonte": item.get("fonte", ""), "motivo": "assente (ASSENTI_PESATI)"}
+            else:
+                warnings.append(f"{item['nome']}: già tra gli assenti e in Understat, conta una volta sola.")
+        else:
+            external.append(dict(item))
     unavailable = set(absent_ids)
     if confirmed:
         found, missing = _match_names(confirmed, index)
@@ -141,6 +154,20 @@ def team_lineup(store: pl.PlayerStore, league: str, key: str, when: pd.Timestamp
     base = production(index, typical_minutes)
     now = production(index, scenario_minutes)
     factor = now["totale"] / base["totale"] if base["totale"] > 0 else 1.0
+    external_loss = min(sum(float(item["peso"]) for item in external), 0.9)
+    factor *= 1.0 - external_loss
+    turnover_info = None
+    if turnover:
+        rotated = int(cfg.get("turnover", {}).get("n_rotazioni", 3))
+        outfield = [pid for pid in xi if index[pid]["role"] != "POR"]
+        bench = sorted((row for pid, row in index.items() if pid not in xi and pid not in unavailable and row["role"] != "POR"),
+                       key=lambda row: -row["minuti_pesati"])[:rotated]
+        xi_rate = float(np.mean([index[pid]["prod90"] for pid in outfield])) if outfield else 0.0
+        bench_rate = float(np.mean([row["prod90"] for row in bench])) if bench else xi_rate
+        turnover_factor = 1.0 - (rotated / 11.0) * max(0.0, 1.0 - bench_rate / xi_rate) if xi_rate > 0 else 1.0
+        factor *= turnover_factor
+        turnover_info = {"rotazioni": rotated, "fattore": round(turnover_factor, 4),
+                         "fonte": f"{rotated} titolari sostituiti dai migliori di panchina (produzione npxG+xA per 90 di Understat)"}
     limits = cfg["fattore_attacco"].get("limiti")
     attack_warning = None
     if limits and not (limits[0] <= factor <= limits[1]):
@@ -188,6 +215,7 @@ def team_lineup(store: pl.PlayerStore, league: str, key: str, when: pd.Timestamp
     performing = {} if light else performing_params(store, league, key, when, index, components.get("performando", True))
     return {"disponibile": True, "origine_formazione": origin, "xi": [row for row in on_field if row["come"] == "titolare"],
             "panchina": [row for row in on_field if row["come"] == "panchina"], "assenti": weighted,
+            "turnover": turnover_info, "assenti_esterni": [{**item, "effetto": item["peso"]} for item in external],
             "fattore_attacco": {"valore": round(factor, 4), "campione": int(squad["partite"].sum()),
                                 "fonte": "(Σ minuti attesi/90 × (npxG+xA)/90 dell'XI atteso ÷ XI tipo)^esponente stimato dal backtest (Understat, ultime 2 stagioni)",
                                 "avviso": attack_warning, "valore_grezzo": round(raw_factor, 4), "esponente": exponent,
@@ -275,7 +303,8 @@ def get_lineup_params(home: str, away: str, when, store: pl.PlayerStore, *, leag
         chosen = max(leagues, key=lambda code: len(store.team_rows(code, key, when)))
         info = (report or {}).get(label) or {}
         sides[label] = team_lineup(store, chosen, key, when, confirmed=info.get("formazione"), absent=info.get("assenti") or (),
-                                   source=info.get("fonte", ""))
+                                   source=info.get("fonte", ""), turnover=bool(info.get("turnover")),
+                                   extra_absent=info.get("assenti_pesati") or ())
         sides[label]["squadra"] = team
     result.update(sides)
     result["avvisi"] = [message for side in sides.values() for message in side.get("avvisi", [])]
@@ -288,17 +317,23 @@ def get_lineup_params(home: str, away: str, when, store: pl.PlayerStore, *, leag
     return result
 
 
-def report_from_response(response: Any) -> dict[str, dict[str, Any]] | None:
-    """Formazione e assenti di una risposta/report dell'Analista (``claude_bridge.ClaudeResponse``) per ``get_lineup_params``."""
-    if response is None:
-        return None
+def report_from_response(response: Any, extras: Any = None) -> dict[str, dict[str, Any]] | None:
+    """Formazione e assenti di una risposta/report dell'Analista (``claude_bridge.ClaudeResponse``) per ``get_lineup_params``;
+    con ``extras`` (``match_extras.MatchExtras``) anche ASSENTI_PESATI e TURNOVER (fase AH)."""
     report: dict[str, dict[str, Any]] = {}
     for side in ("casa", "ospite"):
         info: dict[str, Any] = {}
-        if side in response.lineup:
+        if extras:
+            mine = [{"nome": item.player, "peso": item.weight, "fonte": item.source, "ruolo": item.role}
+                    for item in extras.absent if item.side == side]
+            if mine:
+                info["assenti_pesati"] = mine
+            if side in extras.turnover:
+                info["turnover"] = extras.turnover[side][0]
+        if response is not None and side in response.lineup:
             info["formazione"] = response.lineup[side]["formazione"]
             info["fonte"] = response.lineup[side]["fonte"]
-        if response.absent.get(side):
+        if response is not None and response.absent.get(side):
             source = response.absent_source.get(side, "report dell'Analista")
             info["assenti"] = [{"nome": name, "fonte": source, "motivo": "assente (report)"} for name in response.absent[side]]
             info.setdefault("fonte", source)

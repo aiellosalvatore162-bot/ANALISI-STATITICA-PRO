@@ -89,8 +89,12 @@ def _date(text: str) -> str | None:
         return None
 
 
-def parse_profiles(text: str) -> tuple[list[TacticalSheet], list[str]]:
-    """Profili dei blocchi ``PROFILO_TATTICO:``; ogni campo fuori elenco è scartato, un blocco senza fonte pure."""
+def parse_profiles(text: str, *, origin: str = "Claude (da confermare)",
+                   day: date | None = None) -> tuple[list[TacticalSheet], list[str]]:
+    """Profili dei blocchi ``PROFILO_TATTICO:``; ogni campo fuori elenco è scartato, un blocco senza fonte pure.
+
+    Parser UNICO (fase AH): scheda tattica (origine «Claude (da confermare)») e report dell'Analista (origine «Analista»,
+    data del report) passano di qui."""
     headers = list(_HEADER.finditer(text))
     sheets, warnings = [], []
     if not headers:
@@ -99,7 +103,7 @@ def parse_profiles(text: str) -> tuple[list[TacticalSheet], list[str]]:
         end = headers[position + 1].start() if position + 1 < len(headers) else len(text)
         body = text[header.end():end]
         team = header.group("team").strip().strip("*_").strip()
-        sheet = TacticalSheet(team=team, origine="Claude (da confermare)", aggiornata=date.today().isoformat())
+        sheet = TacticalSheet(team=team, origine=origin, aggiornata=(day or date.today()).isoformat())
         for raw in body.splitlines():
             line = raw.strip().strip("`*-").strip()
             if not line:
