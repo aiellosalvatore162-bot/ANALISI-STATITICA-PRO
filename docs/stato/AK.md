@@ -226,8 +226,30 @@ Ramo: `fase-ak-motore-eventi` (da `main` dopo la fase AH). `docs/FONTI.md` non e
      con punteggio ed espulsioni troppo debole.
    - Possibile passo successivo (NON fatto, servirebbe un nuovo banco con campione diverso per non scegliere sui dati della
      verifica): motore a eventi solo per corner e combo gol+corner, cartellini dal motore attuale.
+14b. Ultima parte (sessione del 30/10, sera). Punto 1, cartellini: IN CORSO (vedi sotto).
 15. «Vedi come andrà»: DA FARE
 16. Test, merge, push: DA FARE
+
+## Ultima parte – punto 1: legame tra rossi, gialli e stato della partita
+- Causa confermata sui dati StatsBomb 2015/16: con l'effetto fisso per squadra-partita il tratto PRIMA del rosso è «caldo»
+  (i cartellini precedono l'espulsione, la seconda gialla è un giallo), quindi il calo dopo è esagerato. Nuovo stimatore TRA
+  partite per falli e gialli (`stima_motore.fit_men_between`: atteso = tasso della squadra nelle altre partite × concessioni
+  dell'avversario nelle altre partite / media del campionato, stato e fascia come controlli). Uomo in meno: gialli ×0,87 ± 0,10
+  (era ×0,39), falli ×0,78 ± 0,05 (era ×0,64); uomo in più gialli ×1,00, falli ×1,01. Controllo: su tiri e corner i due metodi
+  danno lo stesso valore (tiri ×0,55 contro ×0,58, corner di gioco ×0,58 contro ×0,54), quindi lì resta l'effetto fisso.
+  Il valore a effetto fisso resta in `config/motore_eventi.json` («effetto_fisso») per confronto. L'esponente di attenuazione
+  ristimato è 0,496 (era 0,53, dentro l'IC: rumore Monte Carlo della curva).
+- Vincolo di coerenza: nuova passata «rossi con dispersione» (i rossi si riportavano alla media senza la partita calda; con la
+  dispersione le seconde gialle crescevano del ~14%).
+- Momenti reali (CSV 2024/25-2025/26, 2.851 partite, stagioni di taratura, residui come nel banco): pendenza gialli/|diff. reti|
+  −0,302 ± 0,031, correlazione −0,164, gialli in più con un rosso +1,07 ± 0,11. Motore con il solo uomo in meno corretto:
+  −0,05 e +0,67 (era +0,11). Restano da stimare (`python -m tools.event_cards --salva`, inferenza indiretta, sezione
+  `stato_partita.legame_cartellini`): esponente proprio di stato dei gialli a e esponente della partita calda sui rossi g.
+  Prova a 200 partite: a = 2 → pendenza −0,27 ma gialli con rosso +0,41; a = 2, g = 3 → −0,24 e +1,12 (interagiscono: stima
+  alternata a → g → a).
+- Banco nuovo pronto (`python -m tools.event_check --campione nuovo`): 2019/20 + 2023/24 per intero, 2.672 partite, nessuna del
+  primo banco; tre varianti (attuale, eventi completo, eventi solo corner). Motore per gruppi di mercati:
+  `motore_eventi.mercati` (`EventEngineParams.markets`, tempi/corner/cartellini).
 
 ## Note
 - Verifica Bundesliga (30/10): l'elenco partite StatsBomb per 1. Bundesliga 2015/2016 (competizione 9, stagione 27) contiene
