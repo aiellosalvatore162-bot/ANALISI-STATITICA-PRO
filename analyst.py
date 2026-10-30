@@ -304,10 +304,7 @@ def parse_profiles(text: str, day: date | None = None):
 
     sheets, warnings = [], []
     for found in _PROFILE.finditer(text):
-        part, part_warnings = parse_one(text[found.start():_end(text, found.start())])
-        for sheet in part:
-            sheet.origine = "Analista"
-            sheet.aggiornata = (day or date.today()).isoformat()
+        part, part_warnings = parse_one(text[found.start():_end(text, found.start())], origin="Analista", day=day)
         sheets += part
         warnings += part_warnings
     return sheets, warnings

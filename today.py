@@ -559,44 +559,10 @@ def outcome_prompt(targets: Sequence[Mapping[str, Any]]) -> str:
 
 
 def parse_outcomes(text: str, targets: Sequence[Mapping[str, Any]]):
-    """Blocchi ``ESITI_CLAUDE`` -> (risultati per ``performance.fill_from_results`` con la fonte, avvisi)."""
-    import pandas as pd
+    """Blocchi ``ESITI_CLAUDE`` -> (risultati per ``performance.fill_from_results`` con la fonte, avvisi).
 
-    from performance import split_match
+    Dalla fase AH la lettura sta in ``outcomes.parse_esiti_claude`` (unificata con CSV ed ESITO)."""
+    from outcomes import parse_esiti_claude
 
-    by_id = {target["id"]: target for target in targets}
-    found = list(_OUTCOME_BLOCK.finditer(text))
-    if not found:
-        raise ResponseError(f"Nella risposta non ci sono blocchi «{OUTCOME_HEADER} E1».")
-    results, warnings = [], []
-    for position, header in enumerate(found):
-        target = by_id.get(header.group(1).upper())
-        end = found[position + 1].start() if position + 1 < len(found) else len(text)
-        if target is None:
-            warnings.append(f"Blocco {header.group(1)}: ID non presente nel testo inviato, ignorato.")
-            continue
-        values: dict[str, Any] = {}
-        source = None
-        for raw in text[header.end():end].splitlines():
-            key, _, value = raw.strip().strip("`*-").strip().partition(":")
-            key = key.strip().lower().replace(" ", "_")
-            if key == "fonte":
-                url = _URL.search(value)
-                source = url.group(0).rstrip(").,;") if url else None
-                continue
-            pair = re.fullmatch(r"\s*(\d+)\s*[-–:]\s*(\d+)\s*", value)
-            columns = {"risultato": ("home_goals", "away_goals"), "primo_tempo": ("home_ht_goals", "away_ht_goals"),
-                       "corner": ("home_corners", "away_corners"), "gialli": ("home_yellows", "away_yellows"),
-                       "rossi": ("home_reds", "away_reds")}.get(key)
-            if columns and pair:
-                values[columns[0]], values[columns[1]] = int(pair[1]), int(pair[2])
-        if source is None:
-            warnings.append(f"{target['id']} {target['match']}: senza fonte, ignorato.")
-            continue
-        if "home_goals" not in values:
-            warnings.append(f"{target['id']} {target['match']}: manca il risultato finale, ignorato.")
-            continue
-        teams = split_match(target["match"]) or (target["match"], "")
-        results.append({"date": pd.Timestamp(target["date"]), "home_team": teams[0], "away_team": teams[1],
-                        "source": source, **values})
-    return results, warnings
+    outcomes, warnings = parse_esiti_claude(text, targets)
+    return [item.as_row() for item in outcomes], warnings
