@@ -83,7 +83,35 @@ Ramo: `fase-ak-motore-eventi` (da `main` dopo la fase AH). `docs/FONTI.md` non e
    - Arbitri: Premier (football-data 2019-26, 33 arbitri) varianza dovuta all'arbitro 4,6% sui falli (k 20,8, fuori campione
      −2,4% MSE) e 1,2% sui gialli (k 80,7, −0,1%); Scozia 5,1% (k 18,8) e 2,2% (k 44); StatsBomb 2015/16 (una stagione) Liga,
      Serie A, Ligue 1 con quote 2-18%. L'app usa k = 10 fisso: troppo poco shrinkage sui gialli; il cambio si decide col banco.
-3-5. Stato della partita, azioni a passi, tiri e gol (`event_engine.py`): DA FARE
+3. FATTO (30/10): stato della partita in `event_engine.MatchState` (punteggio per simulazione, passo, minuto, fascia,
+   stato di ciascuna squadra = differenza reti dal suo punto di vista limitata a −2…+2 come nelle stime). Passo di 5 minuti di
+   default (`step_minutes` deve dividere 15: 1, 3, 5, 15, così i passi non scavalcano fasce e intervallo). Parametri per
+   campionato da `config/motore_eventi.json` con `event_engine.load(league)` (codici football-data E0/SP1/I1/F1/D1 o nomi;
+   Bundesliga e campionati non stimati = «comune», dichiarato nella nota).
+4. FATTO (30/10): azioni a passi = tiri per tipo. Tabelle `build_tables` (tipo × stato × passo): tasso base StatsBomb × forza
+   × dizionario × moltiplicatori di stato e fascia «tiri», normalizzati sulla distribuzione osservata degli stati
+   (`minuti_per_stato`) e sulla lunghezza delle fasce, così le medie per partita restano quelle stimate (verificato nel test).
+   Dizionario tattico (`type_multipliers`): azioni_pericolose → azione, tiri_transizione → transizione, tiri_fuori_area →
+   fuori area, tiri_da_cross → testa da cross; tiri_transizione_concessi sposta i tiri dell'AVVERSARIO;
+   tiri_contro_blocco_basso solo se l'avversario ha la linea bassa; spinta_in_svantaggio/vantaggio moltiplicano lo stato
+   (oggi null → 1). quota_possesso dà solo `possession_home` (informativo). Termini sconosciuti → `warnings`.
+   Forma (moduli, `formation.lane_shares`) non ancora usata: serve a cross e corner (stadio 6). Rigori: tasso costante.
+5. FATTO (30/10): tiri → gol con la conversione del tipo × qualità per stato e fascia (rapporto xG/tiri stimato,
+   normalizzato sui tiri; rigori costanti). Due modi in `event_engine.simulate`:
+   - «punteggi» (`scores` = punteggi Dixon-Coles del motore, default previsto per l'aggancio): gol e tiri sbagliati sono
+     processi indipendenti (assottigliamento di Poisson), i gol dati si collocano nei passi con rischio ∝ intensità di gol del
+     passo e stato attuale mantenuto per il futuro (come `timeline`), tipo del gol ∝ tasso × conversione; totali ESATTI.
+   - «libero» (`scores` = None): gol dai tiri, forza riscalata su 3 passate pilota sui gol attesi λ, μ (scarto < 0,04).
+   `first_share` (quota tarata `primo_tempo`) riscala i passi del primo/secondo tempo: esatta a stato neutro, nel modo
+   punteggi resta entro 0,02 (test); nel modo libero gli stati la spostano (0,467 contro 0,45 con λ 1,6): da sistemare con
+   il vincolo di coerenza (stadio 9).
+   Uscite per simulazione: `goals_*`, `first_*`, `shots_*`/`goals_by_type_*`/`saved_*` (n × 6 tipi; parati o respinti tra i
+   tiri non in gol, per i corner da tiro dello stadio 6), `xg_*`, `first_goal_minute`/`first_goal_team`, `state_steps_home`
+   (passi in ciascuno stato), `ledger` (parametri, modo, forza, moltiplicatori per tipo), `dictionary_rows`, `warnings`;
+   `summary` per le medie. Esempio Premier, λ 1,6 / μ 1,1, modo punteggi: tiri 15,4 / 11,5, xG 1,50 / 1,14, minuto medio del
+   primo gol 30, 6,8% senza gol. Tempo: 100.000 simulazioni in ~1,8 s (punteggi) e ~3,3 s (libero, con il pilota): l'arresto
+   adattivo è dello stadio 10. NON agganciato a `engine.simulate_match`: l'app non cambia finché lo stadio 9-11 non lo collega
+   e il banco (14) non lo verifica. Test: `test_event_engine.py` (15).
 6-8. Corner, falli e cartellini, effetti dello stato: DA FARE
 9-11. Vincolo di coerenza (riscalatura sulle medie attuali), simulazione vettoriale con arresto adattivo, mercati dagli stessi campioni: DA FARE
 12-13. Realismo e test di buon senso: DA FARE
@@ -96,5 +124,6 @@ Ramo: `fase-ak-motore-eventi` (da `main` dopo la fase AH). `docs/FONTI.md` non e
   esattamente 34 partite, tutte del Bayer Leverkusen (34 su 34). Il download è COMPLETO: è StatsBomb che pubblica solo quelle.
   DECISIONE: nessun effetto proprio per la Bundesliga; le 34 partite entrano solo nelle stime comuni (non per campionato) e per la
   Bundesliga si usano i valori stimati sugli altri campionati, dichiarato in `config/motore_eventi.json`.
-- Prossimo: stadi 3-5 (`event_engine.py`: stato della partita, azioni a passi, tiri e gol) leggendo `config/motore_eventi.json`.
-- La conversazione che ha fatto la ricognizione era già molto lunga: il lavoro riparte da qui in una nuova sessione.
+- Prossimo: stadi 6-8 (corner per origine con `saved_*` e `formation.lane_shares`, falli e cartellini con arbitro ed effetti dello
+  stato) dentro `event_engine.py`, poi 9-11 (coerenza con le medie attuali di corner e cartellini, aggancio con `MatchConfig`).
+- 30/10: stadi 3-5 fatti in una nuova sessione e ramo unito a `main` (il motore a eventi non è collegato all'app).
