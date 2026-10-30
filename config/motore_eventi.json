@@ -1,0 +1,1060 @@
+{
+  "nota": "Fase AK: parametri del motore a eventi stimati con python -m tools.stima_motore. Data: StatsBomb Open Data 2015/16 (StatsBomb Open Data User Agreement) e football-data.co.uk per gli arbitri.",
+  "data_stima": "2026-10-30",
+  "campionati": {
+    "Premier League": "propri",
+    "La Liga": "propri",
+    "Serie A": "propri",
+    "Bundesliga": "comune: StatsBomb pubblica solo le 34 partite del Leverkusen, nessun effetto proprio",
+    "Ligue 1": "propri"
+  },
+  "partite": {
+    "Premier League": 380,
+    "La Liga": 380,
+    "Serie A": 380,
+    "Bundesliga": 34,
+    "Ligue 1": 377
+  },
+  "tipi_tiro": {
+    "ordine": [
+      "rigore",
+      "palla_inattiva",
+      "transizione",
+      "fuori_area",
+      "testa_da_cross",
+      "azione"
+    ],
+    "regola": "rigore > palla inattiva (punizione diretta o azione da corner) > transizione (contropiede) > fuori area > testa da cross > azione"
+  },
+  "xg_per_tipo": {
+    "comune": {
+      "rigore": {
+        "tiri_per_squadra_partita": 0.13217279174725982,
+        "quota": 0.010586655649659162,
+        "xg_medio": 0.7835000000000001,
+        "gol_per_tiro": 0.751219512195122,
+        "gol_per_tiro_es": 0.021350087490107195,
+        "quota_parato_respinto": 0.1878048780487805,
+        "n": 410
+      },
+      "palla_inattiva": {
+        "tiri_per_squadra_partita": 2.579303675048356,
+        "quota": 0.20659471183639744,
+        "xg_medio": 0.07797478732188477,
+        "gol_per_tiro": 0.08036495438070242,
+        "gol_per_tiro_es": 0.0030392678258746105,
+        "quota_parato_respinto": 0.44831896012998373,
+        "n": 8001
+      },
+      "transizione": {
+        "tiri_per_squadra_partita": 0.5641521598968408,
+        "quota": 0.04518694484610618,
+        "xg_medio": 0.14196158324737143,
+        "gol_per_tiro": 0.15542857142857142,
+        "gol_per_tiro_es": 0.008660931345901873,
+        "quota_parato_respinto": 0.5142857142857142,
+        "n": 1750
+      },
+      "fuori_area": {
+        "tiri_per_squadra_partita": 3.9235976789168276,
+        "quota": 0.3142687461268333,
+        "xg_medio": 0.03326299321118232,
+        "gol_per_tiro": 0.02998931887273026,
+        "gol_per_tiro_es": 0.0015459962211116153,
+        "quota_parato_respinto": 0.5382466518774135,
+        "n": 12171
+      },
+      "testa_da_cross": {
+        "tiri_per_squadra_partita": 0.7540296582849775,
+        "quota": 0.060395579425738484,
+        "xg_medio": 0.11316615404446345,
+        "gol_per_tiro": 0.11671654553227875,
+        "gol_per_tiro_es": 0.006638976775498244,
+        "quota_parato_respinto": 0.29243266353142366,
+        "n": 2339
+      },
+      "azione": {
+        "tiri_per_squadra_partita": 4.531592520954223,
+        "quota": 0.3629673621152654,
+        "xg_medio": 0.1404342536118304,
+        "gol_per_tiro": 0.14924948424272605,
+        "gol_per_tiro_es": 0.003005461767127207,
+        "quota_parato_respinto": 0.5076474354414171,
+        "n": 14057
+      }
+    },
+    "La Liga": {
+      "rigore": {
+        "tiri_per_squadra_partita": 0.12763157894736843,
+        "quota": 0.010580279232111692,
+        "xg_medio": 0.7835,
+        "gol_per_tiro": 0.711340206185567,
+        "gol_per_tiro_es": 0.04600933536485718,
+        "quota_parato_respinto": 0.20618556701030927,
+        "n": 97
+      },
+      "palla_inattiva": {
+        "tiri_per_squadra_partita": 2.5473684210526315,
+        "quota": 0.2111692844677138,
+        "xg_medio": 0.08057395624907024,
+        "gol_per_tiro": 0.08522727272727272,
+        "gol_per_tiro_es": 0.006345899987244635,
+        "quota_parato_respinto": 0.42458677685950413,
+        "n": 1936
+      },
+      "transizione": {
+        "tiri_per_squadra_partita": 0.5263157894736842,
+        "quota": 0.04363001745200698,
+        "xg_medio": 0.16444264471475,
+        "gol_per_tiro": 0.1825,
+        "gol_per_tiro_es": 0.019312803395675107,
+        "quota_parato_respinto": 0.5125,
+        "n": 400
+      },
+      "fuori_area": {
+        "tiri_per_squadra_partita": 3.4723684210526318,
+        "quota": 0.28784904013961604,
+        "xg_medio": 0.034274419227775674,
+        "gol_per_tiro": 0.027661993179234557,
+        "gol_per_tiro_es": 0.00319249827114864,
+        "quota_parato_respinto": 0.5248200075786282,
+        "n": 2639
+      },
+      "testa_da_cross": {
+        "tiri_per_squadra_partita": 0.7394736842105263,
+        "quota": 0.061300174520069806,
+        "xg_medio": 0.11650142319572954,
+        "gol_per_tiro": 0.1298932384341637,
+        "gol_per_tiro_es": 0.014181147894051812,
+        "quota_parato_respinto": 0.304270462633452,
+        "n": 562
+      },
+      "azione": {
+        "tiri_per_squadra_partita": 4.65,
+        "quota": 0.3854712041884817,
+        "xg_medio": 0.14886334788706848,
+        "gol_per_tiro": 0.15874363327674024,
+        "gol_per_tiro_es": 0.006147224406466996,
+        "quota_parato_respinto": 0.4985851726089417,
+        "n": 3534
+      }
+    },
+    "Ligue 1": {
+      "rigore": {
+        "tiri_per_squadra_partita": 0.1206896551724138,
+        "quota": 0.01032448377581121,
+        "xg_medio": 0.7835000000000001,
+        "gol_per_tiro": 0.7032967032967034,
+        "gol_per_tiro_es": 0.04788613445291623,
+        "quota_parato_respinto": 0.23076923076923078,
+        "n": 91
+      },
+      "palla_inattiva": {
+        "tiri_per_squadra_partita": 2.40053050397878,
+        "quota": 0.20535511685954164,
+        "xg_medio": 0.07439376159502761,
+        "gol_per_tiro": 0.08066298342541436,
+        "gol_per_tiro_es": 0.006400814283934311,
+        "quota_parato_respinto": 0.4425414364640884,
+        "n": 1810
+      },
+      "transizione": {
+        "tiri_per_squadra_partita": 0.5490716180371353,
+        "quota": 0.04697072838665759,
+        "xg_medio": 0.13937999579516908,
+        "gol_per_tiro": 0.15942028985507245,
+        "gol_per_tiro_es": 0.017991239215146115,
+        "quota_parato_respinto": 0.5096618357487923,
+        "n": 414
+      },
+      "fuori_area": {
+        "tiri_per_squadra_partita": 3.636604774535809,
+        "quota": 0.31109598366235536,
+        "xg_medio": 0.03264701141021152,
+        "gol_per_tiro": 0.03172866520787746,
+        "gol_per_tiro_es": 0.0033472697547535985,
+        "quota_parato_respinto": 0.5288110867979577,
+        "n": 2742
+      },
+      "testa_da_cross": {
+        "tiri_per_squadra_partita": 0.8236074270557029,
+        "quota": 0.07045609257998639,
+        "xg_medio": 0.11010919150402576,
+        "gol_per_tiro": 0.0998389694041868,
+        "gol_per_tiro_es": 0.012029964574053146,
+        "quota_parato_respinto": 0.28502415458937197,
+        "n": 621
+      },
+      "azione": {
+        "tiri_per_squadra_partita": 4.159151193633952,
+        "quota": 0.3557975947356478,
+        "xg_medio": 0.14456596314461098,
+        "gol_per_tiro": 0.15656887755102042,
+        "gol_per_tiro_es": 0.006489175251964796,
+        "quota_parato_respinto": 0.491390306122449,
+        "n": 3136
+      }
+    },
+    "Premier League": {
+      "rigore": {
+        "tiri_per_squadra_partita": 0.11973684210526316,
+        "quota": 0.009184497375857893,
+        "xg_medio": 0.7835000000000001,
+        "gol_per_tiro": 0.8131868131868132,
+        "gol_per_tiro_es": 0.040858106119460565,
+        "quota_parato_respinto": 0.12087912087912088,
+        "n": 91
+      },
+      "palla_inattiva": {
+        "tiri_per_squadra_partita": 2.723684210526316,
+        "quota": 0.2089220831651191,
+        "xg_medio": 0.08514120612285024,
+        "gol_per_tiro": 0.0821256038647343,
+        "gol_per_tiro_es": 0.00603456185164643,
+        "quota_parato_respinto": 0.485024154589372,
+        "n": 2070
+      },
+      "transizione": {
+        "tiri_per_squadra_partita": 0.6105263157894737,
+        "quota": 0.046830843762616065,
+        "xg_medio": 0.1347493009325431,
+        "gol_per_tiro": 0.14655172413793102,
+        "gol_per_tiro_es": 0.016418182485967294,
+        "quota_parato_respinto": 0.5344827586206896,
+        "n": 464
+      },
+      "fuori_area": {
+        "tiri_per_squadra_partita": 4.098684210526316,
+        "quota": 0.3143924101735971,
+        "xg_medio": 0.03528446101601926,
+        "gol_per_tiro": 0.030818619582664526,
+        "gol_per_tiro_es": 0.003096564257194629,
+        "quota_parato_respinto": 0.5820224719101124,
+        "n": 3115
+      },
+      "testa_da_cross": {
+        "tiri_per_squadra_partita": 0.7421052631578947,
+        "quota": 0.05692369802180056,
+        "xg_medio": 0.1157430247606383,
+        "gol_per_tiro": 0.12943262411347517,
+        "gol_per_tiro_es": 0.014134599915348753,
+        "quota_parato_respinto": 0.3067375886524823,
+        "n": 564
+      },
+      "azione": {
+        "tiri_per_squadra_partita": 4.742105263157895,
+        "quota": 0.3637464675010093,
+        "xg_medio": 0.13488531083010544,
+        "gol_per_tiro": 0.140677025527192,
+        "gol_per_tiro_es": 0.005791584656605825,
+        "quota_parato_respinto": 0.5294117647058824,
+        "n": 3604
+      }
+    },
+    "Serie A": {
+      "rigore": {
+        "tiri_per_squadra_partita": 0.15921052631578947,
+        "quota": 0.012102420484096819,
+        "xg_medio": 0.7835,
+        "gol_per_tiro": 0.768595041322314,
+        "gol_per_tiro_es": 0.03833914597197017,
+        "quota_parato_respinto": 0.19834710743801653,
+        "n": 121
+      },
+      "palla_inattiva": {
+        "tiri_per_squadra_partita": 2.6092105263157896,
+        "quota": 0.1983396679335867,
+        "xg_medio": 0.07268919853000505,
+        "gol_per_tiro": 0.07665153807362582,
+        "gol_per_tiro_es": 0.005974229401039496,
+        "quota_parato_respinto": 0.437720625315179,
+        "n": 1983
+      },
+      "transizione": {
+        "tiri_per_squadra_partita": 0.5631578947368421,
+        "quota": 0.04280856171234247,
+        "xg_medio": 0.13105158444182244,
+        "gol_per_tiro": 0.13551401869158877,
+        "gol_per_tiro_es": 0.016544330806803998,
+        "quota_parato_respinto": 0.4976635514018692,
+        "n": 428
+      },
+      "fuori_area": {
+        "tiri_per_squadra_partita": 4.592105263157895,
+        "quota": 0.3490698139627926,
+        "xg_medio": 0.03115091553618911,
+        "gol_per_tiro": 0.02836676217765043,
+        "gol_per_tiro_es": 0.002810239616026765,
+        "quota_parato_respinto": 0.5183381088825215,
+        "n": 3490
+      },
+      "testa_da_cross": {
+        "tiri_per_squadra_partita": 0.7052631578947368,
+        "quota": 0.053610722144428885,
+        "xg_medio": 0.1108282690261194,
+        "gol_per_tiro": 0.10820895522388059,
+        "gol_per_tiro_es": 0.013417782895217934,
+        "quota_parato_respinto": 0.26492537313432835,
+        "n": 536
+      },
+      "azione": {
+        "tiri_per_squadra_partita": 4.526315789473684,
+        "quota": 0.34406881376275256,
+        "xg_medio": 0.13302977113093023,
+        "gol_per_tiro": 0.1427325581395349,
+        "gol_per_tiro_es": 0.005964038914233217,
+        "quota_parato_respinto": 0.5055232558139535,
+        "n": 3440
+      }
+    }
+  },
+  "corner_falli": {
+    "comune": {
+      "corner_per_squadra_partita": {
+        "tiro": 1.5261121856866537,
+        "cross": 1.0025789813023855,
+        "altro": 2.574468085106383
+      },
+      "corner_per_tiro_parato_respinto": 0.25001320306311065,
+      "falli_per_squadra_partita": 15.041586073500968,
+      "falli_per_zona": {
+        "difesa": 0.20021860734263486,
+        "centro": 0.5380741121755717,
+        "attacco": 0.2617072804817934
+      },
+      "gialli_per_fallo": 0.15088193060288477,
+      "partite": 1551
+    },
+    "La Liga": {
+      "corner_per_squadra_partita": {
+        "tiro": 1.4157894736842105,
+        "cross": 0.9907894736842106,
+        "altro": 2.6473684210526316
+      },
+      "corner_per_tiro_parato_respinto": 0.24650630011454755,
+      "falli_per_squadra_partita": 15.968421052631578,
+      "falli_per_zona": {
+        "difesa": 0.19166117336849045,
+        "centro": 0.5613876071193145,
+        "attacco": 0.24695121951219512
+      },
+      "gialli_per_fallo": 0.17773566249176007,
+      "partite": 380
+    },
+    "Ligue 1": {
+      "corner_per_squadra_partita": {
+        "tiro": 1.409814323607427,
+        "cross": 0.8938992042440318,
+        "altro": 2.4549071618037135
+      },
+      "corner_per_tiro_parato_respinto": 0.25303499166865034,
+      "falli_per_squadra_partita": 14.86339522546419,
+      "falli_per_zona": {
+        "difesa": 0.19710894976354065,
+        "centro": 0.52172749174623,
+        "attacco": 0.28116355849022934
+      },
+      "gialli_per_fallo": 0.1343802980280182,
+      "partite": 377
+    },
+    "Premier League": {
+      "corner_per_squadra_partita": {
+        "tiro": 1.7473684210526317,
+        "cross": 1.0473684210526315,
+        "altro": 2.6092105263157896
+      },
+      "corner_per_tiro_parato_respinto": 0.257514058561179,
+      "falli_per_squadra_partita": 12.51578947368421,
+      "falli_per_zona": {
+        "difesa": 0.22235071488645922,
+        "centro": 0.5359545836837679,
+        "attacco": 0.24169470142977292
+      },
+      "gialli_per_fallo": 0.12910008410428933,
+      "partite": 380
+    },
+    "Serie A": {
+      "corner_per_squadra_partita": {
+        "tiro": 1.5236842105263158,
+        "cross": 1.0921052631578947,
+        "altro": 2.567105263157895
+      },
+      "corner_per_tiro_parato_respinto": 0.24150156412930135,
+      "falli_per_squadra_partita": 16.660526315789475,
+      "falli_per_zona": {
+        "difesa": 0.19301848049281314,
+        "centro": 0.5323803506555047,
+        "attacco": 0.2746011688516822
+      },
+      "gialli_per_fallo": 0.1585847417469594,
+      "partite": 380
+    }
+  },
+  "stato_partita": {
+    "minuti_per_stato": {
+      "-2": 12174.0,
+      "-1": 25593.75,
+      "0": 70600.5,
+      "1": 25593.75,
+      "2": 12174.0
+    },
+    "quantita": {
+      "tiri": {
+        "stato": {
+          "-2": {
+            "moltiplicatore": 1.3544974409680652,
+            "es": 0.029575721939044078
+          },
+          "-1": {
+            "moltiplicatore": 1.1890607960912527,
+            "es": 0.018964267104191898
+          },
+          "0": {
+            "moltiplicatore": 1.0,
+            "es": 0.0
+          },
+          "1": {
+            "moltiplicatore": 0.6737490414251582,
+            "es": 0.02078825438608472
+          },
+          "2": {
+            "moltiplicatore": 0.49970040124167825,
+            "es": 0.029398346500185236
+          }
+        },
+        "fascia": {
+          "0-30": {
+            "moltiplicatore": 1.0,
+            "es": 0.0
+          },
+          "30-60": {
+            "moltiplicatore": 1.2100395169827658,
+            "es": 0.01372597347735195
+          },
+          "60-75": {
+            "moltiplicatore": 1.2721813531891855,
+            "es": 0.018031417432452155
+          },
+          "75-90": {
+            "moltiplicatore": 1.3882199687193695,
+            "es": 0.01716499149469655
+          }
+        }
+      },
+      "xg": {
+        "stato": {
+          "-2": {
+            "moltiplicatore": 1.5869155216034456,
+            "es": 0.06098528983184758
+          },
+          "-1": {
+            "moltiplicatore": 1.3001155352432225,
+            "es": 0.03529829813522474
+          },
+          "0": {
+            "moltiplicatore": 1.0,
+            "es": 0.0
+          },
+          "1": {
+            "moltiplicatore": 0.6523730447407587,
+            "es": 0.035250284580642124
+          },
+          "2": {
+            "moltiplicatore": 0.4088400711317514,
+            "es": 0.05388861086136526
+          }
+        },
+        "fascia": {
+          "0-30": {
+            "moltiplicatore": 1.0,
+            "es": 0.0
+          },
+          "30-60": {
+            "moltiplicatore": 1.3079240415064446,
+            "es": 0.02335029155752057
+          },
+          "60-75": {
+            "moltiplicatore": 1.396728691973407,
+            "es": 0.028988932996313378
+          },
+          "75-90": {
+            "moltiplicatore": 1.589123831732869,
+            "es": 0.02816892310370346
+          }
+        }
+      },
+      "corner": {
+        "stato": {
+          "-2": {
+            "moltiplicatore": 1.210798914009892,
+            "es": 0.05077399741663543
+          },
+          "-1": {
+            "moltiplicatore": 1.23757495368587,
+            "es": 0.03147247119605409
+          },
+          "0": {
+            "moltiplicatore": 1.0,
+            "es": 0.0
+          },
+          "1": {
+            "moltiplicatore": 0.651663522762934,
+            "es": 0.031276892545816594
+          },
+          "2": {
+            "moltiplicatore": 0.5424635632595531,
+            "es": 0.05053998665384524
+          }
+        },
+        "fascia": {
+          "0-30": {
+            "moltiplicatore": 1.0,
+            "es": 0.0
+          },
+          "30-60": {
+            "moltiplicatore": 1.1487927076317066,
+            "es": 0.022446362024707164
+          },
+          "60-75": {
+            "moltiplicatore": 1.160494188740748,
+            "es": 0.029036780062365902
+          },
+          "75-90": {
+            "moltiplicatore": 1.2492685948041735,
+            "es": 0.026484968383316126
+          }
+        }
+      },
+      "falli": {
+        "stato": {
+          "-2": {
+            "moltiplicatore": 0.8548004154891317,
+            "es": 0.021308523906485046
+          },
+          "-1": {
+            "moltiplicatore": 0.8967718524621989,
+            "es": 0.015788452244352442
+          },
+          "0": {
+            "moltiplicatore": 1.0,
+            "es": 0.0
+          },
+          "1": {
+            "moltiplicatore": 1.066107234571873,
+            "es": 0.015589681279789424
+          },
+          "2": {
+            "moltiplicatore": 1.049900411359158,
+            "es": 0.02248124628422332
+          }
+        },
+        "fascia": {
+          "0-30": {
+            "moltiplicatore": 1.0,
+            "es": 0.0
+          },
+          "30-60": {
+            "moltiplicatore": 1.1039261362111377,
+            "es": 0.010836912792756096
+          },
+          "60-75": {
+            "moltiplicatore": 1.0444405941209385,
+            "es": 0.014244905879241675
+          },
+          "75-90": {
+            "moltiplicatore": 1.153932991910709,
+            "es": 0.012792248013522314
+          }
+        }
+      },
+      "gialli": {
+        "stato": {
+          "-2": {
+            "moltiplicatore": 0.7172502213117635,
+            "es": 0.06994026376379742
+          },
+          "-1": {
+            "moltiplicatore": 0.947967542729417,
+            "es": 0.05063589226443092
+          },
+          "0": {
+            "moltiplicatore": 1.0,
+            "es": 0.0
+          },
+          "1": {
+            "moltiplicatore": 1.2477712955486577,
+            "es": 0.04297297595618666
+          },
+          "2": {
+            "moltiplicatore": 1.0075228844863662,
+            "es": 0.07528833294912611
+          }
+        },
+        "fascia": {
+          "0-30": {
+            "moltiplicatore": 1.0,
+            "es": 0.0
+          },
+          "30-60": {
+            "moltiplicatore": 1.9059888610616944,
+            "es": 0.036789858029916876
+          },
+          "60-75": {
+            "moltiplicatore": 2.3309037352293753,
+            "es": 0.04270530748664771
+          },
+          "75-90": {
+            "moltiplicatore": 2.679780358602171,
+            "es": 0.04000763490636166
+          }
+        }
+      }
+    },
+    "nota": "moltiplicatori del tasso per minuto rispetto al pareggio (stato 0) e alla fascia 0-30; es = errore standard bootstrap per partita del logaritmo; effetto fisso per squadra-partita (la forza non entra); rigori esclusi dagli xG; espulsioni non separate (le gestisce la componente espulsioni)"
+  },
+  "dizionario": {
+    "possesso|quota_possesso": {
+      "stimabile": true,
+      "beta_grezzo": 0.1153238792990695,
+      "es": 0.006222078293900403,
+      "intervallo": [
+        0.1031286058430247,
+        0.12751915275511427
+      ],
+      "n": 2994,
+      "significativo": true,
+      "segno_atteso": 1,
+      "segno_concorde": true,
+      "proxy": "quota di passaggi riusciti di stagione (terzili)"
+    },
+    "possesso|tiri_transizione": {
+      "stimabile": true,
+      "beta_grezzo": -0.01912579355447793,
+      "es": 0.040834751722811986,
+      "intervallo": [
+        -0.09916190693118943,
+        0.060910319822233557
+      ],
+      "n": 2994,
+      "significativo": false,
+      "segno_atteso": -1,
+      "segno_concorde": true,
+      "proxy": "quota di passaggi riusciti di stagione (terzili)"
+    },
+    "possesso|tiri_fuori_area": {
+      "stimabile": true,
+      "beta_grezzo": 0.08458322589518166,
+      "es": 0.015504142080527444,
+      "intervallo": [
+        0.05419510741734787,
+        0.11497134437301545
+      ],
+      "n": 2994,
+      "significativo": true,
+      "segno_atteso": 1,
+      "segno_concorde": true,
+      "proxy": "quota di passaggi riusciti di stagione (terzili)"
+    },
+    "verticalizzazione|tiri_transizione": {
+      "stimabile": true,
+      "beta_grezzo": -0.005967628318747573,
+      "es": 0.03786103362008529,
+      "intervallo": [
+        -0.08017525421411474,
+        0.0682399975766196
+      ],
+      "n": 2994,
+      "significativo": false,
+      "segno_atteso": 1,
+      "segno_concorde": false,
+      "proxy": "progressione per passaggio (terzili; transizione: quintili)"
+    },
+    "verticalizzazione|azioni_pericolose": {
+      "stimabile": true,
+      "beta_grezzo": -0.02824979794718101,
+      "es": 0.00901201797165356,
+      "intervallo": [
+        -0.045913353171621984,
+        -0.010586242722740034
+      ],
+      "n": 2994,
+      "significativo": true,
+      "segno_atteso": 1,
+      "segno_concorde": false,
+      "proxy": "progressione per passaggio (terzili; transizione: quintili)"
+    },
+    "altezza_linea|tiri_transizione_concessi": {
+      "stimabile": true,
+      "beta_grezzo": -0.03545057255270959,
+      "es": 0.04370291348831,
+      "intervallo": [
+        -0.1211082829897972,
+        0.05020713788437801
+      ],
+      "n": 2994,
+      "significativo": false,
+      "segno_atteso": 1,
+      "segno_concorde": false,
+      "proxy": "altezza media delle azioni difensive (terzili)"
+    },
+    "altezza_linea|corner_concessi": {
+      "stimabile": true,
+      "beta_grezzo": -0.01440278280953663,
+      "es": 0.014626525156220118,
+      "intervallo": [
+        -0.04307077211572806,
+        0.014265206496654801
+      ],
+      "n": 2994,
+      "significativo": false,
+      "segno_atteso": -1,
+      "segno_concorde": true,
+      "proxy": "altezza media delle azioni difensive (terzili)"
+    },
+    "altezza_linea|recuperi_alti": {
+      "stimabile": false,
+      "motivo": "recuperi del pallone con la posizione non salvati nel riassunto StatsBomb"
+    },
+    "pressing|recuperi_alti": {
+      "stimabile": false,
+      "motivo": "recuperi del pallone con la posizione non salvati nel riassunto StatsBomb"
+    },
+    "pressing|falli_fatti": {
+      "stimabile": true,
+      "beta_grezzo": 0.03369871827682991,
+      "es": 0.007844374483509081,
+      "intervallo": [
+        0.018323744289152108,
+        0.04907369226450771
+      ],
+      "n": 2994,
+      "significativo": true,
+      "segno_atteso": 1,
+      "segno_concorde": true,
+      "proxy": "pressioni per passaggio avversario (terzili)"
+    },
+    "marcatura|falli_fatti": {
+      "stimabile": false,
+      "motivo": "uomo/zona non si ricava dagli eventi aperti"
+    },
+    "transizione|tiri_transizione": {
+      "stimabile": true,
+      "beta_grezzo": -0.006000307957439558,
+      "es": 0.04531889206923945,
+      "intervallo": [
+        -0.09482533641314887,
+        0.08282472049826976
+      ],
+      "n": 2994,
+      "significativo": false,
+      "segno_atteso": 1,
+      "segno_concorde": false,
+      "proxy": "progressione per passaggio (terzili; transizione: quintili)"
+    },
+    "fasce_cross|cross": {
+      "stimabile": true,
+      "beta_grezzo": 0.13657904676929225,
+      "es": 0.009809298942586453,
+      "intervallo": [
+        0.1173528208418228,
+        0.1558052726967617
+      ],
+      "n": 2994,
+      "significativo": true,
+      "segno_atteso": 1,
+      "segno_concorde": true,
+      "proxy": "cross per partita (terzili)"
+    },
+    "fasce_cross|tiri_da_cross": {
+      "stimabile": true,
+      "beta_grezzo": 0.13132842243778958,
+      "es": 0.01979496132814096,
+      "intervallo": [
+        0.0925302982346333,
+        0.17012654664094587
+      ],
+      "n": 2994,
+      "significativo": true,
+      "segno_atteso": 1,
+      "segno_concorde": true,
+      "proxy": "cross per partita (terzili)"
+    },
+    "fasce_cross|corner_fasce": {
+      "stimabile": true,
+      "beta_grezzo": 0.1682044879550198,
+      "es": 0.026062973710502205,
+      "intervallo": [
+        0.11712105948243548,
+        0.21928791642760412
+      ],
+      "n": 2994,
+      "significativo": true,
+      "segno_atteso": 1,
+      "segno_concorde": true,
+      "proxy": "cross per partita (terzili)"
+    },
+    "gestione_blocco_basso|tiri_contro_blocco_basso": {
+      "stimabile": true,
+      "beta_grezzo": 0.0027959553477601993,
+      "es": 0.02167263488801228,
+      "intervallo": [
+        -0.03968240903274387,
+        0.04527431972826427
+      ],
+      "n": 1002,
+      "significativo": false,
+      "segno_atteso": 1,
+      "segno_concorde": true,
+      "proxy": "xG prodotti (terzili, proxy della qualità: la forza è tra i controlli), solo contro avversari a blocco basso"
+    },
+    "adattabilita|attenuazione_incroci": {
+      "stimabile": false,
+      "motivo": "l'adattabilità non ha un indicatore nei dati: restano i valori fissi della fase Q"
+    },
+    "reazione_svantaggio|spinta_in_svantaggio": {
+      "stimabile": false,
+      "motivo": "nessun indicatore per squadra; effetto medio nello stato di partita (sezione stato_partita)"
+    },
+    "reazione_vantaggio|spinta_in_vantaggio": {
+      "stimabile": false,
+      "motivo": "nessun indicatore per squadra; effetto medio nello stato di partita (sezione stato_partita)"
+    }
+  },
+  "incroci": {
+    "verticali_contro_linea_alta": {
+      "id": "verticali_contro_linea_alta",
+      "attacco": "verticalizzazione",
+      "difesa": "altezza_linea",
+      "tasso": "tiri_transizione",
+      "colonna": "tiri_transizione",
+      "beta": -0.04941957996043673,
+      "es": 0.04140573517902581,
+      "intervallo": [
+        -0.1305748209113273,
+        0.03173566099045385
+      ],
+      "significativo": false,
+      "n": 2994,
+      "attiva": false
+    },
+    "possesso_contro_pressing": {
+      "id": "possesso_contro_pressing",
+      "attacco": "possesso",
+      "difesa": "pressing",
+      "tasso": "falli_fatti",
+      "colonna": "falli_subiti",
+      "beta": 0.01761525223892586,
+      "es": 0.00841584295092515,
+      "intervallo": [
+        0.001120200055112569,
+        0.03411030442273915
+      ],
+      "significativo": true,
+      "n": 2994,
+      "attiva": false
+    },
+    "cross_contro_blocco_basso": {
+      "id": "cross_contro_blocco_basso",
+      "attacco": "fasce_cross",
+      "difesa": "altezza_linea",
+      "tasso": "corner_fasce",
+      "colonna": "corner_fasce",
+      "beta": -0.028391843629796996,
+      "es": 0.030674815345047672,
+      "intervallo": [
+        -0.08851448170609043,
+        0.031730794446496444
+      ],
+      "significativo": false,
+      "n": 2994,
+      "attiva": false
+    }
+  },
+  "arbitri": {
+    "football_data": {
+      "Premier League": {
+        "falli": {
+          "partite": 2644,
+          "arbitri": 33,
+          "stimabile": true,
+          "sigma2": 26.22872686039047,
+          "tau2": 1.2595865565211743,
+          "sd_arbitro": 1.1223130385597302,
+          "k": 20.823282627619527,
+          "quota_varianza_arbitro": 0.04582262059578521,
+          "fuori_campione": {
+            "partite": 2280,
+            "mse_media": 26.821671283471836,
+            "mse_arbitro": 26.187184715472856,
+            "miglioramento_pct": 2.3655743197105283
+          },
+          "media": 21.540225563909775
+        },
+        "gialli": {
+          "partite": 2644,
+          "arbitri": 33,
+          "stimabile": true,
+          "sigma2": 3.840963279707515,
+          "tau2": 0.04757688154900263,
+          "sd_arbitro": 0.21812125423489254,
+          "k": 80.73171579670367,
+          "quota_varianza_arbitro": 0.012235152416075073,
+          "fuori_campione": {
+            "partite": 2280,
+            "mse_media": 3.907082179132041,
+            "mse_arbitro": 3.904993434790984,
+            "miglioramento_pct": 0.053460466027910325
+          },
+          "media": 3.5969924812030074
+        }
+      },
+      "Scozia": {
+        "falli": {
+          "partite": 1539,
+          "arbitri": 29,
+          "stimabile": true,
+          "sigma2": 26.528268262595,
+          "tau2": 1.4148247499802717,
+          "sd_arbitro": 1.1894640599783886,
+          "k": 18.750215009289956,
+          "quota_varianza_arbitro": 0.05063236018087031,
+          "fuori_campione": {
+            "partite": 1368,
+            "mse_media": 27.654124345952603,
+            "mse_arbitro": 27.249498175331823,
+            "miglioramento_pct": 1.4631675389859211
+          },
+          "media": 23.31738849385908
+        },
+        "gialli": {
+          "partite": 1539,
+          "arbitri": 29,
+          "stimabile": true,
+          "sigma2": 3.3890481654064333,
+          "tau2": 0.07706923264753116,
+          "sd_arbitro": 0.27761345905328716,
+          "k": 43.97407433529181,
+          "quota_varianza_arbitro": 0.02223503239988389,
+          "fuori_campione": {
+            "partite": 1368,
+            "mse_media": 3.527277623884272,
+            "mse_arbitro": 3.5021553259974154,
+            "miglioramento_pct": 0.7122291060036146
+          },
+          "media": 3.5862960568842923
+        }
+      }
+    },
+    "gialli_e_falli": {
+      "Premier League": {
+        "arbitri": 27,
+        "correlazione_effetti_falli_gialli": 0.5425953618537166,
+        "gialli_per_fallo": 0.16698954570047297
+      },
+      "Scozia": {
+        "arbitri": 24,
+        "correlazione_effetti_falli_gialli": 0.4716401050125473,
+        "gialli_per_fallo": 0.1538035041029053
+      }
+    },
+    "statsbomb_2015_16": {
+      "La Liga": {
+        "falli": {
+          "partite": 361,
+          "arbitri": 20,
+          "stimabile": true,
+          "sigma2": 41.09137599639425,
+          "tau2": 3.7833334048133667,
+          "sd_arbitro": 1.945079279827269,
+          "k": 10.861156445825134,
+          "quota_varianza_arbitro": 0.08430881125018615,
+          "media": 31.936842105263157
+        },
+        "gialli": {
+          "partite": 361,
+          "arbitri": 20,
+          "stimabile": true,
+          "sigma2": 5.6134797518375,
+          "tau2": 0.30572985376641854,
+          "sd_arbitro": 0.5529284345793934,
+          "k": 18.360914652863013,
+          "quota_varianza_arbitro": 0.05165045236393954,
+          "media": 5.676315789473684
+        }
+      },
+      "Ligue 1": {
+        "falli": {
+          "partite": 347,
+          "arbitri": 22,
+          "stimabile": true,
+          "sigma2": 41.02085605258968,
+          "tau2": 9.028928477139377,
+          "sd_arbitro": 3.0048175447336862,
+          "k": 4.543269575836341,
+          "quota_varianza_arbitro": 0.18039894800698467,
+          "media": 29.72679045092838
+        },
+        "gialli": {
+          "partite": 347,
+          "arbitri": 22,
+          "stimabile": true,
+          "sigma2": 3.8568113234308754,
+          "tau2": 0.08162027347285168,
+          "sd_arbitro": 0.28569262061322426,
+          "k": 47.25310464334229,
+          "quota_varianza_arbitro": 0.02072405511295893,
+          "media": 3.9946949602122017
+        }
+      },
+      "Premier League": {
+        "falli": {
+          "partite": 365,
+          "arbitri": 14,
+          "stimabile": true,
+          "sigma2": 27.89136361603847,
+          "tau2": 0.19533066061814927,
+          "sd_arbitro": 0.44196228415799155,
+          "k": 142.7905047152998,
+          "quota_varianza_arbitro": 0.006954562138716775,
+          "media": 25.03157894736842
+        },
+        "gialli": {
+          "partite": 365,
+          "arbitri": 14,
+          "stimabile": true,
+          "sigma2": 3.7031383725426488,
+          "tau2": 0.0,
+          "sd_arbitro": 0.0,
+          "k": null,
+          "quota_varianza_arbitro": 0.0,
+          "media": 3.231578947368421
+        }
+      },
+      "Serie A": {
+        "falli": {
+          "partite": 358,
+          "arbitri": 22,
+          "stimabile": true,
+          "sigma2": 44.54875918386361,
+          "tau2": 3.4339085803879783,
+          "sd_arbitro": 1.8530808348229115,
+          "k": 12.97319312409601,
+          "quota_varianza_arbitro": 0.07156560358960147,
+          "media": 33.32105263157895
+        },
+        "gialli": {
+          "partite": 358,
+          "arbitri": 22,
+          "stimabile": true,
+          "sigma2": 4.029770649122222,
+          "tau2": 0.2844911723873659,
+          "sd_arbitro": 0.5333771389808208,
+          "k": 14.164835468551017,
+          "quota_varianza_arbitro": 0.06594202766484408,
+          "media": 5.28421052631579
+        }
+      }
+    },
+    "nota": "k = shrinkage stimato (valore arbitro = media + n/(n+k)·scarto); l'app oggi usa k=10 fisso (datasources.stats.REFEREE_PRIOR_MATCHES): il cambio si decide con il banco dello stadio 14. Effetti confusi con le squadre arbitrate (designazioni non casuali)."
+  }
+}

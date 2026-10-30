@@ -67,10 +67,12 @@ def apply_profile(profile: Mapping[str, Any], dictionary: Mapping[str, Any] | No
         score = float(dictionary["termini"][term]["punteggio"][value])
         for effect in dictionary["termini"][term]["effetti"]:
             beta = effect.get("beta")
+            reason = f" · {effect['motivo']}" if effect.get("motivo") else ""
             if beta is None:
-                rows.append({"termine": term, "valore": value, "tasso": effect["tasso"], "moltiplicatore": 1.0, "stato": "non stimato"})
+                rows.append({"termine": term, "valore": value, "tasso": effect["tasso"], "moltiplicatore": 1.0,
+                             "stato": "non stimato" + reason})
                 continue
             logs[effect["tasso"]] += float(beta) * score
             rows.append({"termine": term, "valore": value, "tasso": effect["tasso"], "moltiplicatore": math.exp(float(beta) * score),
-                         "stato": f"stimato (n={effect.get('n', 0)}, {effect.get('fonte') or 'fonte non indicata'})"})
+                         "stato": f"stimato (n={effect.get('n', 0)}, {effect.get('fonte') or 'fonte non indicata'}){reason}"})
     return {rate: math.exp(value) for rate, value in logs.items()}, rows, warnings

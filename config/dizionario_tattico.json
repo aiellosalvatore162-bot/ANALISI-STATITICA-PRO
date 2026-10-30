@@ -34,26 +34,36 @@
         {
           "tasso": "quota_possesso",
           "segno": 1,
-          "beta": null,
-          "intervallo": null,
-          "n": 0,
-          "fonte": null
+          "beta": 0.1153,
+          "intervallo": [
+            0.1031,
+            0.1275
+          ],
+          "n": 2994,
+          "fonte": "Data: StatsBomb Open Data 2015/16; proxy: quota di passaggi riusciti di stagione (terzili)"
         },
         {
           "tasso": "tiri_transizione",
           "segno": -1,
-          "beta": null,
-          "intervallo": null,
-          "n": 0,
-          "fonte": null
+          "beta": 0.0,
+          "intervallo": [
+            -0.0992,
+            0.0609
+          ],
+          "n": 2994,
+          "fonte": "Data: StatsBomb Open Data 2015/16; proxy: quota di passaggi riusciti di stagione (terzili)",
+          "motivo": "stima -0.019 ± 0.080 non distinguibile da zero: beta 0"
         },
         {
           "tasso": "tiri_fuori_area",
           "segno": 1,
-          "beta": null,
-          "intervallo": null,
-          "n": 0,
-          "fonte": null
+          "beta": 0.0846,
+          "intervallo": [
+            0.0542,
+            0.115
+          ],
+          "n": 2994,
+          "fonte": "Data: StatsBomb Open Data 2015/16; proxy: quota di passaggi riusciti di stagione (terzili)"
         }
       ]
     },
@@ -68,18 +78,26 @@
         {
           "tasso": "tiri_transizione",
           "segno": 1,
-          "beta": null,
-          "intervallo": null,
-          "n": 0,
-          "fonte": null
+          "beta": 0.0,
+          "intervallo": [
+            -0.0802,
+            0.0682
+          ],
+          "n": 2994,
+          "fonte": "Data: StatsBomb Open Data 2015/16; proxy: progressione per passaggio (terzili; transizione: quintili)",
+          "motivo": "stima -0.006 ± 0.074 non distinguibile da zero: beta 0"
         },
         {
           "tasso": "azioni_pericolose",
           "segno": 1,
-          "beta": null,
-          "intervallo": null,
-          "n": 0,
-          "fonte": null
+          "beta": -0.0282,
+          "intervallo": [
+            -0.0459,
+            -0.0106
+          ],
+          "n": 2994,
+          "fonte": "Data: StatsBomb Open Data 2015/16; proxy: progressione per passaggio (terzili; transizione: quintili)",
+          "motivo": "segno opposto all'atteso (-0.028): tenuto come stimato, da rivedere"
         }
       ]
     },
@@ -97,18 +115,26 @@
         {
           "tasso": "tiri_transizione_concessi",
           "segno": 1,
-          "beta": null,
-          "intervallo": null,
-          "n": 0,
-          "fonte": null
+          "beta": 0.0,
+          "intervallo": [
+            -0.1211,
+            0.0502
+          ],
+          "n": 2994,
+          "fonte": "Data: StatsBomb Open Data 2015/16; proxy: altezza media delle azioni difensive (terzili)",
+          "motivo": "stima -0.035 ± 0.086 non distinguibile da zero: beta 0"
         },
         {
           "tasso": "corner_concessi",
           "segno": -1,
-          "beta": null,
-          "intervallo": null,
-          "n": 0,
-          "fonte": null
+          "beta": 0.0,
+          "intervallo": [
+            -0.0431,
+            0.0143
+          ],
+          "n": 2994,
+          "fonte": "Data: StatsBomb Open Data 2015/16; proxy: altezza media delle azioni difensive (terzili)",
+          "motivo": "stima -0.014 ± 0.029 non distinguibile da zero: beta 0"
         },
         {
           "tasso": "recuperi_alti",
@@ -116,7 +142,8 @@
           "beta": null,
           "intervallo": null,
           "n": 0,
-          "fonte": null
+          "fonte": null,
+          "motivo": "recuperi del pallone con la posizione non salvati nel riassunto StatsBomb"
         }
       ]
     },
@@ -134,15 +161,19 @@
           "beta": null,
           "intervallo": null,
           "n": 0,
-          "fonte": null
+          "fonte": null,
+          "motivo": "recuperi del pallone con la posizione non salvati nel riassunto StatsBomb"
         },
         {
           "tasso": "falli_fatti",
           "segno": 1,
-          "beta": null,
-          "intervallo": null,
-          "n": 0,
-          "fonte": null
+          "beta": 0.0337,
+          "intervallo": [
+            0.0183,
+            0.0491
+          ],
+          "n": 2994,
+          "fonte": "Data: StatsBomb Open Data 2015/16; proxy: pressioni per passaggio avversario (terzili)"
         }
       ]
     },
@@ -164,7 +195,8 @@
           "beta": null,
           "intervallo": null,
           "n": 0,
-          "fonte": null
+          "fonte": null,
+          "motivo": "uomo/zona non si ricava dagli eventi aperti"
         }
       ]
     },
@@ -181,10 +213,14 @@
         {
           "tasso": "tiri_transizione",
           "segno": 1,
-          "beta": null,
-          "intervallo": null,
-          "n": 0,
-          "fonte": null
+          "beta": 0.0,
+          "intervallo": [
+            -0.0948,
+            0.0828
+          ],
+          "n": 2994,
+          "fonte": "Data: StatsBomb Open Data 2015/16; proxy: progressione per passaggio (terzili; transizione: quintili)",
+          "motivo": "stima -0.006 ± 0.089 non distinguibile da zero: beta 0"
         }
       ]
     },
@@ -199,26 +235,35 @@
         {
           "tasso": "cross",
           "segno": 1,
-          "beta": null,
-          "intervallo": null,
-          "n": 0,
-          "fonte": null
+          "beta": 0.1366,
+          "intervallo": [
+            0.1174,
+            0.1558
+          ],
+          "n": 2994,
+          "fonte": "Data: StatsBomb Open Data 2015/16; proxy: cross per partita (terzili)"
         },
         {
           "tasso": "tiri_da_cross",
           "segno": 1,
-          "beta": null,
-          "intervallo": null,
-          "n": 0,
-          "fonte": null
+          "beta": 0.1313,
+          "intervallo": [
+            0.0925,
+            0.1701
+          ],
+          "n": 2994,
+          "fonte": "Data: StatsBomb Open Data 2015/16; proxy: cross per partita (terzili)"
         },
         {
           "tasso": "corner_fasce",
           "segno": 1,
-          "beta": null,
-          "intervallo": null,
-          "n": 0,
-          "fonte": null
+          "beta": 0.1682,
+          "intervallo": [
+            0.1171,
+            0.2193
+          ],
+          "n": 2994,
+          "fonte": "Data: StatsBomb Open Data 2015/16; proxy: cross per partita (terzili)"
         }
       ]
     },
@@ -233,10 +278,14 @@
         {
           "tasso": "tiri_contro_blocco_basso",
           "segno": 1,
-          "beta": null,
-          "intervallo": null,
-          "n": 0,
-          "fonte": null
+          "beta": 0.0,
+          "intervallo": [
+            -0.0397,
+            0.0453
+          ],
+          "n": 1002,
+          "fonte": "Data: StatsBomb Open Data 2015/16; proxy: xG prodotti (terzili, proxy della qualità: la forza è tra i controlli), solo contro avversari a blocco basso",
+          "motivo": "stima +0.003 ± 0.042 non distinguibile da zero: beta 0"
         }
       ]
     },
@@ -254,7 +303,8 @@
           "beta": null,
           "intervallo": null,
           "n": 0,
-          "fonte": null
+          "fonte": null,
+          "motivo": "l'adattabilità non ha un indicatore nei dati: restano i valori fissi della fase Q"
         }
       ],
       "nota": "valori fissi della fase Q (tactical_sheets.ADAPTABILITY: 1, 0.75, 0.5) finché la stima non li sostituisce"
@@ -274,7 +324,8 @@
           "beta": null,
           "intervallo": null,
           "n": 0,
-          "fonte": null
+          "fonte": null,
+          "motivo": "nessun indicatore per squadra; effetto medio nello stato di partita (sezione stato_partita)"
         }
       ]
     },
@@ -293,9 +344,17 @@
           "beta": null,
           "intervallo": null,
           "n": 0,
-          "fonte": null
+          "fonte": null,
+          "motivo": "nessun indicatore per squadra; effetto medio nello stato di partita (sezione stato_partita)"
         }
       ]
     }
+  },
+  "stima": {
+    "data": "2026-10-30",
+    "strumento": "python -m tools.stima_motore",
+    "fonte": "Data: StatsBomb Open Data 2015/16",
+    "regola": "beta = coefficiente di Poisson (quota possesso: log-lineare) con controlli forza delle due squadre e casa; nel dizionario solo se l'IC 95% esclude lo zero",
+    "nota_proxy": "verticalizzazione e transizione usano lo stesso indicatore: non sommarle"
   }
 }
