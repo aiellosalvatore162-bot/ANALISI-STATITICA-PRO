@@ -44,3 +44,17 @@ def test_confronto_appaiato_e_medie_per_gruppo():
     mean, error = ec.paired(before, after, "media corner")
     assert mean < 0 and error == pytest.approx(0.0, abs=1e-12)
     assert after["media"]["log_loss"] < before["media"]["log_loss"]
+
+
+def test_risultati_parziali_e_ripresa(tmp_path):
+    output = {"position": 3, "estrazione": {"gh": 1.0}, "avvisi": [],
+              **{variant: {"probabilita": {"Over 9.5 corner": np.array([0.4, 0.6])}, "secondi": 1.5, "simulazioni": 20000,
+                           "medie": (9.8, 4.1)} for variant in ec.VARIANTS}}
+    line = ec._to_json(output, "2021-09-12|Roma|Lazio")
+    (tmp_path / "I1.jsonl").write_text(line + "\n" + line[:40] + "\n", encoding="utf-8")   # seconda riga troncata
+    done = ec.load_partial("I1", tmp_path)
+    assert list(done) == ["2021-09-12|Roma|Lazio"]
+    back = done["2021-09-12|Roma|Lazio"]
+    assert back["motore a eventi"]["probabilita"]["Over 9.5 corner"].tolist() == [0.4, 0.6]
+    assert back["motore attuale"]["medie"] == (9.8, 4.1) and ec.load_partial("E0", tmp_path) == {}
+    assert ec.row_key({"date": "2021-09-12 20:45", "home_team": "Roma", "away_team": "Lazio"}) == "2021-09-12|Roma|Lazio"

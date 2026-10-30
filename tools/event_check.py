@@ -10,7 +10,11 @@ Corner e cartellini del primo tempo non sono nei dati: non verificabili.
 
 Regola (come le fasi O e P): il motore a eventi si accende solo se la log-loss media scende di più di due errori standard
 appaiati (partita per partita), l'ECE media non sale (tolleranza ``TOLERANCE_ECE``) e nessun gruppo peggiora di più di due
-errori standard. Uso: ``python -m tools.event_check [--per-stagione 100] [--processi 2] [--salva]``.
+errori standard. Uso: ``python -m tools.event_check [--per-stagione 100] [--processi 2] [--salva] [--ricomincia]``.
+
+Risultati parziali: una riga JSON per partita in ``data/cache/event_check/<campionato>.jsonl``, scritta appena la partita è
+calcolata; un nuovo avvio salta le partite già fatte (``--ricomincia`` cancella i parziali). Avanzamento in
+``data/cache/event_check/avanzamento.txt``.
 """
 
 from __future__ import annotations
@@ -35,6 +39,7 @@ HOLDOUT = ("2627",)
 LEAGUES = ("E0", "SP1", "I1", "D1")
 TOLERANCE_ECE = 0.0005
 OUTPUT = Path(__file__).resolve().parents[1] / "docs" / "backtest" / "AK_motore_eventi.md"
+PARTIAL = Path(__file__).resolve().parents[1] / "data" / "cache" / "event_check"
 
 MULTI = {"tempi": {"1X2 1T": ("1 1T", "X 1T", "2 1T"), "1X2 2T": ("1 2T", "X 2T", "2 2T")},
          "corner": {"1X2 corner": ("1 corner", "X corner", "2 corner")},
@@ -216,11 +221,84 @@ def residual_correlations(rows: pd.DataFrame, draws: list[dict | None]) -> dict[
     return {key: (float(real[key]), float(model[key])) for key in real}
 
 
-def run(per_season: int = 100, processes: int = 2) -> dict:
+def row_key(row: dict) -> str:
+    return f"{pd.Timestamp(row['date']):%Y-%m-%d}|{row['home_team']}|{row['away_team']}"
+
+
+def _to_json(output: dict, key: str) -> str:
+    data = {"key": key, "position": output["position"], "estrazione": output.get("estrazione"), "avvisi": output.get("avvisi")}
+    for variant in VARIANTS:
+        value = output[variant]
+        data[variant] = {"probabilita": {name: [float(x) for x in probs] for name, probs in value["probabilita"].items()},
+                         "secondi": value["secondi"], "simulazioni": int(value["simulazioni"]),
+                         "medie": [float(x) for x in value["medie"]]}
+    return json.dumps(data, ensure_ascii=False)
+
+
+def _from_json(line: str) -> dict:
+    data = json.loads(line)
+    for variant in VARIANTS:
+        data[variant]["probabilita"] = {name: np.asarray(probs) for name, probs in data[variant]["probabilita"].items()}
+        data[variant]["medie"] = tuple(data[variant]["medie"])
+    return data
+
+
+def load_partial(league: str, folder: Path = PARTIAL) -> dict[str, dict]:
+    """Partite già calcolate di un campionato (chiave data|casa|ospite); righe troncate ignorate."""
+    path = folder / f"{league}.jsonl"
+    done = {}
+    if path.exists():
+        for line in path.read_text(encoding="utf-8").splitlines():
+            try:
+                item = _from_json(line)
+            except (json.JSONDecodeError, KeyError):
+                continue
+            done[item["key"]] = item
+    return done
+
+
+def _write_progress(counts: dict[str, list[int]], started: float, folder: Path = PARTIAL) -> None:
+    done, total = sum(c[0] for c in counts.values()), sum(c[1] for c in counts.values())
+    elapsed = time.time() - started
+    lines = [f"{date.today():%d/%m/%Y} {time.strftime('%H:%M:%S')} — {done}/{total} partite "
+             f"({done / max(total, 1):.0%}), {elapsed / 60:.1f} minuti in questa esecuzione"]
+    lines += [f"{league}: {c[0]}/{c[1]}" for league, c in counts.items()]
+    (folder / "avanzamento.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def run(per_season: int = 100, processes: int = 2, folder: Path = PARTIAL) -> dict:
     rows = evaluation_rows(per_season)
-    tasks = list(enumerate(rows.to_dict("records")))
+    records = rows.to_dict("records")
+    folder.mkdir(parents=True, exist_ok=True)
+    started = time.time()
+    by_key: dict[str, dict] = {}
+    counts = {}
+    for league in LEAGUES:
+        done = load_partial(league, folder)
+        keys = [row_key(record) for record in records if record["league"] == league]
+        by_key.update({key: done[key] for key in keys if key in done})
+        counts[league] = [sum(key in done for key in keys), len(keys)]
+    _write_progress(counts, started, folder)
     with get_context("fork").Pool(processes) as pool:
-        outputs = sorted(pool.map(evaluate_row, tasks, chunksize=4), key=lambda item: item["position"])
+        for league in LEAGUES:
+            pending = [(position, record) for position, record in enumerate(records)
+                       if record["league"] == league and row_key(record) not in by_key]
+            if not pending:
+                continue
+            keys = {position: row_key(record) for position, record in pending}
+            with (folder / f"{league}.jsonl").open("a", encoding="utf-8") as handle:
+                for output in pool.imap_unordered(evaluate_row, pending):
+                    key = keys[output["position"]]
+                    handle.write(_to_json(output, key) + "\n")
+                    handle.flush()
+                    by_key[key] = _from_json(_to_json(output, key))
+                    counts[league][0] += 1
+                    _write_progress(counts, started, folder)
+    outputs = []
+    for position, record in enumerate(records):
+        item = dict(by_key[row_key(record)])
+        item["position"] = position
+        outputs.append(item)
     observed = observed_events(rows)
     results = {}
     for variant in VARIANTS:
@@ -312,7 +390,11 @@ def main() -> None:
     parser.add_argument("--processi", type=int, default=2)
     parser.add_argument("--salva", action="store_true", help="Scrive l'esito in config/goal_model.json (motore_eventi)")
     parser.add_argument("--output", type=Path, default=OUTPUT)
+    parser.add_argument("--ricomincia", action="store_true", help="Cancella i risultati parziali e riparte da zero")
     args = parser.parse_args()
+    if args.ricomincia:
+        for path in PARTIAL.glob("*.jsonl"):
+            path.unlink()
     run_result = run(args.per_stagione, args.processi)
     markdown = report(run_result)
     print(markdown)
