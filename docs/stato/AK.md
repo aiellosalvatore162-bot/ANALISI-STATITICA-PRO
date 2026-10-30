@@ -112,7 +112,35 @@ Ramo: `fase-ak-motore-eventi` (da `main` dopo la fase AH). `docs/FONTI.md` non e
    primo gol 30, 6,8% senza gol. Tempo: 100.000 simulazioni in ~1,8 s (punteggi) e ~3,3 s (libero, con il pilota): l'arresto
    adattivo è dello stadio 10. NON agganciato a `engine.simulate_match`: l'app non cambia finché lo stadio 9-11 non lo collega
    e il banco (14) non lo verifica. Test: `test_event_engine.py` (15).
-6-8. Corner, falli e cartellini, effetti dello stato: DA FARE
+6-8. FATTO (30/10), dentro lo stesso ciclo a passi di `event_engine._run` (`_count_step`):
+   - Stime nuove in `tools/stima_motore.py` (le stime precedenti restano identiche, differenza massima 6·10⁻¹⁵): stato e fascia dei
+     corner NON da tiro (`corner_gioco`: ×1,22/×1,29 sotto, ×0,67/×0,54 avanti), sezione `stato_partita.espulsioni` (uomo in meno /
+     in più a parità di stato e fascia, 5.273 minuti con superiorità numerica: tiri ×0,58/×1,43, xG ×0,56/×1,42, corner di gioco
+     ×0,54/×1,33, falli ×0,64/×1,00, gialli ×0,39/×0,93), rossi diretti per fallo 0,0043 (200) e seconda gialla per giallo preso
+     da una squadra già ammonita 0,052 (220), per campionato e comune (il motore usa il comune: eventi rari).
+   - Stadio 6, corner per origine: da tiro = binomiale sui tiri parati o respinti del passo × corner per tiro parato; da cross e
+     «altro» = Poisson col tasso per squadra-partita × stato/fascia dei corner di gioco × uomini; dizionario `corner_fasce` (cross)
+     e `corner_concessi` dell'avversario (oggi beta 0). Corsie dei moduli (`TeamInput.module`, `formation.lane_shares`, rapporto
+     della quota sulle fasce contro 4-4-2/4-4-2) SOLO con `lanes=True`: pesi dichiarati e non verificati, spente di default
+     (decide il banco). Uscite `corners_by_origin_*` (n × tiro/cross/altro), `corners_*`, `corners_first_*`.
+   - Stadio 7, falli: Poisson col tasso del campionato × stato/fascia dei falli × uomini × `falli_fatti` (pressing) × arbitro.
+     Arbitro con `RefereeInput(matches, fouls, yellows, league_fouls, league_yellows)`: fattore 1 + n/(n+k)·(media/media di
+     campionato − 1) con k stimato (`referee_k`: football-data del campionato, poi StatsBomb 2015/16, poi mediana; Premier k 20,8
+     falli / 80,7 gialli). Le medie di campionato vanno date dalla STESSA fonte dell'arbitro: se mancano, effetto 1 e avviso.
+   - Stadio 8, cartellini: gialli = binomiale sui falli con gialli per fallo × (stato e fascia dei gialli / quelli dei falli,
+     normalizzato) × uomini (gialli/falli) × arbitro (gialli/falli); rossi diretti = binomiale sui falli senza giallo; seconda
+     gialla tra i gialli di una squadra già ammonita (mai più degli ammoniti in campo). Conteggi come `engine.CardRule`
+     (`yellows_*` con il primo giallo dell'espulso, `reds_*` = diretti + doppie, `double_yellows_*`), `card_points(sample, rule)`.
+     Un rosso cambia dal passo successivo tiri, xG, corner di gioco, falli e gialli di entrambe; nel modo «punteggi» non sposta i
+     gol già decisi (rischio del passo e futuro scalano insieme). Uscite anche `fouls_*`, `*_first_*`, `first_red_minute_*`.
+   - Scale `TeamInput.corner_scale/foul_scale/card_scale` (default 1) = aggancio per il vincolo di coerenza dello stadio 9
+     (`foul_scale` non cambia i gialli attesi: li fissa `card_scale`).
+   - Verifica contro StatsBomb 2015/16 (40.000 simulazioni, gol medi del campionato, forza uguale): corner 10,93/10,81 (Premier),
+     10,14/10,11 (Liga), 10,42/10,37 (Serie A), 9,59/9,52 (Ligue 1); falli 24,8/25,0, 31,4/31,9, 32,8/33,3, 29,4/29,7; gialli
+     3,16/3,23, 5,45/5,68, 5,09/5,28, 3,88/3,99 (un po' sotto: l'uomo in meno toglie gialli senza rinormalizzare); rossi
+     0,17/0,16, 0,29/0,29, 0,29/0,34, 0,22/0,31. Varianza dei corner totali 11,1 contro 13,0 osservata (Premier): manca
+     l'eterogeneità tra squadre, da recuperare nello stadio 9 con le medie per squadra e la dispersione attuale.
+   - Tempo: 100.000 simulazioni modo punteggi ~2,9 s (era ~1,8 s senza conteggi). Test: `test_event_engine.py` (25).
 9-11. Vincolo di coerenza (riscalatura sulle medie attuali), simulazione vettoriale con arresto adattivo, mercati dagli stessi campioni: DA FARE
 12-13. Realismo e test di buon senso: DA FARE
 14. Banco fuori campione (3 stagioni, 5 campionati) → `docs/backtest/AK_motore_eventi.md`: DA FARE
@@ -124,6 +152,7 @@ Ramo: `fase-ak-motore-eventi` (da `main` dopo la fase AH). `docs/FONTI.md` non e
   esattamente 34 partite, tutte del Bayer Leverkusen (34 su 34). Il download è COMPLETO: è StatsBomb che pubblica solo quelle.
   DECISIONE: nessun effetto proprio per la Bundesliga; le 34 partite entrano solo nelle stime comuni (non per campionato) e per la
   Bundesliga si usano i valori stimati sugli altri campionati, dichiarato in `config/motore_eventi.json`.
-- Prossimo: stadi 6-8 (corner per origine con `saved_*` e `formation.lane_shares`, falli e cartellini con arbitro ed effetti dello
-  stato) dentro `event_engine.py`, poi 9-11 (coerenza con le medie attuali di corner e cartellini, aggancio con `MatchConfig`).
+- Prossimo: stadi 9-11 (vincolo di coerenza: `*_scale` per squadra dalle medie attuali di corner e gialli, dispersione dei corner,
+  quota del primo tempo nel modo libero; aggancio con `MatchConfig`; arresto adattivo; mercati dagli stessi campioni).
+- 30/10: stadi 6-8 fatti in una nuova sessione sul ramo `fase-ak-motore-eventi` e uniti a `main` (motore ancora non collegato).
 - 30/10: stadi 3-5 fatti in una nuova sessione e ramo unito a `main` (il motore a eventi non è collegato all'app).

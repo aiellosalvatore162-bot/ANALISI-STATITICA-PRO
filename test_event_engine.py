@@ -1,6 +1,7 @@
-"""Fase AK, stadi 3-5: motore a eventi (stato della partita, azioni a passi, tiri e gol), solo simulazioni."""
+"""Fase AK, stadi 3-8: motore a eventi (stato della partita, azioni a passi, tiri e gol, corner, falli e cartellini)."""
 
 import copy
+import dataclasses
 
 import numpy as np
 import pytest
@@ -159,3 +160,139 @@ def test_altri_passi(step):
     scores = dc_scores()
     out = run(scores, step_minutes=step)
     assert (out["goals_home"] == scores[0]).all() and out["state_steps_home"].sum(axis=1)[0] == 90 // step
+
+
+# ------------------------------------------------------------------------------------------------------- stadi 6-8
+
+
+def test_parametri_di_corner_falli_e_cartellini():
+    assert PARAMS.corners[0] == pytest.approx(1.047, abs=0.01) and PARAMS.fouls == pytest.approx(12.52, abs=0.01)
+    assert PARAMS.referee_source == "football_data Premier League" and PARAMS.referee_k[1] > 50
+    assert ee.load("I1").referee_source == "statsbomb_2015_16 Serie A"
+    assert ee.load(None).referee_source == "mediana delle stime"
+    # Uomo in meno: meno tiri, corner e falli; uomo in più: più tiri.
+    assert PARAMS.men["tiri"][0] < 1 < PARAMS.men["tiri"][2] and PARAMS.men["falli"][0] < 1
+    assert ee.men_factor(PARAMS, "tiri", np.array([-1, 0, 1])).tolist() == list(PARAMS.men["tiri"])
+    assert ee.men_factor(PARAMS, "sconosciuta", np.array([1])).tolist() == [1.0]
+
+
+def test_profili_dei_conteggi_normalizzati():
+    weight = np.asarray(PARAMS.state_minutes) / np.sum(PARAMS.state_minutes)
+    profile = ee.count_profile(PARAMS, PARAMS.state_fouls, PARAMS.band_fouls, 5)
+    assert weight @ profile.sum(axis=1) == pytest.approx(1.0)
+    ratio = ee.ratio_profile(PARAMS, PARAMS.state_yellow, PARAMS.band_yellow, PARAMS.state_fouls, PARAMS.band_fouls, 5)
+    assert np.sum(weight[:, None] * profile * ratio) == pytest.approx(1.0)
+    tables = ee.build_count_tables(PARAMS, 5)
+    # Più gialli per fallo a fine partita e per chi è avanti di un gol.
+    assert tables.yellow[2, -1] > tables.yellow[2, 0] and tables.yellow[3, 5] > tables.yellow[2, 5]
+
+
+def test_medie_di_corner_falli_e_cartellini():
+    out = run(dc_scores())
+    stats = ee.summary(out)
+    for side in ("home", "away"):
+        assert stats[f"falli_{side}"] == pytest.approx(PARAMS.fouls, rel=0.05)
+        cards = stats[f"gialli_{side}"] + stats[f"doppie_{side}"]
+        assert cards == pytest.approx(PARAMS.yellow_per_foul * stats[f"falli_{side}"], rel=0.05)
+        assert stats[f"corner_cross_{side}"] == pytest.approx(PARAMS.corners[0], rel=0.1)
+        assert stats[f"corner_altro_{side}"] == pytest.approx(PARAMS.corners[1], rel=0.1)
+        ratio = out[f"corners_by_origin_{side}"][:, 0].sum() / out[f"saved_{side}"].sum()
+        assert ratio == pytest.approx(PARAMS.corner_per_saved, rel=0.03)
+        assert (out[f"corners_by_origin_{side}"][:, 0] <= out[f"saved_{side}"].sum(axis=1)).all()
+        assert (out[f"corners_first_{side}"] <= out[f"corners_{side}"]).all()
+        assert (out[f"yellows_first_{side}"] <= out[f"yellows_{side}"]).all()
+        # Seconda gialla solo per chi è già ammonito; rossi = diretti + doppie.
+        assert (out[f"double_yellows_{side}"] <= out[f"yellows_{side}"]).all()
+        assert (out[f"reds_{side}"] >= out[f"double_yellows_{side}"]).all()
+        assert np.isnan(out[f"first_red_minute_{side}"][out[f"reds_{side}"] == 0]).all()
+    total_corners = stats["corner_home"] + stats["corner_away"]
+    assert 9.5 < total_corners < 12.5
+    assert 2.5 < stats["gialli_home"] + stats["gialli_away"] < 4.0
+    # Gialli più frequenti nel secondo tempo (fasce stimate).
+    assert stats["gialli_1t_home"] < 0.45 * stats["gialli_home"]
+
+
+def test_stato_del_punteggio_su_corner_e_falli():
+    out = run(dc_scores())
+    steps = out["state_steps_home"]
+    behind, ahead = steps[:, :2].sum(axis=1) >= 9, steps[:, 3:].sum(axis=1) >= 9
+    play = out["corners_by_origin_home"][:, 1:].sum(axis=1)
+    assert play[behind].mean() > play[ahead].mean()
+    assert out["fouls_home"][behind].mean() < out["fouls_home"][ahead].mean()
+
+
+def test_espulsione_toglie_tiri_e_corner():
+    params = dataclasses.replace(PARAMS, straight_red_per_foul=0.02)
+    level = (np.ones(N, int), np.ones(N, int))
+    out = ee.simulate(np.random.default_rng(4), N, ee.TeamInput(1.3), ee.TeamInput(1.3), params, scores=level)
+    early = (out["first_red_minute_home"] < 30) & (out["reds_away"] == 0)
+    clean = (out["reds_home"] == 0) & (out["reds_away"] == 0)
+    misses = out["shots_home"].sum(axis=1) - out["goals_by_type_home"].sum(axis=1)
+    assert early.sum() > 300
+    assert misses[early].mean() < 0.9 * misses[clean].mean()
+    assert out["corners_home"][early].mean() < out["corners_home"][clean].mean()
+    assert out["corners_away"][early].mean() > out["corners_away"][clean].mean()
+
+
+def test_arbitro_ristretto_verso_la_media():
+    strict = ee.RefereeInput(matches=40, fouls=26.0, yellows=4.6, league_fouls=21.5, league_yellows=3.6, name="Severo")
+    fouls, yellows, warnings = strict.factors((20.0, 80.0))
+    assert fouls == pytest.approx(1 + 40 / 60 * (26 / 21.5 - 1)) and yellows == pytest.approx(1 + 40 / 120 * (4.6 / 3.6 - 1))
+    assert not warnings
+    assert ee.RefereeInput(10, fouls=30.0).factors((20.0, 80.0))[0] == 1.0
+    assert "mancante" in ee.RefereeInput(10, fouls=30.0).factors((20.0, 80.0))[2][0]
+    assert ee.RefereeInput(10, yellows=5.0, league_yellows=3.0).factors((20.0, None))[1] == 1.0
+    base, harsh = run(dc_scores()), run(dc_scores(), referee=strict)
+    assert harsh["fouls_home"].mean() / base["fouls_home"].mean() == pytest.approx(fouls, rel=0.03)
+    cards = lambda o: (o["yellows_home"] + o["double_yellows_home"]).mean()
+    assert cards(harsh) / cards(base) == pytest.approx(yellows, rel=0.05)
+    assert any(row["voce"] == "arbitro" and "Severo" in row["nota"] for row in harsh["ledger"])
+
+
+def test_dizionario_su_falli_e_corner_da_cross():
+    base = run(dc_scores())
+    pressing = run(dc_scores(), home=ee.TeamInput(1.6, {"pressing": "alto", "fasce_cross": "alto"}, 0.45))
+    terms = tactical_dictionary.load()["termini"]
+    beta = {e["tasso"]: e["beta"] for term in ("pressing", "fasce_cross") for e in terms[term]["effetti"]}
+    assert pressing["fouls_home"].mean() / base["fouls_home"].mean() == pytest.approx(np.exp(beta["falli_fatti"]), rel=0.02)
+    cross = pressing["corners_by_origin_home"][:, 1].mean() / base["corners_by_origin_home"][:, 1].mean()
+    assert cross == pytest.approx(np.exp(beta["corner_fasce"]), rel=0.04)
+    other = pressing["corners_by_origin_home"][:, 2].mean() / base["corners_by_origin_home"][:, 2].mean()
+    assert other == pytest.approx(1.0, abs=0.03)
+    assert pressing["fouls_away"].mean() == pytest.approx(base["fouls_away"].mean(), rel=0.02)
+
+
+def test_corsie_e_scale():
+    home = ee.TeamInput(1.6, first_share=0.45, module="3-4-3", corner_scale=1.2, foul_scale=0.9)
+    away = ee.TeamInput(1.1, first_share=0.44, module="4-4")
+    off = run(dc_scores(), home=home, away=away)
+    assert next(r for r in off["ledger"] if r["voce"] == "corsie")["valore"] == {"casa": 1.0, "ospite": 1.0}
+    base = run(dc_scores())
+    assert off["corners_by_origin_home"][:, 2].mean() / base["corners_by_origin_home"][:, 2].mean() == pytest.approx(1.2, rel=0.03)
+    assert off["fouls_home"].mean() / base["fouls_home"].mean() == pytest.approx(0.9, rel=0.02)
+    # La scala dei falli non cambia i gialli attesi (li fissa card_scale).
+    cards = lambda o: (o["yellows_home"] + o["double_yellows_home"]).mean()
+    assert cards(off) == pytest.approx(cards(base), rel=0.05)
+    on = run(dc_scores(), home=home, away=ee.TeamInput(1.1, module="5-3-2"), lanes=True)
+    lanes = next(r for r in on["ledger"] if r["voce"] == "corsie")["valore"]
+    assert lanes["casa"] == pytest.approx(ee.wide_factor("3-4-3", "5-3-2"), abs=1e-4) and lanes["casa"] != 1.0
+    assert ee.wide_factor(None, None) == pytest.approx(1.0)
+    bad = run(dc_scores(), home=home, away=away, lanes=True)
+    assert any("non valido" in w for w in bad["warnings"])
+
+
+def test_punti_cartellini_con_la_regola_del_bookmaker():
+    import engine
+    sample = {"yellows_home": np.array([2, 1]), "reds_home": np.array([1, 0]), "double_yellows_home": np.array([1, 0]),
+              "yellows_away": np.array([0, 3]), "reds_away": np.array([0, 1]), "double_yellows_away": np.array([0, 0])}
+    eurobet = engine.CardRule()
+    assert ee.card_points(sample, eurobet).tolist() == [4, 6]
+    assert ee.card_points(sample, eurobet, "home").tolist() == [4, 1]
+    only_red = engine.CardRule(double_yellow="solo_rosso", double_yellow_share=0.5)
+    assert ee.card_points(sample, only_red, "home").tolist() == [3, 1]
+
+
+def test_modo_libero_con_conteggi():
+    out = run()
+    assert out["goals_home"].mean() == pytest.approx(1.6, abs=0.04)
+    assert out["fouls_home"].mean() == pytest.approx(PARAMS.fouls, rel=0.05)

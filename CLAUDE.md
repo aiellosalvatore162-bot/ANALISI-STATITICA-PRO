@@ -356,7 +356,7 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   `config/dizionario_tattico.json` + `tactical_dictionary.py`, messa in campo `formation.py`; stima dei parametri con
   `python -m tools.stima_motore` → `config/motore_eventi.json` (tipi di tiro, corner per origine, stato di partita, incroci
   spenti, arbitri da `referee_stats.py`) e beta del dizionario (solo se l'IC 95% esclude lo zero), report `docs/backtest/AK_stima.md`.
-  Stadi 3-5 in `event_engine.py` (stato della partita, tiri per tipo a passi di 5 minuti, gol; modo «punteggi» = punteggi
+  Stadi 3-8 in `event_engine.py` (stato della partita, tiri per tipo a passi di 5 minuti, gol, corner per origine, falli e cartellini con arbitro ed espulsioni; modo «punteggi» = punteggi
   Dixon-Coles fissi con eventi condizionati, modo «libero» = gol dai tiri riscalati su λ/μ), NON ancora collegato a `engine.py`.
 - Le fonti remote devono degradare con un avviso (come `historical.py` ricade
   al 100% manuale), mai bloccare la simulazione manuale.

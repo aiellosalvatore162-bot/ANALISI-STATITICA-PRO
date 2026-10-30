@@ -323,6 +323,10 @@
         "attacco": 0.2617072804817934
       },
       "gialli_per_fallo": 0.15088193060288477,
+      "rossi_diretti_per_fallo": 0.004286418483036499,
+      "seconda_gialla_per_giallo_con_precedente": 0.05177688867968934,
+      "rossi_diretti": 200,
+      "seconde_gialle": 220,
       "partite": 1551
     },
     "La Liga": {
@@ -339,6 +343,10 @@
         "attacco": 0.24695121951219512
       },
       "gialli_per_fallo": 0.17773566249176007,
+      "rossi_diretti_per_fallo": 0.002966381015161503,
+      "seconda_gialla_per_giallo_con_precedente": 0.050871080139372825,
+      "rossi_diretti": 36,
+      "seconde_gialle": 73,
       "partite": 380
     },
     "Ligue 1": {
@@ -355,6 +363,10 @@
         "attacco": 0.28116355849022934
       },
       "gialli_per_fallo": 0.1343802980280182,
+      "rossi_diretti_per_fallo": 0.0069599357544391895,
+      "seconda_gialla_per_giallo_con_precedente": 0.04721549636803874,
+      "rossi_diretti": 78,
+      "seconde_gialle": 39,
       "partite": 377
     },
     "Premier League": {
@@ -371,6 +383,10 @@
         "attacco": 0.24169470142977292
       },
       "gialli_per_fallo": 0.12910008410428933,
+      "rossi_diretti_per_fallo": 0.0035744322960470985,
+      "seconda_gialla_per_giallo_con_precedente": 0.04038772213247173,
+      "rossi_diretti": 34,
+      "seconde_gialle": 25,
       "partite": 380
     },
     "Serie A": {
@@ -387,6 +403,10 @@
         "attacco": 0.2746011688516822
       },
       "gialli_per_fallo": 0.1585847417469594,
+      "rossi_diretti_per_fallo": 0.003790870320644448,
+      "seconda_gialla_per_giallo_con_precedente": 0.06216006216006216,
+      "rossi_diretti": 48,
+      "seconde_gialle": 80,
       "partite": 380
     }
   },
@@ -402,24 +422,24 @@
       "tiri": {
         "stato": {
           "-2": {
-            "moltiplicatore": 1.3544974409680652,
-            "es": 0.029575721939044078
+            "moltiplicatore": 1.354497440968071,
+            "es": 0.029575721939043845
           },
           "-1": {
-            "moltiplicatore": 1.1890607960912527,
-            "es": 0.018964267104191898
+            "moltiplicatore": 1.1890607960912558,
+            "es": 0.01896426710419169
           },
           "0": {
             "moltiplicatore": 1.0,
             "es": 0.0
           },
           "1": {
-            "moltiplicatore": 0.6737490414251582,
-            "es": 0.02078825438608472
+            "moltiplicatore": 0.67374904142516,
+            "es": 0.020788254386084597
           },
           "2": {
-            "moltiplicatore": 0.49970040124167825,
-            "es": 0.029398346500185236
+            "moltiplicatore": 0.49970040124167975,
+            "es": 0.029398346500185305
           }
         },
         "fascia": {
@@ -428,40 +448,40 @@
             "es": 0.0
           },
           "30-60": {
-            "moltiplicatore": 1.2100395169827658,
-            "es": 0.01372597347735195
+            "moltiplicatore": 1.2100395169827651,
+            "es": 0.013725973477351936
           },
           "60-75": {
-            "moltiplicatore": 1.2721813531891855,
-            "es": 0.018031417432452155
+            "moltiplicatore": 1.2721813531891835,
+            "es": 0.018031417432452235
           },
           "75-90": {
-            "moltiplicatore": 1.3882199687193695,
-            "es": 0.01716499149469655
+            "moltiplicatore": 1.3882199687193673,
+            "es": 0.017164991494696507
           }
         }
       },
       "xg": {
         "stato": {
           "-2": {
-            "moltiplicatore": 1.5869155216034456,
-            "es": 0.06098528983184758
+            "moltiplicatore": 1.5869155216034465,
+            "es": 0.06098528983184764
           },
           "-1": {
-            "moltiplicatore": 1.3001155352432225,
-            "es": 0.03529829813522474
+            "moltiplicatore": 1.3001155352432232,
+            "es": 0.035298298135224684
           },
           "0": {
             "moltiplicatore": 1.0,
             "es": 0.0
           },
           "1": {
-            "moltiplicatore": 0.6523730447407587,
-            "es": 0.035250284580642124
+            "moltiplicatore": 0.6523730447407581,
+            "es": 0.03525028458064192
           },
           "2": {
-            "moltiplicatore": 0.4088400711317514,
-            "es": 0.05388861086136526
+            "moltiplicatore": 0.4088400711317512,
+            "es": 0.05388861086136494
           }
         },
         "fascia": {
@@ -470,40 +490,40 @@
             "es": 0.0
           },
           "30-60": {
-            "moltiplicatore": 1.3079240415064446,
-            "es": 0.02335029155752057
+            "moltiplicatore": 1.3079240415064428,
+            "es": 0.02335029155752042
           },
           "60-75": {
-            "moltiplicatore": 1.396728691973407,
-            "es": 0.028988932996313378
+            "moltiplicatore": 1.3967286919734059,
+            "es": 0.02898893299631337
           },
           "75-90": {
-            "moltiplicatore": 1.589123831732869,
-            "es": 0.02816892310370346
+            "moltiplicatore": 1.5891238317328678,
+            "es": 0.02816892310370331
           }
         }
       },
       "corner": {
         "stato": {
           "-2": {
-            "moltiplicatore": 1.210798914009892,
-            "es": 0.05077399741663543
+            "moltiplicatore": 1.2107989140098943,
+            "es": 0.05077399741663546
           },
           "-1": {
-            "moltiplicatore": 1.23757495368587,
-            "es": 0.03147247119605409
+            "moltiplicatore": 1.237574953685871,
+            "es": 0.031472471196054085
           },
           "0": {
             "moltiplicatore": 1.0,
             "es": 0.0
           },
           "1": {
-            "moltiplicatore": 0.651663522762934,
-            "es": 0.031276892545816594
+            "moltiplicatore": 0.6516635227629334,
+            "es": 0.031276892545816636
           },
           "2": {
-            "moltiplicatore": 0.5424635632595531,
-            "es": 0.05053998665384524
+            "moltiplicatore": 0.5424635632595527,
+            "es": 0.05053998665384527
           }
         },
         "fascia": {
@@ -512,40 +532,82 @@
             "es": 0.0
           },
           "30-60": {
-            "moltiplicatore": 1.1487927076317066,
-            "es": 0.022446362024707164
+            "moltiplicatore": 1.1487927076317062,
+            "es": 0.02244636202470732
           },
           "60-75": {
             "moltiplicatore": 1.160494188740748,
-            "es": 0.029036780062365902
+            "es": 0.02903678006236592
           },
           "75-90": {
-            "moltiplicatore": 1.2492685948041735,
-            "es": 0.026484968383316126
+            "moltiplicatore": 1.2492685948041737,
+            "es": 0.026484968383316165
+          }
+        }
+      },
+      "corner_gioco": {
+        "stato": {
+          "-2": {
+            "moltiplicatore": 1.221384700294559,
+            "es": 0.057133192074013454
+          },
+          "-1": {
+            "moltiplicatore": 1.29483475829547,
+            "es": 0.03443408682416449
+          },
+          "0": {
+            "moltiplicatore": 1.0,
+            "es": 0.0
+          },
+          "1": {
+            "moltiplicatore": 0.6657616852607399,
+            "es": 0.037276752855899924
+          },
+          "2": {
+            "moltiplicatore": 0.5425779577529357,
+            "es": 0.05853324514258834
+          }
+        },
+        "fascia": {
+          "0-30": {
+            "moltiplicatore": 1.0,
+            "es": 0.0
+          },
+          "30-60": {
+            "moltiplicatore": 1.108978997025515,
+            "es": 0.026087964032617584
+          },
+          "60-75": {
+            "moltiplicatore": 1.1336637156925635,
+            "es": 0.03428264155814195
+          },
+          "75-90": {
+            "moltiplicatore": 1.1489119125013347,
+            "es": 0.03078572879555941
           }
         }
       },
       "falli": {
         "stato": {
           "-2": {
-            "moltiplicatore": 0.8548004154891317,
-            "es": 0.021308523906485046
+            "moltiplicatore": 0.8548004154891292,
+            "es": 0.021308523906485095
           },
           "-1": {
-            "moltiplicatore": 0.8967718524621989,
-            "es": 0.015788452244352442
+            "moltiplicatore": 0.8967718524621987,
+            "es": 0.015788452244352474
           },
           "0": {
             "moltiplicatore": 1.0,
             "es": 0.0
           },
           "1": {
-            "moltiplicatore": 1.066107234571873,
-            "es": 0.015589681279789424
+            "moltiplicatore": 1.066107234571871,
+            "es": 0.015589681279789276
           },
           "2": {
-            "moltiplicatore": 1.049900411359158,
-            "es": 0.02248124628422332
+            "moltiplicatore": 1.0499004113591557,
+            "es": 0.02248124628422323
           }
         },
         "fascia": {
@@ -554,40 +616,40 @@
             "es": 0.0
           },
           "30-60": {
-            "moltiplicatore": 1.1039261362111377,
-            "es": 0.010836912792756096
+            "moltiplicatore": 1.103926136211137,
+            "es": 0.0108369127927561
           },
           "60-75": {
-            "moltiplicatore": 1.0444405941209385,
-            "es": 0.014244905879241675
+            "moltiplicatore": 1.044440594120939,
+            "es": 0.014244905879241702
           },
           "75-90": {
-            "moltiplicatore": 1.153932991910709,
-            "es": 0.012792248013522314
+            "moltiplicatore": 1.1539329919107084,
+            "es": 0.01279224801352224
           }
         }
       },
       "gialli": {
         "stato": {
           "-2": {
-            "moltiplicatore": 0.7172502213117635,
-            "es": 0.06994026376379742
+            "moltiplicatore": 0.7172502213117637,
+            "es": 0.06994026376379746
           },
           "-1": {
-            "moltiplicatore": 0.947967542729417,
-            "es": 0.05063589226443092
+            "moltiplicatore": 0.947967542729418,
+            "es": 0.050635892264430896
           },
           "0": {
             "moltiplicatore": 1.0,
             "es": 0.0
           },
           "1": {
-            "moltiplicatore": 1.2477712955486577,
-            "es": 0.04297297595618666
+            "moltiplicatore": 1.247771295548658,
+            "es": 0.04297297595618661
           },
           "2": {
             "moltiplicatore": 1.0075228844863662,
-            "es": 0.07528833294912611
+            "es": 0.07528833294912607
           }
         },
         "fascia": {
@@ -596,21 +658,115 @@
             "es": 0.0
           },
           "30-60": {
-            "moltiplicatore": 1.9059888610616944,
-            "es": 0.036789858029916876
+            "moltiplicatore": 1.9059888610616964,
+            "es": 0.03678985802991692
           },
           "60-75": {
-            "moltiplicatore": 2.3309037352293753,
-            "es": 0.04270530748664771
+            "moltiplicatore": 2.3309037352293758,
+            "es": 0.04270530748664778
           },
           "75-90": {
-            "moltiplicatore": 2.679780358602171,
-            "es": 0.04000763490636166
+            "moltiplicatore": 2.6797803586021742,
+            "es": 0.040007634906361667
           }
         }
       }
     },
-    "nota": "moltiplicatori del tasso per minuto rispetto al pareggio (stato 0) e alla fascia 0-30; es = errore standard bootstrap per partita del logaritmo; effetto fisso per squadra-partita (la forza non entra); rigori esclusi dagli xG; espulsioni non separate (le gestisce la componente espulsioni)"
+    "nota": "moltiplicatori del tasso per minuto rispetto al pareggio (stato 0) e alla fascia 0-30; es = errore standard bootstrap per partita del logaritmo; effetto fisso per squadra-partita (la forza non entra); rigori esclusi dagli xG; espulsioni non separate qui (sezione «espulsioni»); corner_gioco = corner non nati da un tiro (cross e altro)",
+    "espulsioni": {
+      "minuti": {
+        "-1": 5272.75,
+        "0": 135590.5,
+        "1": 5272.75
+      },
+      "quantita": {
+        "tiri": {
+          "-1": {
+            "moltiplicatore": 0.5788648724598352,
+            "es": 0.05237278299688821
+          },
+          "0": {
+            "moltiplicatore": 1.0,
+            "es": 0.0
+          },
+          "1": {
+            "moltiplicatore": 1.4318909889676228,
+            "es": 0.03567597592723529
+          }
+        },
+        "xg": {
+          "-1": {
+            "moltiplicatore": 0.5597700989544685,
+            "es": 0.09906811957287334
+          },
+          "0": {
+            "moltiplicatore": 1.0,
+            "es": 0.0
+          },
+          "1": {
+            "moltiplicatore": 1.4204506180389664,
+            "es": 0.06395460396661226
+          }
+        },
+        "corner": {
+          "-1": {
+            "moltiplicatore": 0.5322500312423354,
+            "es": 0.07432686503597885
+          },
+          "0": {
+            "moltiplicatore": 1.0,
+            "es": 0.0
+          },
+          "1": {
+            "moltiplicatore": 1.313819135006945,
+            "es": 0.0546123344552121
+          }
+        },
+        "corner_gioco": {
+          "-1": {
+            "moltiplicatore": 0.5394988072708576,
+            "es": 0.08781568536351529
+          },
+          "0": {
+            "moltiplicatore": 1.0,
+            "es": 0.0
+          },
+          "1": {
+            "moltiplicatore": 1.3341857962285912,
+            "es": 0.06532001625300249
+          }
+        },
+        "falli": {
+          "-1": {
+            "moltiplicatore": 0.6382573761949706,
+            "es": 0.036457887833053926
+          },
+          "0": {
+            "moltiplicatore": 1.0,
+            "es": 0.0
+          },
+          "1": {
+            "moltiplicatore": 1.002534104210147,
+            "es": 0.033132664702432334
+          }
+        },
+        "gialli": {
+          "-1": {
+            "moltiplicatore": 0.3942132439079486,
+            "es": 0.08091439023282603
+          },
+          "0": {
+            "moltiplicatore": 1.0,
+            "es": 0.0
+          },
+          "1": {
+            "moltiplicatore": 0.9283291747379755,
+            "es": 0.09456958792138928
+          }
+        }
+      },
+      "nota": "moltiplicatore del tasso per minuto con un uomo in meno (−1) o in più (+1) rispetto alla parità, a parità di stato del punteggio e fascia; effetto fisso per squadra-partita; rossi diretti e seconde gialle insieme"
+    }
   },
   "dizionario": {
     "possesso|quota_possesso": {
