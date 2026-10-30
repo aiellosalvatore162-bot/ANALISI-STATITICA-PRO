@@ -230,7 +230,8 @@ def test_today_analysis_passes_the_coach_change_to_the_data_layer():
 # --- Nuovi mercati (6b) e goleade (6c) ---------------------------------------------------------------------
 
 def test_new_markets_are_simulated_from_the_same_sample_and_coherent():
-    final = simulate_match(config_from_input(parse_match_input(VALID), simulations=6000, seed=9))["components"]["finale"]
+    config = config_from_input(parse_match_input(VALID), simulations=6000, seed=9)
+    final = simulate_match(replace(config, v2=replace(config.v2, taratura=None)))["components"]["finale"]
     for key in ("Multigol 1T 1-2", "Multigol 2T 1-3", "Multigol Casa 1-2 + Ospite 0-1", "Over 5.5 gol", "Under 6.5 gol",
                 "Goal + Over 2.5", "No Goal + Under 3.5", "2 + Under 1.5", "1X + Over 3.5", "Over 4.5 corner 1T",
                 "Under 3.5 corner 2T", "1 corner 1T", "Over 1.5 cartellini 1T", "Over 3.5 cartellini 2T",

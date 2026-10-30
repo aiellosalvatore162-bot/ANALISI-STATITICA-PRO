@@ -110,7 +110,7 @@ def test_recalibration_maps_keep_complements_and_reach_the_ev():
     assert out["Over 2.5 gol"] + out["Under 2.5 gol"] == pytest.approx(100.0) and out["1"] == 40.0
     assert engine.apply_recalibration({"Over 2.5 gol": 50.0}, ModelV2Params())[1] == []
     config = config_from_input(parse_match_input(VALID), simulations=4000, seed=5)
-    on = replace(config, odds={"Over 2.5 gol": 2.0}, v2=replace(config.v2, recalibration_active=True,
+    on = replace(config, odds={"Over 2.5 gol": 2.0}, v2=replace(config.v2, taratura=None, recalibration_active=True,
                                                                   recalibration={"Over 2.5 gol": mapping}))
     result = simulate_match(on)
     row = next(item for item in result["financial"]["markets"] if item["market"] == "Over 2.5 gol")

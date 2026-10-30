@@ -585,6 +585,7 @@ def test_all_goal_markets_come_from_the_same_anchored_score_matrix():
         config_from_input(parse_match_input(VALID), simulations=200_000, seed=19),
         odds=odds, half_time=half, market_anchor=engine.MarketAnchorParams(market_weight=0.7),
     )
+    config = replace(config, v2=replace(config.v2, taratura=None))   # coerenza del campione grezzo (la taratura è in test_taratura)
     result = simulate_match(config)
     final = result["components"]["finale"]
     assert result["market_anchoring"]["active"]

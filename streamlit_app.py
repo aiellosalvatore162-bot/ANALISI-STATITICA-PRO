@@ -27,6 +27,7 @@ from ui_data import (
     render_automatic, render_claude, render_create, render_registry, render_style, render_tactical, show_provenance,
 )
 from ui_exact import render_exact_scores
+from ui_taratura import render_calibration
 from ui_eurobet import find_paste, render_apply, render_paste, render_sharp_value, sharp_for
 from ui_memory import RESTART_WARNING, flags_key, remember, remember_claude, render_registry_table, render_sidebar
 from ui_odds import render_credits, render_odds
@@ -1079,6 +1080,7 @@ else:
         render_registry_table()
 with tabs[6]:
     render_performance()
+    render_calibration(result)
 
 # In fondo allo script: l'elenco include già la partita simulata in questo passaggio.
 with st.sidebar:
