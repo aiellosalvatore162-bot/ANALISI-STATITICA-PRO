@@ -154,7 +154,16 @@ Ramo: `fase-ak-motore-eventi` (da `main` dopo la fase AH). `docs/FONTI.md` non e
    Esempio Serie A (λ 1,7 / μ 0,9, obiettivi corner 6,1/3,9, gialli 1,9/2,6, rossi 0,25, varianza corner 18,3 e gialli 7,0):
    ottenuti corner 6,13/3,91, gialli 1,88/2,58, varianza 18,3 e 6,8 (prima del mix 10,7 e 4,5: era l'eterogeneità mancante dello
    stadio 8), quota 1T 0,443/0,441. Costo ~0,9 s (3 simulazioni da 10.000). Test: `test_event_engine.py` (29).
-10-11. Simulazione vettoriale con arresto adattivo, aggancio a `MatchConfig` e mercati dagli stessi campioni: DA FARE
+10. FATTO (30/10): `event_engine.simulate_adaptive(rng, casa, ospite, params, maximum=100_000, batch=10_000, minimum=20_000,
+   tolerance_pp=0.25, scores=..., rule=...)`: lotti vettoriali (ogni lotto è una `simulate` su tutti i passi), dopo `minimum`
+   partite si ferma appena l'errore standard Monte Carlo di TUTTI gli eventi di `stop_events` (linee di corner e cartellini
+   totali, per squadra e nel primo tempo, gol del primo tempo, 1X2 corner; punti con la regola del bookmaker) è ≤ 0,25 punti
+   percentuali (IC 95% ±0,5), al più 100.000. Con i punteggi Dixon-Coles usa i PRIMI n (campione casuale anch'esso), così gli
+   stessi n punteggi servono tutti i mercati. `sample["adaptive"]` = simulazioni, lotti, errore raggiunto, evento peggiore, motivo.
+   Il collo di bottiglia restano le estrazioni casuali (già vettoriali su tutte le simulazioni): 100.000 partite ~2,9 s;
+   con l'arresto (Premier λ 1,6/μ 1,1) 40.000 partite in ~1,2 s (tolleranza 0,25), 70.000 in 2,3 s (0,20); l'evento più
+   lento è sempre la linea dei corner vicina al 50% (Over 10.5). Test in `test_event_engine.py` (32).
+11. Aggancio a `MatchConfig` e mercati dagli stessi campioni: DA FARE
 12-13. Realismo e test di buon senso: DA FARE
 14. Banco fuori campione (3 stagioni, 5 campionati) → `docs/backtest/AK_motore_eventi.md`: DA FARE
 15. «Vedi come andrà»: DA FARE

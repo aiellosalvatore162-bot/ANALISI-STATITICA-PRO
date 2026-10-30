@@ -355,3 +355,46 @@ def test_coerenza_tocca_solo_i_corner_di_gioco():
     # I corner da tiro dipendono solo dai tiri: restano quelli del motore.
     assert out["corners_by_origin_home"][:, 0].mean() == pytest.approx(base["corners_by_origin_home"][:, 0].mean(), rel=0.03)
     assert out["corners_home"].mean() == pytest.approx(8.0, rel=0.03) and out["corners_away"].mean() == pytest.approx(2.0, rel=0.05)
+
+
+# ---------------------------------------------------------------------------------------------------------- stadio 10
+
+
+def test_errore_monte_carlo():
+    error, name = ee.monte_carlo_error({"a": np.array([True, False] * 50), "b": np.array([True] * 10 + [False] * 90)})
+    assert name == "a" and error == pytest.approx(5.0)
+
+
+def test_arresto_adattivo():
+    scores = dc_scores(n=60_000)
+    home, away = ee.TeamInput(1.6, first_share=0.45), ee.TeamInput(1.1, first_share=0.44)
+    loose = ee.simulate_adaptive(np.random.default_rng(1), home, away, PARAMS, scores=scores, batch=5_000, minimum=10_000,
+                                 tolerance_pp=5.0)
+    assert loose["adaptive"]["simulazioni"] == 10_000 and loose["adaptive"]["lotti"] == 2
+    assert "errore Monte Carlo" in loose["adaptive"]["motivo"]
+    # I punteggi usati sono i primi n: gol finali identici, tutti gli array lunghi n.
+    assert (loose["goals_home"] == scores[0][:10_000]).all() and (loose["goals_away"] == scores[1][:10_000]).all()
+    assert all(len(loose[key]) == 10_000 for key in ("corners_home", "yellows_away", "first_home", "shots_home", "xg_away"))
+    strict = ee.simulate_adaptive(np.random.default_rng(1), home, away, PARAMS, scores=scores, batch=20_000, tolerance_pp=0.0)
+    assert strict["adaptive"]["simulazioni"] == 60_000 and strict["adaptive"]["motivo"] == "massimo raggiunto"
+    # Con tolleranza 0,5 punti servono circa 10.000 partite per una probabilità vicina al 50%.
+    middle = ee.simulate_adaptive(np.random.default_rng(1), home, away, PARAMS, scores=scores, batch=2_500, minimum=2_500,
+                                  tolerance_pp=0.5)
+    assert 7_500 <= middle["adaptive"]["simulazioni"] <= 12_500 and middle["adaptive"]["errore_pp"] <= 0.5
+    # Riproducibile con lo stesso seme; senza punteggi il massimo è ``maximum``.
+    again = ee.simulate_adaptive(np.random.default_rng(1), home, away, PARAMS, scores=scores, batch=5_000, minimum=10_000,
+                                 tolerance_pp=5.0)
+    assert (again["corners_home"] == loose["corners_home"]).all()
+    free = ee.simulate_adaptive(np.random.default_rng(1), home, away, PARAMS, maximum=4_000, batch=2_000, minimum=4_000,
+                                pilot=2_000, passes=1)
+    assert free["adaptive"]["simulazioni"] == 4_000 and len(free["goals_home"]) == 4_000
+
+
+def test_eventi_di_arresto_con_la_regola():
+    import engine
+    out = run(dc_scores())
+    events = ee.stop_events(out, engine.CardRule())
+    assert {"Over 9.5 corner", "Over 4.5 cartellini", "Over 0.5 gol 1T", "Casa Over 4.5 corner", "Ospite Over 1.5 cartellini",
+            "1 corner"} <= set(events)
+    points = ee.card_points(out, engine.CardRule())
+    assert (events["Over 4.5 cartellini"] == (points > 4.5)).all()

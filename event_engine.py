@@ -734,6 +734,86 @@ def coherence(rng: np.random.Generator, home: TeamInput, away: TeamInput, params
     return teams["home"], teams["away"], mix, rows
 
 
+# ---------------------------------------------------------------------------------------------------------------- stadio 10
+
+CORNER_LINES = (7.5, 8.5, 9.5, 10.5, 11.5, 12.5)
+CARD_LINES = (2.5, 3.5, 4.5, 5.5, 6.5)
+TEAM_CORNER_LINES = (3.5, 4.5, 5.5)
+TEAM_CARD_LINES = (0.5, 1.5, 2.5)
+
+
+def stop_events(sample: Mapping[str, Any], rule=None) -> dict[str, np.ndarray]:
+    """Eventi su cui si misura l'errore Monte Carlo dell'arresto adattivo: le linee di corner e cartellini (totali e per
+    squadra, anche nel primo tempo) e i gol del primo tempo, cioè quello che il motore a eventi aggiunge ai punteggi."""
+    weights = (rule.yellow_weight, rule.red_weight, rule.double_yellow_extra) if rule is not None else (1, 2, 0)
+
+    def points(side, first=False):
+        if first:
+            return weights[0] * sample[f"yellows_first_{side}"] + weights[1] * sample[f"reds_first_{side}"]
+        return weights[0] * sample[f"yellows_{side}"] + weights[1] * sample[f"reds_{side}"] + weights[2] * sample[f"double_yellows_{side}"]
+
+    corners = sample["corners_home"] + sample["corners_away"]
+    cards = points("home") + points("away")
+    first = sample["first_home"] + sample["first_away"]
+    events = {f"Over {line:g} corner": corners > line for line in CORNER_LINES}
+    events.update({f"Over {line:g} cartellini": cards > line for line in CARD_LINES})
+    events.update({f"Over {line:g} gol 1T": first > line for line in (0.5, 1.5)})
+    events["Over 4.5 corner 1T"] = sample["corners_first_home"] + sample["corners_first_away"] > 4.5
+    events["Over 1.5 cartellini 1T"] = points("home", True) + points("away", True) > 1.5
+    for side, label in (("home", "Casa"), ("away", "Ospite")):
+        events.update({f"{label} Over {line:g} corner": sample[f"corners_{side}"] > line for line in TEAM_CORNER_LINES})
+        events.update({f"{label} Over {line:g} cartellini": points(side) > line for line in TEAM_CARD_LINES})
+    events["1 corner"] = sample["corners_home"] > sample["corners_away"]
+    return events
+
+
+def monte_carlo_error(events: Mapping[str, np.ndarray]) -> tuple[float, str]:
+    """Errore standard Monte Carlo più grande tra gli eventi, in punti percentuali, e l'evento che lo dà."""
+    worst, name = 0.0, ""
+    for key, mask in events.items():
+        p = float(np.mean(mask))
+        error = math.sqrt(p * (1.0 - p) / len(mask)) * 100.0
+        if error > worst:
+            worst, name = error, key
+    return worst, name
+
+
+def _concat(parts: list[dict[str, Any]], n: int) -> dict[str, Any]:
+    out = dict(parts[0])
+    for key, value in parts[0].items():
+        if isinstance(value, np.ndarray) and value.ndim and value.shape[0] == len(parts[0]["goals_home"]):
+            out[key] = np.concatenate([part[key] for part in parts])[:n]
+    return out
+
+
+def simulate_adaptive(rng: np.random.Generator, home: TeamInput, away: TeamInput, params: EventParams, *,
+                      maximum: int = 100_000, batch: int = 10_000, minimum: int = 20_000, tolerance_pp: float = 0.25,
+                      scores: tuple[np.ndarray, np.ndarray] | None = None, rule=None, **kwargs) -> dict[str, Any]:
+    """Simulazione a lotti di ``batch`` partite (ognuno vettoriale) con arresto adattivo: dopo ``minimum`` partite si ferma
+    appena l'errore standard Monte Carlo di tutti gli eventi di ``stop_events`` è ≤ ``tolerance_pp`` punti percentuali, al
+    più ``maximum`` (con ``scores`` = al più i punteggi dati: si usano i primi n, che restano un campione casuale).
+    ``sample["adaptive"]`` dice quante partite, l'errore raggiunto e perché si è fermata."""
+    if scores is not None:
+        scores = (np.asarray(scores[0]), np.asarray(scores[1]))
+        maximum = min(maximum, len(scores[0]))
+    batch, minimum = max(1, min(batch, maximum)), min(max(minimum, 1), maximum)
+    parts, done, error, worst, reason = [], 0, math.inf, "", "massimo raggiunto"
+    while done < maximum:
+        size = min(batch, maximum - done)
+        part_scores = (scores[0][done:done + size], scores[1][done:done + size]) if scores is not None else None
+        parts.append(simulate(rng, size, home, away, params, scores=part_scores, **kwargs))
+        done += size
+        if done >= minimum:
+            error, worst = monte_carlo_error(stop_events(_concat(parts, done), rule))
+            if error <= tolerance_pp:
+                reason = f"errore Monte Carlo ≤ {tolerance_pp:g} punti"
+                break
+    sample = _concat(parts, done)
+    sample["adaptive"] = {"simulazioni": done, "lotti": len(parts), "errore_pp": round(error, 4), "evento_peggiore": worst,
+                          "tolleranza_pp": tolerance_pp, "minimo": minimum, "massimo": maximum, "motivo": reason}
+    return sample
+
+
 def _gamma_mix(rng: np.random.Generator, variance: float, n: int) -> np.ndarray:
     """Moltiplicatori gamma con media 1 e varianza ``variance`` (1 se la varianza è nulla)."""
     if variance <= 0.0:
