@@ -288,6 +288,10 @@ def state_section(matches: list[dict], bootstrap: int, seed: int = 11) -> dict:
                        "standard bootstrap per partita del logaritmo; effetto fisso per squadra-partita (la forza non entra); "
                        "rigori esclusi dagli xG; espulsioni non separate qui (sezione «espulsioni»); corner_gioco = corner "
                        "non nati da un tiro (cross e altro)")
+    teams = {match["id"]: (match["league"], match["home"], match["away"]) for match in matches}
+    cells["league"] = cells["match"].map(lambda key: teams[key][0])
+    cells["team"] = [teams[key][1 if side == "h" else 2] for key, side in zip(cells["match"], cells["side"])]
+    cells["opp"] = [teams[key][2 if side == "h" else 1] for key, side in zip(cells["match"], cells["side"])]
     section["espulsioni"] = men_section(cells, draws)
     return section
 
@@ -318,20 +322,65 @@ def fit_men_effects(cells: pd.DataFrame, quantity: str, weights: np.ndarray | No
     return {value: float(effects[2][index]) for index, value in enumerate(MEN)}
 
 
+# Falli e gialli: i cartellini PRECEDONO l'espulsione (fase calda, seconde gialle), quindi dentro la stessa squadra-partita
+# il tratto prima del rosso è gonfiato e l'effetto fisso esagera il calo dopo (gialli ×0,39). Per queste due quantità
+# l'uomo in meno/in più si misura TRA partite: conteggio osservato contro quello atteso dalla squadra e dall'avversario
+# nelle ALTRE partite della stagione (stato e fascia come controlli). Su tiri e corner i due metodi coincidono.
+MEN_BETWEEN = ("falli", "gialli")
+
+
+def fit_men_between(cells: pd.DataFrame, quantity: str, weights: np.ndarray | None = None,
+                    effects: tuple[dict[int, float], dict[str, float]] | None = None) -> dict[int, float]:
+    """Uomini in campo tra partite: per ogni squadra-partita il tasso atteso = tasso della squadra nelle altre partite ×
+    concessioni dell'avversario nelle altre partite / media del campionato (senza la partita), per stato e fascia
+    (moltiplicatori di ``fit_state_effects``); moltiplicatore = osservato/atteso per uomini, riferito alla parità."""
+    weight = np.ones(len(cells)) if weights is None else weights
+    states, bands = effects if effects is not None else fit_state_effects(cells, quantity)
+    frame = pd.DataFrame({"match": cells["match"].to_numpy(), "side": cells["side"].to_numpy(),
+                          "team": cells["team"].to_numpy(), "opp": cells["opp"].to_numpy(),
+                          "league": cells["league"].to_numpy(), "men": cells["uomini"].to_numpy(),
+                          "n": cells[quantity].to_numpy(float) * weight,
+                          "w": cells["stato"].map(states).to_numpy() * cells["fascia"].map(bands).to_numpy()
+                          * cells["esposizione"].to_numpy(float) * weight})
+    pair = frame.groupby(["match", "side"], sort=False).agg(n=("n", "sum"), w=("w", "sum"), team=("team", "first"),
+                                                            opp=("opp", "first"), league=("league", "first"))
+
+    def rest(key):
+        return ((pair.groupby(key)["n"].transform("sum") - pair["n"])
+                / np.maximum(pair.groupby(key)["w"].transform("sum") - pair["w"], 1e-12))
+
+    base = rest("team") * rest("opp") / np.maximum(rest("league"), 1e-12)
+    frame = frame.join(base.rename("base"), on=["match", "side"])
+    frame["atteso"] = frame["base"] * frame["w"]
+    frame = frame[np.isfinite(frame["atteso"])]
+    ratio = frame.groupby("men")["n"].sum() / np.maximum(frame.groupby("men")["atteso"].sum(), 1e-12)
+    return {men: float(ratio.get(men, np.nan) / ratio[0]) for men in MEN}
+
+
 def men_section(cells: pd.DataFrame, draws: list[np.ndarray]) -> dict:
     """Effetto dell'inferiorità e della superiorità numerica (stato e fascia come controlli)."""
     exposure = cells.groupby("uomini")["esposizione"].sum() / 2
     section = {"minuti": {str(men): float(exposure.get(men, 0.0)) for men in MEN}, "quantita": {}}
     for quantity in QUANTITIES:
-        point = fit_men_effects(cells, quantity)
-        boot = [fit_men_effects(cells, quantity, weights, iterations=60) for weights in draws]
+        fixed = fit_men_effects(cells, quantity)
+        if quantity in MEN_BETWEEN:
+            effects = fit_state_effects(cells, quantity)
+            point = fit_men_between(cells, quantity, effects=effects)
+            boot = [fit_men_between(cells, quantity, weights, effects) for weights in draws]
+        else:
+            point = fixed
+            boot = [fit_men_effects(cells, quantity, weights, iterations=60) for weights in draws]
         section["quantita"][quantity] = {
-            str(men): {"moltiplicatore": point[men],
-                       "es": float(np.std([np.log(max(b[men], 1e-9)) for b in boot], ddof=1)) if boot else None}
-            for men in MEN}
+            **{str(men): {"moltiplicatore": point[men],
+                          "es": float(np.std([np.log(max(b[men], 1e-9)) for b in boot], ddof=1)) if boot else None}
+               for men in MEN},
+            "metodo": "tra partite" if quantity in MEN_BETWEEN else "effetto fisso",
+            **({"effetto_fisso": {str(men): fixed[men] for men in MEN}} if quantity in MEN_BETWEEN else {})}
     section["nota"] = ("moltiplicatore del tasso per minuto con un uomo in meno (−1) o in più (+1) rispetto alla parità, "
-                       "a parità di stato del punteggio e fascia; effetto fisso per squadra-partita; rossi diretti e seconde "
-                       "gialle insieme")
+                       "a parità di stato del punteggio e fascia; rossi diretti e seconde gialle insieme. Tiri, xG e corner: "
+                       "effetto fisso per squadra-partita. Falli e gialli: tra partite (atteso dalle altre partite di squadra "
+                       "e avversario), perché i cartellini precedono il rosso e l'effetto fisso gonfia il calo dopo "
+                       "(«effetto_fisso» resta per confronto)")
     return section
 
 
@@ -679,6 +728,11 @@ def run(bootstrap: int = 200, update_dictionary: bool = True) -> dict:
         "arbitri": referee_section(matches),
     }
     config["stato_partita"]["attenuazione"] = attenuation_section(matches, config)
+    if CONFIG.exists():
+        # Il legame cartellini si stima a parte (``python -m tools.event_cards``): resta quello già salvato.
+        link = json.loads(CONFIG.read_text(encoding="utf-8")).get("stato_partita", {}).get("legame_cartellini")
+        if link:
+            config["stato_partita"]["legame_cartellini"] = link
     CONFIG.write_text(json.dumps(config, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     if update_dictionary:
         tactical_dictionary.PATH.write_text(json.dumps(updated, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")

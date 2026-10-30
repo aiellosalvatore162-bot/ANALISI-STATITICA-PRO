@@ -116,6 +116,8 @@ class EventParams:
     referee_source: str = ""
     note: str = ""
     state_power: float = 1.0                        # esponente di attenuazione dei moltiplicatori di stato (stadio 12)
+    yellow_state_power: float | None = None         # esponente proprio dei gialli (legame cartellini; None = state_power)
+    red_heat: float = 1.0                           # esponente della partita «calda» su rossi diretti e seconde gialle
 
     def with_state_power(self, power: float) -> "EventParams":
         """Moltiplicatori di stato (tiri, xG, corner di gioco, falli, gialli) elevati a ``power`` rispetto a quelli attuali.
@@ -125,16 +127,32 @@ class EventParams:
         def scaled(values):
             return tuple(float(value) ** relative for value in values)
 
+        yellow = self.state_yellow if self.yellow_state_power is not None else scaled(self.state_yellow)
         return dataclasses_replace(self, state_shots=scaled(self.state_shots), state_xg=scaled(self.state_xg),
                                    state_corner=scaled(self.state_corner), state_fouls=scaled(self.state_fouls),
-                                   state_yellow=scaled(self.state_yellow), state_power=power)
+                                   state_yellow=yellow, state_power=power)
+
+    def with_card_link(self, yellow_power: float | None, red_heat: float) -> "EventParams":
+        """Legame cartellini: moltiplicatori di stato dei gialli elevati a ``yellow_power`` (rispetto ai grezzi; None =
+        quello comune ``state_power``) e partita «calda» (moltiplicatore gamma dei gialli) elevata a ``red_heat`` su rossi
+        diretti e seconde gialle. Le medie restano quelle del vincolo di coerenza."""
+        current = self.yellow_state_power if self.yellow_state_power is not None else self.state_power
+        target = yellow_power if yellow_power is not None else self.state_power
+        relative = target / current if current else target
+        return dataclasses_replace(self, state_yellow=tuple(float(value) ** relative for value in self.state_yellow),
+                                   yellow_state_power=yellow_power, red_heat=float(red_heat))
 
     @classmethod
     def from_config(cls, data: Mapping[str, Any], league: str | None = None, attenuate: bool = True) -> "EventParams":
         """``attenuate`` = applica l'esponente stimato (``stato_partita.attenuazione``, 1 se manca)."""
         params = cls._from_config(data, league)
         power = float((data["stato_partita"].get("attenuazione") or {}).get("esponente", 1.0)) if attenuate else 1.0
-        return params.with_state_power(power) if power != 1.0 else params
+        params = params.with_state_power(power) if power != 1.0 else params
+        link = data["stato_partita"].get("legame_cartellini") or {}
+        if attenuate and link.get("attivo", True) and (link.get("esponente_stato_gialli") is not None
+                                                       or link.get("esponente_calore_rossi") is not None):
+            params = params.with_card_link(link.get("esponente_stato_gialli"), float(link.get("esponente_calore_rossi", 1.0)))
+        return params
 
     @classmethod
     def _from_config(cls, data: Mapping[str, Any], league: str | None = None) -> "EventParams":
@@ -483,8 +501,20 @@ def _run(rng: np.random.Generator, n: int, home: Tables, away: Tables, params: E
     future = {side: _suffix(rate) for side, rate in goal_rate.items()}
     rows = np.arange(n)
     other = {"home": "away", "away": "home"}
+    # Stadio 15: somme per passo (tiri, gol, corner, gialli, rossi per squadra; partite con almeno un gol nel passo).
+    track = {f"{key}_{side}": np.zeros(state.steps) for key in ("shots", "goals", "corners", "yellows", "reds")
+             for side in ("home", "away")}
+    track["goal_any"] = np.zeros(state.steps)
+
+    def totals(side):
+        if counts is None:
+            return 0.0, 0.0, 0.0
+        return (float(out[f"corners_by_origin_{side}"].sum()), float(out[f"yellows_{side}"].sum() + out[f"double_yellows_{side}"].sum()),
+                float(out[f"reds_{side}"].sum()))
+
     for step in range(state.steps):
         state.step = step
+        before = {side: (float(out[f"shots_{side}"].sum()), *totals(side)) for side in ("home", "away")}
         index = {"home": state.state_index(True), "away": state.state_index(False)}
         out["state_steps_home"][rows, index["home"]] += 1
         # Uomini in campo all'inizio del passo: espulsi dell'avversario meno i propri, limitati a −1…+1.
@@ -521,6 +551,12 @@ def _run(rng: np.random.Generator, n: int, home: Tables, away: Tables, params: E
             if counts is not None:
                 _count_step(rng, out, counts[side], params, side, s, step, saved.sum(axis=1), men[side],
                             state.minute + step_minutes / 2, mix)
+        for side in ("home", "away"):
+            after = (float(out[f"shots_{side}"].sum()), *totals(side))
+            for key, low, high in zip(("shots", "corners", "yellows", "reds"), before[side], after):
+                track[f"{key}_{side}"][step] = high - low
+            track[f"goals_{side}"][step] = float(scored[side].sum())
+        track["goal_any"][step] = float(((scored["home"] + scored["away"]) > 0).sum())
         # Primo gol: minuto uniforme nel passo; se segnano entrambe nello stesso passo, squadra ∝ gol del passo.
         new = np.isnan(out["first_goal_minute"]) & ((scored["home"] + scored["away"]) > 0)
         if new.any():
@@ -536,6 +572,7 @@ def _run(rng: np.random.Generator, n: int, home: Tables, away: Tables, params: E
                     for key in ("fouls", "yellows", "reds"):
                         out[f"{key}_first_{side}"] = out[f"{key}_{side}"].copy()
     out["goals_home"], out["goals_away"] = state.goals_home, state.goals_away
+    out["passi"] = {"minuto": np.arange(state.steps) * step_minutes, **track}
     if counts is not None:
         for side in ("home", "away"):
             out[f"corners_{side}"] = out[f"corners_by_origin_{side}"].sum(axis=1)
@@ -560,7 +597,12 @@ def _count_step(rng: np.random.Generator, out: dict, table: CountTables, params:
     if mix is not None:
         yellow_p = yellow_p * mix["cards"]
     cards = rng.binomial(fouls, np.clip(yellow_p, 0.0, 1.0))
-    heat = mix["cards"] if mix is not None else 1.0   # partita «calda»: più gialli, rossi diretti e seconde gialle insieme
+    # Partita «calda»: più gialli, rossi diretti e seconde gialle insieme (esponente ``red_heat`` del legame cartellini,
+    # riportato a media 1 così che i rossi attesi restino quelli del vincolo di coerenza).
+    heat = 1.0
+    if mix is not None:
+        heat = mix["cards"] ** params.red_heat
+        heat = heat / max(float(heat.mean()), 1e-12)
     straight = rng.binomial(fouls - cards, np.clip(table.straight_red * heat, 0.0, 1.0))
     # Seconda gialla: solo tra i gialli presi quando la squadra è già ammonita (nel passo, dal secondo giallo in poi) e mai
     # più dei giocatori ammoniti e ancora in campo (ogni doppia ammonizione consuma un primo giallo).
@@ -748,6 +790,21 @@ def coherence(rng: np.random.Generator, home: TeamInput, away: TeamInput, params
     if targets.yellow_variance is not None and yellows.mean() > 0:
         mix["cards"] = max(targets.yellow_variance - float(np.var(yellows)), 0.0) / float(yellows.mean()) ** 2
     rows[-1].update({"varianza_corner": round(float(np.var(corners)), 3), "varianza_gialli": round(float(np.var(yellows)), 3)})
+    if mix.get("cards"):
+        # Con la partita «calda» le seconde gialle (giallo × giallo) crescono più dei gialli: rossi riportati alla media.
+        hot = simulate(rng, size, teams["home"], teams["away"], params, scores=pilot_scores, mix=mix, **kwargs)
+        straight = sum(float(np.mean(hot[f"reds_{side}"] - hot[f"double_yellows_{side}"])) for side in teams)
+        doubles = sum(float(np.mean(hot[f"double_yellows_{side}"])) for side in teams)
+        if targets.double_share is None:
+            red_factor = second_factor = _ratio(targets.reds, straight + doubles)
+        else:
+            red_factor = _ratio(targets.reds * (1.0 - targets.double_share), straight)
+            second_factor = _ratio(targets.reds * targets.double_share, doubles)
+        for side in teams:
+            teams[side] = dataclasses_replace(teams[side], red_scale=teams[side].red_scale * red_factor,
+                                              second_yellow_scale=teams[side].second_yellow_scale * second_factor)
+        rows.append({"passata": "rossi con dispersione", "rossi": round(straight + doubles, 4),
+                     "fattore_rossi": round(red_factor, 4), "fattore_seconde": round(second_factor, 4)})
     rows.append({"passata": "obiettivo", "corner_home": targets.corners[0], "corner_away": targets.corners[1],
                  "gialli_home": targets.yellows[0], "gialli_away": targets.yellows[1], "rossi": targets.reds,
                  "varianza_corner": targets.corner_variance, "varianza_gialli": targets.yellow_variance,
@@ -804,6 +861,9 @@ def _concat(parts: list[dict[str, Any]], n: int) -> dict[str, Any]:
     for key, value in parts[0].items():
         if isinstance(value, np.ndarray) and value.ndim and value.shape[0] == len(parts[0]["goals_home"]):
             out[key] = np.concatenate([part[key] for part in parts])[:n]
+    if "passi" in parts[0]:
+        out["passi"] = {key: (value if key == "minuto" else sum(part["passi"][key] for part in parts))
+                        for key, value in parts[0]["passi"].items()}
     return out
 
 
@@ -869,6 +929,33 @@ def summary(sample: Mapping[str, Any]) -> dict[str, float]:
     out["nessun_gol"] = float(np.mean(sample["first_goal_team"] == 0))
     out["minuto_primo_gol"] = float(np.nanmean(sample["first_goal_minute"])) if np.any(sample["first_goal_team"]) else math.nan
     return out
+
+
+STORY_BANDS = ((0, 15), (15, 30), (30, 45), (45, 60), (60, 75), (75, 90))
+
+
+def timeline_summary(sample: Mapping[str, Any], bands: tuple[tuple[int, int], ...] = STORY_BANDS) -> dict[str, Any]:
+    """Stadio 15 («Vedi come andrà»): medie per fascia di minuti (tiri, gol, corner, gialli, rossi per squadra; probabilità
+    di almeno un gol nella fascia, dai passi) e minuto del primo gol per fascia, dai percorsi del motore a eventi."""
+    steps, n = sample["passi"], len(sample["goals_home"])
+    minutes = np.asarray(steps["minuto"])
+    rows = []
+    for low, high in bands:
+        inside = (minutes >= low) & (minutes < high)
+        row = {"fascia": f"{low}-{high}"}
+        for key in ("shots", "goals", "corners", "yellows", "reds"):
+            for side in ("home", "away"):
+                row[f"{key}_{side}"] = round(float(np.asarray(steps[f"{key}_{side}"])[inside].sum()) / n, 4)
+        rows.append(row)
+    first = np.asarray(sample["first_goal_minute"], float)
+    first_goal = {f"{low}-{high}": round(float(((first >= low) & (first < high)).mean()), 4) for low, high in bands}
+    first_goal["nessun gol"] = round(float(np.isnan(first).mean()), 4)
+    team = np.asarray(sample["first_goal_team"])
+    reds = np.asarray(sample["reds_home"]) + np.asarray(sample["reds_away"])
+    return {"fasce": rows, "primo_gol": first_goal, "almeno_un_rosso": round(float((reds > 0).mean()), 4), "primo_gol_casa": round(float((team == 1).mean()), 4),
+            "primo_gol_ospite": round(float((team == 2).mean()), 4),
+            "gol_nel_passo": {"minuto": minutes.tolist(), "probabilita": (np.asarray(steps["goal_any"]) / n).round(4).tolist()},
+            "simulazioni": int(n)}
 
 
 def card_points(sample: Mapping[str, Any], rule, side: str | None = None) -> np.ndarray:

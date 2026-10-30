@@ -18,10 +18,10 @@ def dc_scores(n=N, seed=2, lam=1.6, mu=1.1):
     return rng.poisson(lam, n), rng.poisson(mu, n)
 
 
-def run(scores=None, home=None, away=None, seed=1, **kwargs):
+def run(scores=None, home=None, away=None, seed=1, params=None, **kwargs):
     home = home or ee.TeamInput(1.6, first_share=0.45)
     away = away or ee.TeamInput(1.1, first_share=0.44)
-    return ee.simulate(np.random.default_rng(seed), N, home, away, PARAMS, scores=scores, **kwargs)
+    return ee.simulate(np.random.default_rng(seed), N, home, away, params or PARAMS, scores=scores, **kwargs)
 
 
 def test_parametri_per_campionato_e_comune():
@@ -188,7 +188,8 @@ def test_profili_dei_conteggi_normalizzati():
 
 
 def test_medie_di_corner_falli_e_cartellini():
-    out = run(dc_scores())
+    # Senza il legame cartellini (esponenti forti: la media la rimette il vincolo di coerenza dello stadio 9).
+    out = run(dc_scores(), params=PARAMS.with_card_link(None, 1.0))
     stats = ee.summary(out)
     for side in ("home", "away"):
         assert stats[f"falli_{side}"] == pytest.approx(PARAMS.fouls, rel=0.05)
@@ -316,7 +317,7 @@ def test_vincolo_di_coerenza_sulle_medie_attuali():
     scores = dc_scores(lam=1.7, mu=0.9)
     home, away, mix, rows = ee.coherence(np.random.default_rng(5), ee.TeamInput(1.7, first_share=0.44),
                                          ee.TeamInput(0.9, first_share=0.45), PARAMS, TARGETS, scores=scores)
-    assert [row["passata"] for row in rows] == ["1", "2", "verifica", "obiettivo"]
+    assert [row["passata"] for row in rows] == ["1", "2", "verifica", "rossi con dispersione", "obiettivo"]
     assert home.corner_scale > 1.0 > away.corner_scale and home.card_scale < away.card_scale
     out = ee.simulate(np.random.default_rng(9), N, home, away, PARAMS, scores=scores, mix=mix)
     assert out["corners_home"].mean() == pytest.approx(6.1, rel=0.03)
@@ -461,3 +462,19 @@ def test_motore_a_eventi_e_blocchi_non_insieme():
     config = dataclasses.replace(config, timeline=dataclasses.replace(config.timeline, active=True))
     with pytest.raises(ValueError, match="non possono essere accesi insieme"):
         engine.simulate_match(config)
+
+
+def test_motore_a_eventi_solo_per_i_corner():
+    """``markets = ("corner",)``: corner dal motore a eventi, primo tempo e cartellini identici al motore attuale."""
+    import engine
+
+    base = dataclasses.replace(_engine_config(), simulations=20_000)
+    settings = dataclasses.replace(base.event_engine, active=True, minimum=20_000, batch=20_000, pilot=5_000)
+    off = engine.simulate_match(base)
+    only = engine.simulate_match(dataclasses.replace(base, event_engine=dataclasses.replace(settings, markets=("corner",))))
+    full = engine.simulate_match(dataclasses.replace(base, event_engine=settings))
+    assert only["event_engine"]["mercati"] == ["corner"] and only["model"]["simulation_count"] == 20_000
+    assert only["markets"]["cards"] == off["markets"]["cards"]
+    assert only["markets"]["first_half_1x2"] == off["markets"]["first_half_1x2"]
+    assert only["markets"]["corners"] == full["markets"]["corners"] != off["markets"]["corners"]
+    assert full["markets"]["cards"] != off["markets"]["cards"]

@@ -27,11 +27,16 @@ def runs():
 def test_attenuazione_degli_stati_stimata_e_applicata():
     raw, used = ee.load("I1", attenuate=False), ee.load("I1")
     assert raw.state_power == 1.0 and 0.3 < used.state_power < 0.8
-    for before, after in ((raw.state_shots, used.state_shots), (raw.state_corner, used.state_corner),
-                          (raw.state_yellow, used.state_yellow)):
+    for before, after in ((raw.state_shots, used.state_shots), (raw.state_corner, used.state_corner)):
         assert all(abs(np.log(a)) <= abs(np.log(b)) + 1e-12 for a, b in zip(after, before))
         assert np.sign(np.log(after)).tolist() == np.sign(np.log(before)).tolist()
     assert used.with_state_power(1.0).state_shots == pytest.approx(raw.state_shots)
+    # Gialli: esponente proprio del legame cartellini (stimato sui CSV), non quello comune.
+    power = used.yellow_state_power
+    assert power is not None and used.red_heat >= 1.0
+    assert used.state_yellow == pytest.approx(tuple(value ** power for value in raw.state_yellow))
+    assert used.with_card_link(None, 1.0).state_yellow == pytest.approx(
+        tuple(value ** used.state_power for value in raw.state_yellow))
 
 
 def test_punteggi_identici_e_medie_attuali(runs):

@@ -692,7 +692,8 @@
           "1": {
             "moltiplicatore": 1.4318909889676228,
             "es": 0.03567597592723529
-          }
+          },
+          "metodo": "effetto fisso"
         },
         "xg": {
           "-1": {
@@ -706,7 +707,8 @@
           "1": {
             "moltiplicatore": 1.4204506180389664,
             "es": 0.06395460396661226
-          }
+          },
+          "metodo": "effetto fisso"
         },
         "corner": {
           "-1": {
@@ -720,7 +722,8 @@
           "1": {
             "moltiplicatore": 1.313819135006945,
             "es": 0.0546123344552121
-          }
+          },
+          "metodo": "effetto fisso"
         },
         "corner_gioco": {
           "-1": {
@@ -734,65 +737,101 @@
           "1": {
             "moltiplicatore": 1.3341857962285912,
             "es": 0.06532001625300249
-          }
+          },
+          "metodo": "effetto fisso"
         },
         "falli": {
           "-1": {
-            "moltiplicatore": 0.6382573761949706,
-            "es": 0.036457887833053926
+            "moltiplicatore": 0.7807701052850711,
+            "es": 0.033058108374335114
           },
           "0": {
             "moltiplicatore": 1.0,
             "es": 0.0
           },
           "1": {
-            "moltiplicatore": 1.002534104210147,
-            "es": 0.033132664702432334
+            "moltiplicatore": 1.0091901479890524,
+            "es": 0.026283813981124324
+          },
+          "metodo": "tra partite",
+          "effetto_fisso": {
+            "-1": 0.6382573761949706,
+            "0": 1.0,
+            "1": 1.002534104210147
           }
         },
         "gialli": {
           "-1": {
-            "moltiplicatore": 0.3942132439079486,
-            "es": 0.08091439023282603
+            "moltiplicatore": 0.8690191328218398,
+            "es": 0.05687736166871153
           },
           "0": {
             "moltiplicatore": 1.0,
             "es": 0.0
           },
           "1": {
-            "moltiplicatore": 0.9283291747379755,
-            "es": 0.09456958792138928
+            "moltiplicatore": 1.0008834638094741,
+            "es": 0.059541435923146084
+          },
+          "metodo": "tra partite",
+          "effetto_fisso": {
+            "-1": 0.3942132439079486,
+            "0": 1.0,
+            "1": 0.9283291747379755
           }
         }
       },
-      "nota": "moltiplicatore del tasso per minuto con un uomo in meno (−1) o in più (+1) rispetto alla parità, a parità di stato del punteggio e fascia; effetto fisso per squadra-partita; rossi diretti e seconde gialle insieme"
+      "nota": "moltiplicatore del tasso per minuto con un uomo in meno (−1) o in più (+1) rispetto alla parità, a parità di stato del punteggio e fascia; rossi diretti e seconde gialle insieme. Tiri, xG e corner: effetto fisso per squadra-partita. Falli e gialli: tra partite (atteso dalle altre partite di squadra e avversario), perché i cartellini precedono il rosso e l'effetto fisso gonfia il calo dopo («effetto_fisso» resta per confronto)"
     },
     "attenuazione": {
-      "esponente": 0.53,
+      "esponente": 0.496,
       "errore_standard": 0.063,
       "intervallo_95": [
-        0.407,
-        0.652
+        0.373,
+        0.62
       ],
       "pendenza_osservata": -0.6021,
       "errore_pendenza": 0.0684,
       "curva_motore": {
-        "0": -0.005,
-        "0.1": -0.1398,
-        "0.2": -0.2452,
-        "0.3": -0.378,
-        "0.4": -0.4781,
-        "0.5": -0.5566,
-        "0.6": -0.7099,
-        "0.7": -0.774,
-        "0.8": -0.8868,
-        "0.9": -1.0363,
-        "1": -1.1012
+        "0": -0.0046,
+        "0.1": -0.1081,
+        "0.2": -0.2642,
+        "0.3": -0.3599,
+        "0.4": -0.4887,
+        "0.5": -0.6063,
+        "0.6": -0.7115,
+        "0.7": -0.8015,
+        "0.8": -0.9102,
+        "0.9": -0.9934,
+        "1": -1.0761
       },
       "partite": 1517,
       "simulazioni_per_partita": 20,
       "metodo": "inferenza indiretta: pendenza tiri sbagliati ~ gol (residui Poisson con attacco, difesa, casa) osservata contro quella del motore a eventi in modo punteggi con moltiplicatori di stato^a",
       "nota": "lo stesso esponente si applica a tiri, xG, corner di gioco, falli e gialli (ipotesi dichiarata: la stessa distorsione delle stime dentro la partita); effetti dell'uomo in meno/in più e fasce di minuti invariati."
+    },
+    "legame_cartellini": {
+      "esponente_stato_gialli": 3.36,
+      "es_stato_gialli": 0.745,
+      "esponente_calore_rossi": 4.0,
+      "es_calore_rossi": 1.261,
+      "momenti_reali": {
+        "pendenza_gd": -0.3019,
+        "correlazione_gd": -0.1638,
+        "gialli_con_rosso": 1.0673
+      },
+      "momenti_motore": {
+        "pendenza_gd": -0.3156,
+        "correlazione_gd": -0.1807,
+        "gialli_con_rosso": 0.7374
+      },
+      "partite": {
+        "reali": 2851,
+        "motore": 400,
+        "percorsi_per_partita": 10
+      },
+      "data": "2026-10-30",
+      "metodo": "inferenza indiretta sui CSV football-data 2024/25-2025/26 (stagioni di taratura): pendenza dei gialli sul |diff. reti| → esponente di stato dei gialli; gialli in più con un rosso → esponente della partita calda sui rossi. Report docs/backtest/AK_cartellini.md (python -m tools.event_cards)"
     }
   },
   "dizionario": {

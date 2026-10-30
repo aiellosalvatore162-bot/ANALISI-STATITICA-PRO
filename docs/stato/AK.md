@@ -226,8 +226,74 @@ Ramo: `fase-ak-motore-eventi` (da `main` dopo la fase AH). `docs/FONTI.md` non e
      con punteggio ed espulsioni troppo debole.
    - Possibile passo successivo (NON fatto, servirebbe un nuovo banco con campione diverso per non scegliere sui dati della
      verifica): motore a eventi solo per corner e combo gol+corner, cartellini dal motore attuale.
-15. «Vedi come andrà»: DA FARE
-16. Test, merge, push: DA FARE
+14b. Ultima parte (sessione del 30/10, sera). Punti 1-4 FATTI (vedi sotto): cartellini corretti, banco su un campione nuovo, motore a eventi SPENTO, «Vedi come andrà».
+15. FATTO (30/10): riquadro «Vedi come andrà» nella Panoramica (`ui_story.render_story`, logica in `match_story.py`).
+   Il motore a eventi somma per passo di 5 minuti tiri, gol, corner, gialli mostrati e rossi per squadra e le partite con
+   almeno un gol nel passo (`sample["passi"]`, sommati tra i lotti); `event_engine.timeline_summary` → fasce di 15 minuti,
+   minuto e squadra del primo gol, almeno un rosso; `result["event_engine"]["andamento"]` quando il motore è acceso.
+   Il riquadro dice sempre quale motore è attivo (`match_story.engine_label`): motore a eventi acceso (anche solo per
+   alcuni mercati) = stessi percorsi della simulazione; spento = esecuzione illustrativa del motore a eventi sulla stessa
+   configurazione (20.000 partite, dopo il pulsante «Mostra l'andamento», in cache per partita), dichiarata e senza effetti
+   su probabilità, EV o registro. Contenuto: quattro frasi (primo gol, gol per tempo e fascia, tiri e corner, gialli e
+   rossi), tabella per fasce, grafico della probabilità di un gol ogni 5 minuti, tabella del primo gol. Test
+   `test_match_story.py` (5): somme per fascia = totali, etichette, modo illustrativo, stessi percorsi, errore spiegato.
+16. FATTO (30/10): test completi, unione a `main`, push.
+
+## Ultima parte – punto 1: legame tra rossi, gialli e stato della partita
+- Causa confermata sui dati StatsBomb 2015/16: con l'effetto fisso per squadra-partita il tratto PRIMA del rosso è «caldo»
+  (i cartellini precedono l'espulsione, la seconda gialla è un giallo), quindi il calo dopo è esagerato. Nuovo stimatore TRA
+  partite per falli e gialli (`stima_motore.fit_men_between`: atteso = tasso della squadra nelle altre partite × concessioni
+  dell'avversario nelle altre partite / media del campionato, stato e fascia come controlli). Uomo in meno: gialli ×0,87 ± 0,10
+  (era ×0,39), falli ×0,78 ± 0,05 (era ×0,64); uomo in più gialli ×1,00, falli ×1,01. Controllo: su tiri e corner i due metodi
+  danno lo stesso valore (tiri ×0,55 contro ×0,58, corner di gioco ×0,58 contro ×0,54), quindi lì resta l'effetto fisso.
+  Il valore a effetto fisso resta in `config/motore_eventi.json` («effetto_fisso») per confronto. L'esponente di attenuazione
+  ristimato è 0,496 (era 0,53, dentro l'IC: rumore Monte Carlo della curva).
+- Vincolo di coerenza: nuova passata «rossi con dispersione» (i rossi si riportavano alla media senza la partita calda; con la
+  dispersione le seconde gialle crescevano del ~14%).
+- Momenti reali (CSV 2024/25-2025/26, 2.851 partite, stagioni di taratura, residui come nel banco): pendenza gialli/|diff. reti|
+  −0,302 ± 0,031, correlazione −0,164, gialli in più con un rosso +1,07 ± 0,11. Motore con il solo uomo in meno corretto:
+  −0,05 e +0,67 (era +0,11). Restano da stimare (`python -m tools.event_cards --salva`, inferenza indiretta, sezione
+  `stato_partita.legame_cartellini`): esponente proprio di stato dei gialli a e esponente della partita calda sui rossi g.
+  Prova a 200 partite: a = 2 → pendenza −0,27 ma gialli con rosso +0,41; a = 2, g = 3 → −0,24 e +1,12 (interagiscono: stima
+  alternata a → g → a).
+- FATTO: `python -m tools.event_cards --salva` (400 partite 2024-26 × 10 percorsi, 4.000 simulazioni, ~45 minuti; punti in
+  cache in `data/cache/event_cards/`), report `docs/backtest/AK_cartellini.md`. Esito: **esponente di stato dei gialli 3,36**
+  (± 1,5 a 2 e.s.; prima l'esponente comune 0,50), **partita calda sui rossi 4** (AL BORDO della griglia 1-4, ± 2,5).
+  Momenti: pendenza −0,054 → **−0,316** (reale −0,302 ± 0,065), correlazione −0,031 → −0,181 (reale −0,164), gialli in più
+  con un rosso +0,52 → **+0,74** (reale +1,07 ± 0,23: ancora sotto, oltre 2 e.s.). Il rumore Monte Carlo di questo momento
+  è grande (+0,98 con a 2,5 e +0,79 con a 3 a parità di g): la stima di g è poco precisa. Non si estrapola oltre la griglia:
+  limite dichiarato. In sintesi: dal banco +0,11 → +0,74 sui rossi e −0,07 → −0,18 sulla correlazione (reale −0,18).
+- Note: con esponente 3,36 i gialli del motore dipendono molto dal punteggio (chi è avanti di un gol ne prende di più, a
+  scarto ampio calano); le medie restano quelle del motore attuale (vincolo di coerenza). Test aggiornati
+  (`test_event_sense`: i gialli seguono l'esponente proprio).
+- Banco nuovo pronto (`python -m tools.event_check --campione nuovo`): 2019/20 + 2023/24 per intero, 2.672 partite, nessuna del
+  primo banco; tre varianti (attuale, eventi completo, eventi solo corner). Motore per gruppi di mercati:
+  `motore_eventi.mercati` (`EventEngineParams.markets`, tempi/corner/cartellini).
+
+## Ultima parte – punti 2 e 3: seconda verifica su un campione nuovo e decisione per mercato
+- `python -m tools.event_check --campione nuovo [--salva]` → `docs/backtest/AK_motore_eventi_nuovo.md` e
+  `motore_eventi.verifica_nuova` di `config/goal_model.json`. 2.672 partite 2019/20 + 2023/24 (Premier, Liga, Serie A,
+  Bundesliga), nessuna del primo banco, fuori da taratura (2024-26), stima (StatsBomb 2015/16) e legame cartellini (2024-26).
+  Tre varianti sugli stessi punteggi: motore attuale, motore a eventi completo, «eventi solo corner». 96 minuti con 2 processi
+  (parziali in `data/cache/event_check_nuovo/`, ripresa automatica).
+- Regola fissata PRIMA di vedere i dati (`event_check.decide`): motore completo se passa la regola di sempre; altrimenti solo
+  corner se corner E combo del motore completo migliorano (log-loss giù di oltre 2 e.s., ECE non peggiore) e la variante solo
+  corner non peggiora nessun gruppo né l'ECE media; altrimenti spento.
+- Risultati (differenza appaiata ± 2 e.s.):
+  - motore completo, tutti: +0,00062 ± 0,00041 (PEGGIO), ECE 0,0187 → 0,0208; tempi +0,00003 ± 0,00018 (pari);
+    corner −0,00075 ± 0,00039 (meglio, ECE 0,0168 → 0,0151; 1X2 corner −0,0048 ± 0,0015); cartellini +0,0042 ± 0,0014
+    (PEGGIO, ECE 0,020 → 0,032; peggio del primo banco: il legame cartellini migliora le correlazioni ma non le
+    probabilità, soprattutto per squadra, Ospite Over 1.5 +0,0128); combo −0,00029 ± 0,00058 (pari).
+  - eventi solo corner: tutti −0,00034 ± 0,00021 (meglio), corner −0,00075 ± 0,00039, combo −0,00053 ± 0,00045 (meglio),
+    tempi e cartellini identici, ECE 0,0187 → 0,0177.
+  - Correlazioni dei residui (reale / motore a eventi): diff. gol-diff. corner −0,176 / −0,236; gol-corner −0,100 / −0,039;
+    |diff. gol|-gialli −0,154 / −0,183; gialli in più con un rosso +1,16 / +0,76 (era +0,11).
+- **Decisione: motore a eventi SPENTO** (`motore_eventi.attivo: false`, `mercati` = tutti i gruppi, quelli che si userebbero
+  riaccendendolo). I corner migliorano anche sul campione nuovo, ma le combo del motore completo no: la regola fissata non
+  accende il solo corner. La variante «solo corner» passa tutti i controlli: NON accesa perché sceglierla ora vorrebbe dire
+  decidere sui dati della verifica. Per accenderla serve un terzo campione mai visto (per esempio il 2026/27 completo a fine
+  stagione, ~1.300 partite): `motore_eventi.mercati = ["corner"]` + un banco con la sola regola «solo corner».
+- Cartellini: il motore a eventi resta peggiore del motore attuale (fase T) sui cartellini, anche col legame corretto.
 
 ## Note
 - Verifica Bundesliga (30/10): l'elenco partite StatsBomb per 1. Bundesliga 2015/2016 (competizione 9, stagione 27) contiene

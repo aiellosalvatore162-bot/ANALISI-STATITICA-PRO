@@ -40,6 +40,11 @@ LEAGUES = ("E0", "SP1", "I1", "D1")
 TOLERANCE_ECE = 0.0005
 OUTPUT = Path(__file__).resolve().parents[1] / "docs" / "backtest" / "AK_motore_eventi.md"
 PARTIAL = Path(__file__).resolve().parents[1] / "data" / "cache" / "event_check"
+# Campione NUOVO (dopo la correzione dei cartellini): stagioni 2019/20 e 2023/24 per intero, mai usate dal primo banco né per
+# scegliere o stimare (taratura 2024-26, legame cartellini 2024-26, motore a eventi StatsBomb 2015/16).
+NEW_SEASONS = ("1920", "2324")
+OUTPUT_NEW = Path(__file__).resolve().parents[1] / "docs" / "backtest" / "AK_motore_eventi_nuovo.md"
+PARTIAL_NEW = Path(__file__).resolve().parents[1] / "data" / "cache" / "event_check_nuovo"
 
 MULTI = {"tempi": {"1X2 1T": ("1 1T", "X 1T", "2 1T"), "1X2 2T": ("1 2T", "X 2T", "2 2T")},
          "corner": {"1X2 corner": ("1 corner", "X corner", "2 corner")},
@@ -58,14 +63,35 @@ BINARY = {
               "1 & 2 corner", "2 & 1 corner"),
 }
 GROUPS = tuple(BINARY)
-VARIANTS = ("motore attuale", "motore a eventi")
+# «eventi solo corner» = motore a eventi acceso solo per i corner (``motore_eventi.mercati = ["corner"]``): tempi e
+# cartellini dal motore attuale sugli stessi punteggi. Il motore a eventi completo si legge dagli stessi percorsi.
+VARIANTS = ("motore attuale", "motore a eventi", "eventi solo corner")
 
 
-def evaluation_rows(per_season: int, seed: int = 11) -> pd.DataFrame:
+def _usable() -> pd.DataFrame:
     features = baseline.load_usable_features()
     features = features.dropna(subset=["home_ht_goals", "away_ht_goals", "home_corners", "away_corners", "home_yellows",
                                        "away_yellows", "home_reds", "away_reds", "close_home", "close_draw", "close_away"])
-    features = features[features["league"].isin(LEAGUES)]
+    return features[features["league"].isin(LEAGUES)]
+
+
+def new_rows(used_folder: Path = PARTIAL) -> pd.DataFrame:
+    """Campione nuovo: tutte le partite 2019/20 e 2023/24, tolta ogni partita già nei parziali del primo banco."""
+    features = _usable()
+    features = features[features["season"].isin(NEW_SEASONS)]
+    used = set()
+    for path in used_folder.glob("*.jsonl"):
+        for line in path.read_text(encoding="utf-8").splitlines():
+            try:
+                used.add(json.loads(line)["key"])
+            except (json.JSONDecodeError, KeyError):
+                continue
+    keys = [row_key(record) for record in features.to_dict("records")]
+    return features[[key not in used for key in keys]].sort_values("date").reset_index(drop=True)
+
+
+def evaluation_rows(per_season: int, seed: int = 11) -> pd.DataFrame:
+    features = _usable()
     early = features[features["season"].isin(SEASONS)]
     early = pd.concat([frame.sample(min(per_season, len(frame)), random_state=seed)
                        for _, frame in early.groupby(["league", "season"])])
@@ -93,15 +119,20 @@ def probabilities(result: dict) -> dict[str, np.ndarray]:
     return out
 
 
-def residual_draw(result: dict, rng: np.random.Generator) -> dict[str, float] | None:
-    """Una partita estratta dal campione del motore a eventi (per le correlazioni dei residui)."""
+def residual_draw(result: dict, rng: np.random.Generator, league: str | None = None) -> dict[str, float] | None:
+    """Una partita estratta dal campione del motore a eventi (per le correlazioni dei residui). Gialli nella convenzione dei
+    dati: in Inghilterra e Scozia senza il primo giallo di chi è espulso per doppia ammonizione."""
     sample = result.get("event_engine_sample")
     if not sample:
         return None
     index = int(rng.integers(len(sample["goals_home"])))
-    return {key: float(sample[name][index]) for key, name in (
+    draw = {key: float(sample[name][index]) for key, name in (
         ("gh", "goals_home"), ("ga", "goals_away"), ("ch", "corners_home"), ("ca", "corners_away"),
         ("yh", "yellows_home"), ("ya", "yellows_away"), ("rh", "reds_home"), ("ra", "reds_away"))}
+    if league in engine.SECOND_YELLOW_EXCLUDED_LEAGUES:
+        draw["yh"] -= float(sample["double_yellows_home"][index])
+        draw["ya"] -= float(sample["double_yellows_away"][index])
+    return draw
 
 
 def evaluate_row(args: tuple[int, dict]) -> dict:
@@ -109,27 +140,28 @@ def evaluate_row(args: tuple[int, dict]) -> dict:
     config = replace(baseline.config_for_row(row, odds=baseline.closing_odds(row)), league=row["league"],
                      simulations=SIMULATIONS, seed=position, keep_samples=True)
     out = {"position": position}
-    for variant, active in zip(VARIANTS, (False, True)):
-        variant_config = replace(config, event_engine=replace(config.event_engine, active=active))
+    for variant, active in zip((VARIANTS[0], VARIANTS[2]), (False, True)):
+        variant_config = replace(config, event_engine=replace(config.event_engine, active=active, markets=("corner",)))
         started = time.perf_counter()
         result = engine.simulate_match(variant_config)
-        out[variant] = {"probabilita": probabilities(result), "secondi": time.perf_counter() - started,
-                        "simulazioni": result["sample_size"],
+        seconds = time.perf_counter() - started
+        out[variant] = {"probabilita": probabilities(result), "secondi": seconds, "simulazioni": result["sample_size"],
                         "medie": (result["markets"]["corners"]["mean"], result["markets"]["cards"]["mean"])}
         if active:
-            out["estrazione"] = residual_draw(result, np.random.default_rng([position, 99]))
+            sample = result["event_engine_sample"]
+            points = sum(engine.card_points(sample[f"yellows_{side}"], sample[f"reds_{side}"], config.card_rule,
+                                            sample[f"double_yellows_{side}"]) for side in ("home", "away"))
+            out[VARIANTS[1]] = {"probabilita": sample_probabilities(sample, config.card_rule), "secondi": seconds,
+                                "simulazioni": result["sample_size"],
+                                "medie": (float((sample["corners_home"] + sample["corners_away"]).mean()), float(points.mean()))}
+            out["estrazione"] = residual_draw(result, np.random.default_rng([position, 99]), row["league"])
             out["avvisi"] = result["event_engine"]["warnings"]
     return out
 
 
-def observed_events(rows: pd.DataFrame) -> dict[str, np.ndarray]:
-    rule = engine.DEFAULT_CARD_RULE
-    gh, ga = rows["home_goals"].to_numpy(int), rows["away_goals"].to_numpy(int)
-    fh, fa = rows["home_ht_goals"].to_numpy(int), rows["away_ht_goals"].to_numpy(int)
+def count_events(gh, ga, fh, fa, ch, ca, ph, pa) -> dict[str, np.ndarray]:
+    """Eventi dei mercati del banco da gol (finali e del primo tempo), corner e punti cartellino per squadra."""
     sh, sa = gh - fh, ga - fa
-    ch, ca = rows["home_corners"].to_numpy(int), rows["away_corners"].to_numpy(int)
-    ph = engine.card_points(rows["home_yellows"].to_numpy(int), rows["home_reds"].to_numpy(int), rule)
-    pa = engine.card_points(rows["away_yellows"].to_numpy(int), rows["away_reds"].to_numpy(int), rule)
     first, second, total, corners, points = fh + fa, sh + sa, gh + ga, ch + ca, ph + pa
     events = {
         "1": gh > ga, "X": gh == ga, "2": gh < ga, "Goal": (gh > 0) & (ga > 0), "Over 2.5 gol": total > 2.5,
@@ -152,15 +184,46 @@ def observed_events(rows: pd.DataFrame) -> dict[str, np.ndarray]:
     for label, values in (("Casa", ph), ("Ospite", pa)):
         for line in (1.5, 2.5):
             events[f"{label} Over {line:g} cartellini"] = values > line
+    return events
+
+
+def _legs(events: dict[str, np.ndarray], key: str) -> np.ndarray:
+    mask = np.ones(len(next(iter(events.values()))), dtype=bool)
+    for leg in key.split(" & "):
+        mask &= events[leg]
+    return mask
+
+
+def sample_probabilities(sample: dict, rule) -> dict[str, np.ndarray]:
+    """Probabilità del motore a eventi COMPLETO (tempi, corner e cartellini dal motore a eventi) dai percorsi grezzi."""
+    points = {side: engine.card_points(sample[f"yellows_{side}"], sample[f"reds_{side}"], rule, sample[f"double_yellows_{side}"])
+              for side in ("home", "away")}
+    events = count_events(sample["goals_home"], sample["goals_away"], sample["first_home"], sample["first_away"],
+                          sample["corners_home"], sample["corners_away"], points["home"], points["away"])
+    out = {}
+    for group in GROUPS:
+        for name, keys in MULTI.get(group, {}).items():
+            values = np.array([events[key].mean() for key in keys])
+            out[name] = values / values.sum()
+        for key in BINARY[group]:
+            p = _legs(events, key).mean()
+            out[key] = np.array([1.0 - p, p])
+    return out
+
+
+def observed_events(rows: pd.DataFrame) -> dict[str, np.ndarray]:
+    rule = engine.DEFAULT_CARD_RULE
+    events = count_events(
+        rows["home_goals"].to_numpy(int), rows["away_goals"].to_numpy(int), rows["home_ht_goals"].to_numpy(int),
+        rows["away_ht_goals"].to_numpy(int), rows["home_corners"].to_numpy(int), rows["away_corners"].to_numpy(int),
+        engine.card_points(rows["home_yellows"].to_numpy(int), rows["home_reds"].to_numpy(int), rule),
+        engine.card_points(rows["away_yellows"].to_numpy(int), rows["away_reds"].to_numpy(int), rule))
     out = {}
     for group in GROUPS:
         for name, keys in MULTI.get(group, {}).items():
             out[name] = np.select([events[keys[0]], events[keys[1]]], [0, 1], 2)
         for key in BINARY[group]:
-            mask = np.ones(len(rows), dtype=bool)
-            for leg in key.split(" & "):
-                mask &= events[leg]
-            out[key] = mask.astype(int)
+            out[key] = _legs(events, key).astype(int)
     return out
 
 
@@ -189,17 +252,22 @@ def paired(before: dict, after: dict, key: str) -> tuple[float, float]:
     return float(difference.mean()), float(difference.std(ddof=1) / np.sqrt(len(difference)))
 
 
-def residual_correlations(rows: pd.DataFrame, draws: list[dict | None]) -> dict[str, tuple[float, float]]:
-    """Correlazioni dei residui (a parità di quote, medie di corner/cartellini, arbitro e campionato): reali e del motore a
-    eventi (una partita simulata per riga, stessi regressori)."""
+def regressors(rows: pd.DataFrame) -> np.ndarray:
+    """Regressori dei residui: quote 1X2 e Over 2.5, medie di corner e cartellini, arbitro e campionato."""
     inv = 1.0 / rows[["close_home", "close_draw", "close_away"]].to_numpy(float)
     inv /= inv.sum(axis=1, keepdims=True)
     over = rows["close_over25"].fillna(rows["close_over25"].median()).to_numpy(float)
-    X = np.column_stack([np.ones(len(rows)), inv[:, 0] - inv[:, 2], 1.0 / over,
-                         rows[["home_corners_for", "home_corners_against", "away_corners_for", "away_corners_against",
-                               "home_cards_for", "away_cards_for"]].to_numpy(float),
-                         rows["referee_yellow_avg"].fillna(rows["referee_yellow_avg"].mean()).to_numpy(float),
-                         pd.get_dummies(rows["league"]).to_numpy(float)[:, 1:]])
+    return np.column_stack([np.ones(len(rows)), inv[:, 0] - inv[:, 2], 1.0 / over,
+                            rows[["home_corners_for", "home_corners_against", "away_corners_for", "away_corners_against",
+                                  "home_cards_for", "away_cards_for"]].to_numpy(float),
+                            rows["referee_yellow_avg"].fillna(rows["referee_yellow_avg"].mean()).to_numpy(float),
+                            pd.get_dummies(rows["league"]).to_numpy(float)[:, 1:]])
+
+
+def residual_correlations(rows: pd.DataFrame, draws: list[dict | None]) -> dict[str, tuple[float, float]]:
+    """Correlazioni dei residui (a parità di quote, medie di corner/cartellini, arbitro e campionato): reali e del motore a
+    eventi (una partita simulata per riga, stessi regressori)."""
+    X = regressors(rows)
 
     def residual(values):
         beta, *_ = np.linalg.lstsq(X, values, rcond=None)
@@ -266,8 +334,51 @@ def _write_progress(counts: dict[str, list[int]], started: float, folder: Path =
     (folder / "avanzamento.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def run(per_season: int = 100, processes: int = 2, folder: Path = PARTIAL) -> dict:
-    rows = evaluation_rows(per_season)
+def compare(before: dict, after: dict) -> dict[str, dict]:
+    """Differenze appaiate e ECE per gruppo (e «tutti») tra due varianti."""
+    groups = {}
+    for group in (*GROUPS, None):
+        key = f"media {group}" if group else "media"
+        mean, error = paired(before, after, key)
+        groups[group or "tutti"] = {"differenza": mean, "errore_standard": error,
+                                    "ece_prima": before[key]["ece"], "ece_dopo": after[key]["ece"],
+                                    "log_loss_prima": before[key]["log_loss"], "log_loss_dopo": after[key]["log_loss"]}
+    return groups
+
+
+def passes(value: dict) -> bool:
+    """Regola per un gruppo: log-loss giù di oltre 2 e.s. appaiati ed ECE non peggiore (tolleranza)."""
+    return bool(value["differenza"] < -2.0 * value["errore_standard"]
+                and value["ece_dopo"] <= value["ece_prima"] + TOLERANCE_ECE)
+
+
+def worse_groups(groups: dict) -> list[str]:
+    return [group for group in GROUPS if groups[group]["differenza"] > 2.0 * groups[group]["errore_standard"]]
+
+
+def decide(groups: dict, hybrid: dict | None = None) -> dict:
+    """Motore completo con la regola di sempre; se non passa, solo corner quando corner E combo del motore completo
+    migliorano e la variante «eventi solo corner» non peggiora nessun gruppo né l'ECE media."""
+    overall = groups["tutti"]
+    improves = overall["differenza"] < -2.0 * overall["errore_standard"]
+    calibrated = overall["ece_dopo"] <= overall["ece_prima"] + TOLERANCE_ECE
+    worse = worse_groups(groups)
+    full = bool(improves and calibrated and not worse)
+    decision = {"accendere": full, "migliora": bool(improves), "ece_non_peggiore": bool(calibrated), "gruppi_peggiori": worse,
+                "mercati": list(engine.EVENT_ENGINE_GROUPS) if full else []}
+    if hybrid is not None:
+        corner_combo = passes(groups["corner"]) and passes(groups["combo"])
+        hybrid_worse = worse_groups(hybrid)
+        hybrid_calibrated = hybrid["tutti"]["ece_dopo"] <= hybrid["tutti"]["ece_prima"] + TOLERANCE_ECE
+        decision.update({"corner_e_combo_migliorano": bool(corner_combo), "solo_corner_gruppi_peggiori": hybrid_worse,
+                         "solo_corner_ece_non_peggiore": bool(hybrid_calibrated)})
+        if not full and corner_combo and not hybrid_worse and hybrid_calibrated:
+            decision.update({"accendere": True, "mercati": ["corner"]})
+    return decision
+
+
+def run(per_season: int = 100, processes: int = 2, folder: Path = PARTIAL, rows: pd.DataFrame | None = None) -> dict:
+    rows = evaluation_rows(per_season) if rows is None else rows
     records = rows.to_dict("records")
     folder.mkdir(parents=True, exist_ok=True)
     started = time.time()
@@ -307,78 +418,88 @@ def run(per_season: int = 100, processes: int = 2, folder: Path = PARTIAL) -> di
             for key, value in output[variant]["probabilita"].items():
                 collected.setdefault(key, []).append(value)
         results[variant] = score(collected, observed)
-    before, after = results[VARIANTS[0]], results[VARIANTS[1]]
-    groups = {}
-    for group in (*GROUPS, None):
-        key = f"media {group}" if group else "media"
-        mean, error = paired(before, after, key)
-        groups[group or "tutti"] = {"differenza": mean, "errore_standard": error,
-                                    "ece_prima": before[key]["ece"], "ece_dopo": after[key]["ece"],
-                                    "log_loss_prima": before[key]["log_loss"], "log_loss_dopo": after[key]["log_loss"]}
-    overall = groups["tutti"]
-    improves = overall["differenza"] < -2.0 * overall["errore_standard"]
-    calibrated = overall["ece_dopo"] <= overall["ece_prima"] + TOLERANCE_ECE
-    worse = [group for group in GROUPS if groups[group]["differenza"] > 2.0 * groups[group]["errore_standard"]]
-    decision = {"accendere": bool(improves and calibrated and not worse), "migliora": bool(improves),
-                "ece_non_peggiore": bool(calibrated), "gruppi_peggiori": worse}
+    groups = compare(results[VARIANTS[0]], results[VARIANTS[1]])
+    hybrid = compare(results[VARIANTS[0]], results[VARIANTS[2]])
+    decision = decide(groups, hybrid)
     timing = {variant: (float(np.mean([o[variant]["secondi"] for o in outputs])),
                         float(np.mean([o[variant]["simulazioni"] for o in outputs]))) for variant in VARIANTS}
     means = {variant: tuple(float(np.mean([o[variant]["medie"][index] for o in outputs])) for index in range(2))
              for variant in VARIANTS}
     correlations = residual_correlations(rows, [output["estrazione"] for output in outputs])
     warnings = sorted({warning for output in outputs for warning in output.get("avvisi") or []})
-    return {"rows": rows, "results": results, "groups": groups, "decision": decision, "timing": timing, "means": means,
-            "correlations": correlations, "warnings": warnings,
+    return {"rows": rows, "results": results, "groups": groups, "hybrid": hybrid, "decision": decision, "timing": timing,
+            "means": means, "correlations": correlations, "warnings": warnings,
             "real_means": (float((rows["home_corners"] + rows["away_corners"]).mean()),
                            float(np.mean(engine.card_points((rows["home_yellows"] + rows["away_yellows"]).to_numpy(int),
                                                             (rows["home_reds"] + rows["away_reds"]).to_numpy(int),
                                                             engine.DEFAULT_CARD_RULE))))}
 
 
-def report(run_result: dict) -> str:
+def _group_table(groups: dict) -> list[str]:
+    lines = ["| Gruppo | Log-loss prima | Log-loss dopo | Differenza (± 2 e.s.) | ECE prima | ECE dopo | Regola |",
+             "|---|---|---|---|---|---|---|"]
+    for group, value in groups.items():
+        verdict = "meglio" if passes(value) else ("peggio" if value["differenza"] > 2.0 * value["errore_standard"] else "pari")
+        lines.append(f"| {group} | {value['log_loss_prima']:.5f} | {value['log_loss_dopo']:.5f} | {value['differenza']:+.5f} ± "
+                     f"{2 * value['errore_standard']:.5f} | {value['ece_prima']:.5f} | {value['ece_dopo']:.5f} | {verdict} |")
+    return lines
+
+
+def report(run_result: dict, title: str = "verifica fuori campione (fase AK, stadio 14)", command: str = "python -m tools.event_check",
+           intro: str = "") -> str:
     rows, results, groups, decision = run_result["rows"], run_result["results"], run_result["groups"], run_result["decision"]
-    before, after = results[VARIANTS[0]], results[VARIANTS[1]]
+    before, after, hybrid = (results[variant] for variant in VARIANTS)
     counts = rows.groupby(["league", "season"]).size()
-    power = engine._event_params(None).state_power
-    lines = ["# Motore a eventi: verifica fuori campione (fase AK, stadio 14)", "",
-             f"Generato il {date.today():%d/%m/%Y} con `python -m tools.event_check`. {len(rows)} partite di football-data.co.uk "
-             f"({', '.join(f'{league} {season}: {n}' for (league, season), n in counts.items())}). Stessa `MatchConfig` "
+    params = engine._event_params(None)
+    mercati = ", ".join(decision["mercati"]) if decision["mercati"] else "nessuno"
+    lines = [f"# Motore a eventi: {title}", "",
+             f"Generato il {date.today():%d/%m/%Y} con `{command}`. {len(rows)} partite di football-data.co.uk "
+             f"({', '.join(f'{league} {season}: {n}' for (league, season), n in counts.items())}). {intro}Stessa `MatchConfig` "
              f"dell'app (quote di chiusura 1X2 e Over/Under 2.5), `engine.simulate_match` con {SIMULATIONS:,} simulazioni al "
              "massimo, motore attuale contro motore a eventi (stesso seme: stessi punteggi Dixon-Coles; arresto adattivo "
-             f"acceso nel motore a eventi; esponente di attenuazione degli stati {power:g}). Corner e cartellini del primo "
-             "tempo non sono nei dati: non verificabili.".replace(",", "."), "",
+             f"acceso nel motore a eventi; esponente di attenuazione degli stati {params.state_power:g}; esponente di stato dei "
+             f"gialli {params.yellow_state_power if params.yellow_state_power is not None else params.state_power:g}, partita "
+             f"calda sui rossi {params.red_heat:g}). «Eventi solo corner» = motore a eventi solo per i corner, tempi e cartellini "
+             "dal motore attuale. Corner e cartellini del primo tempo non sono nei dati: non verificabili.".replace(",", "."), "",
              "## Decisione", "",
-             f"- Log-loss media su tutti i mercati: {groups['tutti']['log_loss_prima']:.5f} → {groups['tutti']['log_loss_dopo']:.5f} "
-             f"(differenza appaiata {groups['tutti']['differenza']:+.5f} ± {2 * groups['tutti']['errore_standard']:.5f}, 2 e.s.).",
-             f"- ECE media: {groups['tutti']['ece_prima']:.5f} → {groups['tutti']['ece_dopo']:.5f} (tolleranza {TOLERANCE_ECE}).",
-             f"- Gruppi peggiori di oltre 2 e.s.: {', '.join(decision['gruppi_peggiori']) or 'nessuno'}.",
-             f"- **Esito: motore a eventi {'ACCESO' if decision['accendere'] else 'SPENTO'}** (regola: log-loss giù di oltre 2 "
-             "e.s. appaiati, ECE non peggiore, nessun gruppo peggiore).", "",
-             "## Per gruppo", "",
-             "| Gruppo | Log-loss prima | Log-loss dopo | Differenza (± 2 e.s.) | ECE prima | ECE dopo |", "|---|---|---|---|---|---|"]
-    for group, value in groups.items():
-        lines.append(f"| {group} | {value['log_loss_prima']:.5f} | {value['log_loss_dopo']:.5f} | {value['differenza']:+.5f} ± "
-                     f"{2 * value['errore_standard']:.5f} | {value['ece_prima']:.5f} | {value['ece_dopo']:.5f} |")
-    lines += ["", "## Per mercato", "", "| Mercato | Gruppo | Log-loss prima | Log-loss dopo | Differenza (± 2 e.s.) | ECE prima | ECE dopo |",
-              "|---|---|---|---|---|---|---|"]
+             f"- Motore completo, log-loss media su tutti i mercati: {groups['tutti']['log_loss_prima']:.5f} → "
+             f"{groups['tutti']['log_loss_dopo']:.5f} (differenza appaiata {groups['tutti']['differenza']:+.5f} ± "
+             f"{2 * groups['tutti']['errore_standard']:.5f}, 2 e.s.); ECE {groups['tutti']['ece_prima']:.5f} → "
+             f"{groups['tutti']['ece_dopo']:.5f} (tolleranza {TOLERANCE_ECE}); gruppi peggiori di oltre 2 e.s.: "
+             f"{', '.join(decision['gruppi_peggiori']) or 'nessuno'}."]
+    if "corner_e_combo_migliorano" in decision:
+        lines.append(f"- Corner e combo del motore completo migliorano entrambi (stessa regola per gruppo): "
+                     f"{'sì' if decision['corner_e_combo_migliorano'] else 'no'}. «Eventi solo corner»: gruppi peggiori "
+                     f"{', '.join(decision['solo_corner_gruppi_peggiori']) or 'nessuno'}, ECE media "
+                     f"{'non peggiore' if decision['solo_corner_ece_non_peggiore'] else 'PEGGIORE'}.")
+    lines += [f"- **Esito: motore a eventi {'ACCESO' if decision['accendere'] else 'SPENTO'}; mercati dal motore a eventi: "
+              f"{mercati}** (regola: log-loss giù di oltre 2 e.s. appaiati, ECE non peggiore, nessun gruppo peggiore; per il solo "
+              "corner: corner e combo migliorano e la variante solo corner non peggiora nulla).", "",
+              "## Per gruppo: motore a eventi completo", "", *_group_table(groups), "",
+              "## Per gruppo: eventi solo corner", "", *_group_table(run_result["hybrid"]), "",
+              "## Per mercato", "",
+              "| Mercato | Gruppo | Log-loss attuale | Completo: differenza (± 2 e.s.) | Solo corner: differenza (± 2 e.s.) | ECE attuale | ECE completo | ECE solo corner |",
+              "|---|---|---|---|---|---|---|---|"]
     for key, value in before.items():
         if key.startswith("media"):
             continue
         mean, error = paired(before, after, key)
-        lines.append(f"| {key} | {value['gruppo']} | {value['log_loss']:.4f} | {after[key]['log_loss']:.4f} | {mean:+.5f} ± "
-                     f"{2 * error:.5f} | {value['ece']:.4f} | {after[key]['ece']:.4f} |")
+        mean_h, error_h = paired(before, hybrid, key)
+        lines.append(f"| {key} | {value['gruppo']} | {value['log_loss']:.4f} | {mean:+.5f} ± {2 * error:.5f} | "
+                     f"{mean_h:+.5f} ± {2 * error_h:.5f} | {value['ece']:.4f} | {after[key]['ece']:.4f} | {hybrid[key]['ece']:.4f} |")
     timing, means, real = run_result["timing"], run_result["means"], run_result["real_means"]
     lines += ["", "## Medie, tempi e correlazioni", "",
               f"- Corner medi previsti {means[VARIANTS[0]][0]:.2f} (attuale) / {means[VARIANTS[1]][0]:.2f} (eventi), reali {real[0]:.2f}; "
               f"punti cartellino {means[VARIANTS[0]][1]:.2f} / {means[VARIANTS[1]][1]:.2f}, reali {real[1]:.2f}.",
               f"- Tempo medio per partita: {timing[VARIANTS[0]][0]:.2f} s ({timing[VARIANTS[0]][1]:,.0f} simulazioni) contro "
-              f"{timing[VARIANTS[1]][0]:.2f} s ({timing[VARIANTS[1]][1]:,.0f} simulazioni con l'arresto adattivo).".replace(",", "."),
+              f"{timing[VARIANTS[2]][0]:.2f} s ({timing[VARIANTS[2]][1]:,.0f} simulazioni con l'arresto adattivo).".replace(",", "."),
               "", "| Correlazione dei residui | Reale | Motore a eventi |", "|---|---|---|"]
     for key, (real_value, model_value) in run_result["correlations"].items():
         lines.append(f"| {key} | {real_value:+.3f} | {model_value:+.3f} |")
     lines += ["", "Nel motore attuale le prime tre sono circa 0 per costruzione (corner e cartellini indipendenti dai gol).",
               "Residui = scarti da una regressione lineare su quote 1X2 e Over 2.5, medie di corner e cartellini, arbitro e "
-              "campionato; per il motore a eventi una partita simulata per riga, stessi regressori."]
+              "campionato; per il motore a eventi una partita simulata per riga, stessi regressori; gialli nella convenzione dei "
+              "dati (Inghilterra senza il primo giallo dell'espulso)."]
     if run_result["warnings"]:
         lines += ["", "Avvisi del motore a eventi: " + "; ".join(run_result["warnings"])]
     return "\n".join(lines) + "\n"
@@ -386,29 +507,45 @@ def report(run_result: dict) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--per-stagione", type=int, default=100, help="Partite per campionato e stagione (2020-23)")
+    parser.add_argument("--campione", choices=("primo", "nuovo"), default="nuovo",
+                        help="primo = banco dello stadio 14 (2020-23 + 2026/27); nuovo = 2019/20 e 2023/24 (dopo i cartellini)")
+    parser.add_argument("--per-stagione", type=int, default=100, help="Partite per campionato e stagione (solo campione primo)")
     parser.add_argument("--processi", type=int, default=2)
     parser.add_argument("--salva", action="store_true", help="Scrive l'esito in config/goal_model.json (motore_eventi)")
-    parser.add_argument("--output", type=Path, default=OUTPUT)
+    parser.add_argument("--output", type=Path, default=None)
     parser.add_argument("--ricomincia", action="store_true", help="Cancella i risultati parziali e riparte da zero")
     args = parser.parse_args()
+    new = args.campione == "nuovo"
+    folder = PARTIAL_NEW if new else PARTIAL
+    output = args.output or (OUTPUT_NEW if new else OUTPUT)
     if args.ricomincia:
-        for path in PARTIAL.glob("*.jsonl"):
+        for path in folder.glob("*.jsonl"):
             path.unlink()
-    run_result = run(args.per_stagione, args.processi)
-    markdown = report(run_result)
+    rows = new_rows() if new else None
+    run_result = run(args.per_stagione, args.processi, folder, rows)
+    markdown = (report(run_result, "seconda verifica su un campione nuovo (fase AK)", "python -m tools.event_check --campione nuovo",
+                       "Campione mai usato per scegliere o correggere: nessuna partita del primo banco "
+                       "(`data/cache/event_check/`), fuori dalla taratura (2024-26) e dalla stima (StatsBomb 2015/16, legame "
+                       "cartellini sul 2024-26). ")
+                if new else report(run_result))
     print(markdown)
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(markdown, encoding="utf-8")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(markdown, encoding="utf-8")
     if args.salva:
         from tools.calibrate import _update_config
 
         section = json.loads(engine.GOAL_MODEL_PATH.read_text(encoding="utf-8")).get("motore_eventi", {})
         groups = {name: {key: round(value, 5) for key, value in values.items()} for name, values in run_result["groups"].items()}
+        check = {"data": date.today().isoformat(), "partite": len(run_result["rows"]), "gruppi": groups,
+                 "decisione": run_result["decision"], "report": str(output.relative_to(engine.GOAL_MODEL_PATH.parents[1]))}
+        if new:
+            check["gruppi_solo_corner"] = {name: {key: round(value, 5) for key, value in values.items()}
+                                           for name, values in run_result["hybrid"].items()}
         _update_config({"motore_eventi": {
             **section, "attivo": run_result["decision"]["accendere"],
-            "verifica": {"data": date.today().isoformat(), "partite": len(run_result["rows"]), "gruppi": groups,
-                         "decisione": run_result["decision"], "report": "docs/backtest/AK_motore_eventi.md"},
+            # Spento: restano tutti i gruppi (quelli che si userebbero riaccendendolo a mano).
+            "mercati": run_result["decision"]["mercati"] or list(engine.EVENT_ENGINE_GROUPS),
+            ("verifica_nuova" if new else "verifica"): check,
         }})
 
 
