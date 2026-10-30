@@ -160,6 +160,9 @@ class ClaudeResponse:
     warnings: list[str] = field(default_factory=list)
     # Fase P, punto 2: assenti indicati da Claude («casa»/«ospite» → nomi), solo con una fonte.
     absent: dict[str, list[str]] = field(default_factory=dict)
+    # Fase AL: fonte delle assenti e formazione indicata (facoltative): {«casa»/«ospite»: {"formazione": [11 nomi], "fonte": url}}.
+    absent_source: dict[str, str] = field(default_factory=dict)
+    lineup: dict[str, dict] = field(default_factory=dict)
 
     def adjustment(self) -> ClaudeAdjustment | None:
         """Fattori accettati per il motore; ``None`` se non c'è nulla da applicare."""
@@ -224,8 +227,17 @@ def parse_response(text: str) -> ClaudeResponse:
             names = [name.strip() for name in re.split(r"[,;]", value) if name.strip() and name.strip() not in ("-", "—")]
             if names and _URL.search(attributes.get("fonte", "")):
                 response.absent[key.removeprefix("assenti_")] = names
+                response.absent_source[key.removeprefix("assenti_")] = attributes["fonte"]
             elif names:
                 response.warnings.append(f"{key} senza fonte con link: ignorato.")
+            continue
+        if key in ("formazione_casa", "formazione_ospite"):
+            names = [name.strip() for name in re.split(r"[,;]", value) if name.strip() and name.strip() not in ("-", "—")]
+            side = key.removeprefix("formazione_")
+            if len(names) == 11 and _URL.search(attributes.get("fonte", "")):
+                response.lineup[side] = {"formazione": names, "fonte": attributes["fonte"]}
+            elif names:
+                response.warnings.append(f"{key}: servono 11 nomi e una fonte con link: ignorata.")
             continue
         if key not in BOUNDS and key != "arbitro_gialli_medi":
             if ":" in raw_line:

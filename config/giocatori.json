@@ -1,0 +1,91 @@
+{
+  "nota": "Fase AL. Componenti accese e per intero; correzioni solo contro valori esorbitanti (winsorizzazione ai percentili del ruolo, con avviso). I valori 'stimato' sono scritti da python -m tools.lineup_check --salva.",
+  "emivita_giorni": 240,
+  "finestra_anni": 2,
+  "k_minuti": {
+    "POR": 900.0,
+    "DIF": 900.0,
+    "CEN": 900.0,
+    "ATT": 900.0
+  },
+  "winsorizzazione": {
+    "percentili": [
+      2.0,
+      98.0
+    ],
+    "minuti_minimi": 450.0
+  },
+  "xi_tipo_partite": 5,
+  "cambi_medi": 3.0,
+  "rigori": {
+    "k_conversione": 20.0,
+    "k_frequenza_partite": 30.0
+  },
+  "performando": {
+    "k_xg": 14.23,
+    "soglia_etichetta": 0.75,
+    "stimato": {
+      "data": "2026-10-30",
+      "partite": 1606,
+      "campionati": [
+        "I1",
+        "E0",
+        "D1",
+        "SP1"
+      ],
+      "beta": {
+        "giocatore": 0.1204,
+        "squadra": 0.4553
+      }
+    },
+    "k_xg_squadra": 37.38
+  },
+  "difesa": {
+    "pesi_ruolo": {
+      "POR": 0.0,
+      "DIF": 0.0,
+      "CEN": 0.0
+    },
+    "stimato": {
+      "data": "2026-10-30",
+      "partite": 1606,
+      "campionati": [
+        "I1",
+        "E0",
+        "D1",
+        "SP1"
+      ],
+      "z": {
+        "POR": 0.92,
+        "DIF": 0.17,
+        "CEN": -1.19
+      }
+    }
+  },
+  "fattore_attacco": {
+    "limiti": [
+      0.7781,
+      1.3262
+    ],
+    "esponente": 0.0,
+    "stimato": {
+      "data": "2026-10-30",
+      "partite": 1606,
+      "campionati": [
+        "I1",
+        "E0",
+        "D1",
+        "SP1"
+      ],
+      "esponente_grezzo": -0.0969,
+      "errore_standard": 0.2088
+    }
+  },
+  "componenti": {
+    "attacco": true,
+    "difesa": true,
+    "rigorista": true,
+    "performando": true
+  },
+  "sostituisce_assenze_P": true
+}

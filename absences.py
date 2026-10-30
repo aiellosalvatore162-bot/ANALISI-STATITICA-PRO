@@ -106,4 +106,19 @@ def is_active() -> bool:
     path = Path(__file__).resolve().parent / "config" / "goal_model.json"
     if not path.exists():
         return False
+    if _lineup_replaces_absences():
+        return False
     return bool(json.loads(path.read_text(encoding="utf-8")).get("assenze", {}).get("attiva", False))
+
+
+def _lineup_replaces_absences() -> bool:
+    """Fase AL: se la formazione (stessa grandezza npxG+xA) muove i gol attesi, le assenze della P NON si applicano
+    anche loro (niente doppia conta)."""
+    import json
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parent / "config" / "giocatori.json"
+    if not path.exists():
+        return False
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return bool(data.get("sostituisce_assenze_P")) and bool(float(data.get("fattore_attacco", {}).get("esponente") or 0.0) > 0.0)
