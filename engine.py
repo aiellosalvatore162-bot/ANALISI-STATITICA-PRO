@@ -429,6 +429,30 @@ DEFAULT_TIMELINE = _timeline.load(GOAL_MODEL_PATH)
 
 
 @dataclass(frozen=True)
+class StyleModelParams:
+    """Forma reale (fase AD): al posto della covariata W-D-L, e peso xG più alto con poche gare.
+
+    ``phi`` pesa la differenza di forma reale (xG−xGA per gara, centrata sul campionato) come ``form_weight`` pesa la
+    forma W-D-L; ``k_xg`` alza la quota xG di attacco/difesa con poche gare: α_eff = α + (1−α)·k/(n+k).
+    """
+
+    active: bool = False
+    phi: float = 0.0
+    k_xg: float = 0.0
+
+
+def load_style_model(path: Path = GOAL_MODEL_PATH.parent / "stile.json") -> StyleModelParams:
+    if not path.exists():
+        return StyleModelParams()
+    section = json.loads(path.read_text(encoding="utf-8")).get("forma_reale", {})
+    return StyleModelParams(active=bool(section.get("attiva", False)), phi=float(section.get("phi") or 0.0),
+                            k_xg=float(section.get("k_xg") or 0.0))
+
+
+DEFAULT_STYLE_MODEL = load_style_model()
+
+
+@dataclass(frozen=True)
 class TacticalSwitches:
     """Which tactical corrections are applied (validated by ``python -m tools.tactical``)."""
 
@@ -528,6 +552,9 @@ class MatchConfig:
     strength_inputs: Mapping[str, tuple[float, float]] | None = None
     # Fase Z: conserva i campioni simulati degli eventi (bit compressi) per il combo builder; le probabilità non cambiano.
     keep_samples: bool = False
+    # Fase AD: {"home": {"forma_reale": x, "n_gare": n}, "away": {...}} da ``style_profile.get_style_params``; None = come prima.
+    style: Mapping[str, Mapping[str, float]] | None = None
+    style_model: StyleModelParams = DEFAULT_STYLE_MODEL
 
     def __post_init__(self) -> None:
         if self.goal_model not in GOAL_MODELS:
@@ -592,6 +619,7 @@ def goal_rates(
     home_attack, home_defense, home_xg_for, home_xg_against, home_form,
     away_attack, away_defense, away_xg_for, away_xg_against, away_form,
     elo_diff,
+    real_form: tuple | None = None, real_form_weight: float = 0.0, xg_k: float = 0.0, history: tuple | None = None,
 ) -> tuple[np.ndarray, np.ndarray, dict[str, np.ndarray]]:
     """Log-linear goal rates; works on scalars and on numpy arrays.
 
@@ -603,22 +631,34 @@ def goal_rates(
     """
     base = params.base_goals
 
-    def attack(coefficient, xg_for):
-        return ((1.0 - params.attack_xg_share) * np.log(np.clip(coefficient, 0.2, 3.0))
-                + params.attack_xg_share * np.log(np.clip(np.asarray(xg_for) / base, 0.1, 5.0)))
+    def share(alpha, games):
+        """Quota xG: con poche gare pesa di più (fase AD, solo se ``xg_k`` > 0 e il numero di gare è noto)."""
+        if xg_k > 0 and games is not None:
+            return alpha + (1.0 - alpha) * xg_k / (np.asarray(games, dtype=float) + xg_k)
+        return alpha
 
-    def weak_defense(coefficient, xg_against):
-        return ((1.0 - params.defense_xg_share) * -np.log(np.clip(coefficient, 0.2, 3.0))
-                + params.defense_xg_share * np.log(np.clip(np.asarray(xg_against) / base, 0.1, 5.0)))
+    def attack(coefficient, xg_for, games=None):
+        weight = share(params.attack_xg_share, games)
+        return ((1.0 - weight) * np.log(np.clip(coefficient, 0.2, 3.0))
+                + weight * np.log(np.clip(np.asarray(xg_for) / base, 0.1, 5.0)))
 
+    def weak_defense(coefficient, xg_against, games=None):
+        weight = share(params.defense_xg_share, games)
+        return ((1.0 - weight) * -np.log(np.clip(coefficient, 0.2, 3.0))
+                + weight * np.log(np.clip(np.asarray(xg_against) / base, 0.1, 5.0)))
+
+    home_games, away_games = history if history is not None else (None, None)
     elo_term = 0.5 * params.elo_k * np.asarray(elo_diff, dtype=float) / 400.0
-    form_term = 0.5 * params.form_weight * (np.asarray(home_form) - np.asarray(away_form))
+    if real_form is not None:   # forma reale AL POSTO della forma W-D-L
+        form_term = 0.5 * real_form_weight * (np.asarray(real_form[0], dtype=float) - np.asarray(real_form[1], dtype=float))
+    else:
+        form_term = 0.5 * params.form_weight * (np.asarray(home_form) - np.asarray(away_form))
     parts = {
         "home_advantage": np.full_like(elo_term, 0.5 * params.home_advantage),
-        "home_attack": params.attack_weight * attack(home_attack, home_xg_for),
-        "away_attack": params.attack_weight * attack(away_attack, away_xg_for),
-        "home_weak_defense": params.defense_weight * weak_defense(home_defense, home_xg_against),
-        "away_weak_defense": params.defense_weight * weak_defense(away_defense, away_xg_against),
+        "home_attack": params.attack_weight * attack(home_attack, home_xg_for, home_games),
+        "away_attack": params.attack_weight * attack(away_attack, away_xg_for, away_games),
+        "home_weak_defense": params.defense_weight * weak_defense(home_defense, home_xg_against, home_games),
+        "away_weak_defense": params.defense_weight * weak_defense(away_defense, away_xg_against, away_games),
         "elo": elo_term,
         "form": form_term,
     }
@@ -635,6 +675,7 @@ def expected_goals(config: MatchConfig) -> tuple[float, float, dict[str, Any]]:
         return _legacy_expected_goals(config)
     params = config.goal_params
     home_form, away_form = form_score(config.home.form), form_score(config.away.form)
+    real = _real_form_inputs(config)
     lambda_, mu, parts = goal_rates(
         params,
         home_attack=config.home.attack, home_defense=config.home.defense,
@@ -642,6 +683,7 @@ def expected_goals(config: MatchConfig) -> tuple[float, float, dict[str, Any]]:
         away_attack=config.away.attack, away_defense=config.away.defense,
         away_xg_for=config.away.xg_for, away_xg_against=config.away.xg_against, away_form=away_form,
         elo_diff=config.home.elo - config.away.elo,
+        **(real or {}),
     )
     value = {key: float(part) for key, part in parts.items()}
 
@@ -667,7 +709,41 @@ def expected_goals(config: MatchConfig) -> tuple[float, float, dict[str, Any]]:
         "away": side(-1.0, "away_attack", "home_weak_defense", away_form),
         "weights": asdict(params),
     }
+    style_model = config.style_model
+    if style_model.active:
+        ledger["forma_reale"] = _real_form_ledger(config, real)
+        if real is not None:
+            ledger["formula"] += (" | forma reale (fase AD): il termine forma usa φ_reale·(FR casa − FR ospite)/2 con "
+                                  "FR = xG−xGA per gara centrata sul campionato, AL POSTO della forma W-D-L; "
+                                  "α_xG,eff = α + (1−α)·k/(n+k)")
     return float(lambda_), float(mu), ledger
+
+
+def _real_form_inputs(config: MatchConfig) -> dict[str, Any] | None:
+    """Argomenti extra di ``goal_rates`` se la forma reale è accesa e il profilo di stile è disponibile."""
+    model, style = config.style_model, config.style
+    if not model.active or not style:
+        return None
+    home, away = style.get("home") or {}, style.get("away") or {}
+    if home.get("forma_reale") is None or away.get("forma_reale") is None:
+        return None
+    return {"real_form": (float(home["forma_reale"]), float(away["forma_reale"])), "real_form_weight": model.phi,
+            "xg_k": model.k_xg, "history": (float(home.get("n_gare", 0)), float(away.get("n_gare", 0)))}
+
+
+def _real_form_ledger(config: MatchConfig, real: dict[str, Any] | None) -> dict[str, Any]:
+    model = config.style_model
+    if real is None:
+        return {"attiva": True, "usata": False, "motivo": "profilo di stile non disponibile: resta la forma W-D-L"}
+    k = model.k_xg
+    alpha = config.goal_params.attack_xg_share
+    games = real["history"]
+    return {"attiva": True, "usata": True, "phi": model.phi, "k_xg": k,
+            "forma_reale": {"casa": real["real_form"][0], "ospite": real["real_form"][1]},
+            "gare": {"casa": games[0], "ospite": games[1]},
+            "quota_xg_attacco": {"casa": alpha + (1 - alpha) * k / (games[0] + k) if k > 0 else alpha,
+                                 "ospite": alpha + (1 - alpha) * k / (games[1] + k) if k > 0 else alpha},
+            "formula": "termine forma = φ·(FR casa − FR ospite)/2, al posto della forma W-D-L; α_eff = α + (1−α)·k/(n+k)"}
 
 
 def _legacy_expected_goals(config: MatchConfig) -> tuple[float, float, dict[str, Any]]:
