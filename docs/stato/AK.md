@@ -57,7 +57,7 @@ Ramo: `fase-ak-motore-eventi` (da `main` dopo la fase AH). `docs/FONTI.md` non e
    Test `test_event_dictionary.py` (un test per termine con beta di prova: si muove solo il tasso dichiarato, nel verso giusto).
    Download dettaglio StatsBomb: `python -m tools.minute_data --statsbomb-dettaglio` (in sequenza, pausa 1 s, ripresa dai file
    `.parziale`, log in `data/cache/minuto/dettaglio.log`; fonte da citare «Data: StatsBomb Open Data», StatsBomb Open Data User
-   Agreement). Avviato il 30/10: se non è finito, rilanciarlo riprende da dove si era fermato.
+   Agreement). COMPLETATO il 30/10: 1.551 partite (Premier 380, Liga 380, Serie A 380, Bundesliga 34, Ligue 1 377), ~0,8 MB in 5 file `statsbomb_dettaglio_*.json.gz`.
 2. `tools/stima_motore.py` → `config/motore_eventi.json` (incroci, xG per tipo, stato di partita, arbitri `referee_stats.py`): DA FARE
    (prima: download del dettaglio StatsBomb, vedi decisione sopra)
 3-5. Stato della partita, azioni a passi, tiri e gol (`event_engine.py`): DA FARE
