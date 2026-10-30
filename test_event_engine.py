@@ -398,3 +398,66 @@ def test_eventi_di_arresto_con_la_regola():
             "1 corner"} <= set(events)
     points = ee.card_points(out, engine.CardRule())
     assert (events["Over 4.5 cartellini"] == (points > 4.5)).all()
+
+
+# ---------------------------------------------------------------------------------------------------------- stadio 11
+
+
+def _engine_config(**changes):
+    import engine
+    from parser import parse_match_input
+    from test_parser import COMPLETE_COPY_BLOCK
+    config = dataclasses.replace(engine.config_from_input(parse_match_input(COMPLETE_COPY_BLOCK), simulations=30_000, seed=7),
+                                 league="I1")
+    return dataclasses.replace(config, event_engine=dataclasses.replace(config.event_engine, **changes))
+
+
+def test_motore_a_eventi_spento_di_default(tmp_path):
+    import engine
+    assert engine.DEFAULT_EVENT_ENGINE.active is False
+    assert engine.load_event_engine().active is False
+    assert engine.load_event_engine(tmp_path / "manca.json") == engine.EventEngineParams()
+    result = engine.simulate_match(_engine_config(minimum=1))   # spento: nessun effetto delle altre opzioni
+    assert result["event_engine"] == {"active": False} and result["model"]["simulation_count"] == 30_000
+
+
+def test_motore_a_eventi_collegato_a_match_config():
+    import engine
+    off = engine.simulate_match(_engine_config())
+    on = engine.simulate_match(_engine_config(active=True, batch=5_000, minimum=10_000, pilot=5_000))
+    details = on["event_engine"]
+    size = details["simulazioni"]
+    assert details["active"] and details["parametri"] == "Serie A" and 10_000 <= size <= 30_000
+    assert on["model"]["simulation_count"] == size
+    assert details["arresto"]["errore_pp"] <= 0.25 or size == 30_000
+    # Stessi punteggi Dixon-Coles (i primi n): 1X2 entro il rumore Monte Carlo, medie di corner e cartellini quelle attuali.
+    for sign in ("1", "X", "2"):
+        assert on["markets"]["1x2"][sign]["percentage"] == pytest.approx(off["markets"]["1x2"][sign]["percentage"], abs=1.5)
+    assert on["markets"]["corners"]["mean"] == pytest.approx(off["markets"]["corners"]["mean"], rel=0.04)
+    assert on["markets"]["cards"]["mean"] == pytest.approx(off["markets"]["cards"]["mean"], rel=0.05)
+    assert on["markets"]["cards"]["Over_3.5"]["percentage"] == pytest.approx(off["markets"]["cards"]["Over_3.5"]["percentage"], abs=4)
+    # Primo tempo dal motore a eventi, vicino alla quota tarata.
+    assert on["markets"]["first_half_1x2"]["X"]["percentage"] == pytest.approx(off["markets"]["first_half_1x2"]["X"]["percentage"], abs=2)
+    assert {row["passata"] for row in details["coerenza"]} >= {"verifica", "obiettivo"}
+    assert set(details["scale"]) == {"home", "away"} and any(r["voce"] == "dispersione" for r in details["ledger"])
+    # Riproducibile.
+    again = engine.simulate_match(_engine_config(active=True, batch=5_000, minimum=10_000, pilot=5_000))
+    assert again["markets"]["corners"] == on["markets"]["corners"]
+
+
+def test_campioni_del_combo_builder_dal_motore_a_eventi():
+    import engine
+    config = dataclasses.replace(_engine_config(active=True, batch=5_000, minimum=5_000, pilot=5_000, tolerance_pp=5.0),
+                                 keep_samples=True)
+    result = engine.simulate_match(config)
+    assert result["sample_size"] == result["event_engine"]["simulazioni"] == 5_000
+    bits = result["event_samples"]["Over 9.5 corner"]
+    assert np.unpackbits(bits)[:5_000].mean() * 100 == pytest.approx(result["markets"]["corners"]["Over_9.5"]["percentage"], abs=0.01)
+
+
+def test_motore_a_eventi_e_blocchi_non_insieme():
+    import engine
+    config = _engine_config(active=True)
+    config = dataclasses.replace(config, timeline=dataclasses.replace(config.timeline, active=True))
+    with pytest.raises(ValueError, match="non possono essere accesi insieme"):
+        engine.simulate_match(config)

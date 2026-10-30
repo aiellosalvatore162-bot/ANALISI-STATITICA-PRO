@@ -7,7 +7,8 @@ used here.
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field, fields
+from dataclasses import asdict, dataclass, field, fields, replace
+from functools import lru_cache
 import json
 import math
 from pathlib import Path
@@ -427,6 +428,45 @@ import timeline as _timeline  # noqa: E402  (motore minuto per minuto, fase O)
 
 DEFAULT_TIMELINE = _timeline.load(GOAL_MODEL_PATH)
 
+import event_engine as _event_engine  # noqa: E402  (motore a eventi, fase AK)
+
+
+@dataclass(frozen=True)
+class EventEngineParams:
+    """Fase AK: motore a eventi (sezione ``motore_eventi`` di ``config/goal_model.json``). Con ``active`` i punteggi restano
+    quelli Dixon-Coles e il motore a eventi genera primo tempo, corner, falli e cartellini, riscalati sulle medie attuali
+    (``event_engine.coherence``) e con arresto adattivo (``event_engine.simulate_adaptive``). Spento finché lo stadio 14 non
+    lo verifica."""
+
+    active: bool = False
+    step_minutes: int = 5
+    pilot: int = 10_000
+    passes: int = 2
+    batch: int = 10_000
+    minimum: int = 20_000
+    tolerance_pp: float = 0.25
+    lanes: bool = False
+
+
+def load_event_engine(path: Path = GOAL_MODEL_PATH) -> EventEngineParams:
+    if not path.exists():
+        return EventEngineParams()
+    section = json.loads(path.read_text(encoding="utf-8")).get("motore_eventi", {})
+    return EventEngineParams(
+        active=bool(section.get("attivo", False)), step_minutes=int(section.get("passo_minuti", 5)),
+        pilot=int(section.get("pilota", 10_000)), passes=int(section.get("passate", 2)),
+        batch=int(section.get("lotto", 10_000)), minimum=int(section.get("minimo", 20_000)),
+        tolerance_pp=float(section.get("tolleranza_pp", 0.25)), lanes=bool(section.get("corsie", False)),
+    )
+
+
+DEFAULT_EVENT_ENGINE = load_event_engine()
+
+
+@lru_cache(maxsize=16)
+def _event_params(league: str | None) -> "_event_engine.EventParams":
+    return _event_engine.load(league)
+
 
 @dataclass(frozen=True)
 class StyleModelParams:
@@ -559,6 +599,10 @@ class MatchConfig:
     # f moltiplica i gol della squadra (formazione vs XI tipo, già con l'esponente stimato), g quelli dell'avversario
     # (difesa indebolita). Agisce sul modello PRIMA dell'ancoraggio al mercato; None = come prima.
     lineup: Mapping[str, Mapping[str, float]] | None = None
+    # Fase AK: motore a eventi (spento di default) e suoi ingressi facoltativi per lato «home»/«away»: {"profile": termini
+    # del dizionario tattico, "module": «4-3-3»}; None = nessun profilo (solo medie e stato della partita).
+    event_engine: EventEngineParams = DEFAULT_EVENT_ENGINE
+    event_inputs: Mapping[str, Mapping[str, Any]] | None = None
 
     def __post_init__(self) -> None:
         if self.goal_model not in GOAL_MODELS:
@@ -1917,6 +1961,63 @@ def _count_samples(rng: np.random.Generator, mean: float, dispersion: float, siz
     return rng.poisson(mean, size)
 
 
+def _first_half_targets(config: MatchConfig, lambda_: float, mu: float) -> tuple[float, float]:
+    """Quota dei gol nel primo tempo per squadra: tarata (``primo_tempo``) × fattore tattico."""
+    home_share, away_share = first_half_shares(lambda_, mu, config.half_time)
+    tactical = _tactical(config, "first_half")
+    if tactical is not None:
+        home_share = float(np.clip(home_share * tactical.first_half, 0.05, 0.95))
+        away_share = float(np.clip(away_share * tactical.first_half, 0.05, 0.95))
+    return float(home_share), float(away_share)
+
+
+def event_engine_sample(config: MatchConfig, lambda_: float, mu: float, scores: tuple[np.ndarray, np.ndarray],
+                        corners: tuple[float, float], yellow_mean: float, home_card_share: float) -> tuple[dict, dict]:
+    """Fase AK: eventi della partita dal motore a eventi sui punteggi Dixon-Coles ``scores``, con le medie attuali come
+    vincolo (corner per squadra, gialli divisi con ``home_card_share``, rossi = ``card_red_ratio`` × gialli, varianze della
+    binomiale negativa, quota del primo tempo) e arresto adattivo. Restituisce (campione, dettagli per il risultato)."""
+    settings, count = config.event_engine, config.count_model
+    params = _event_params(config.league)
+    shares = _first_half_targets(config, lambda_, mu)
+    inputs = config.event_inputs or {}
+
+    def team(side: str, goals: float, share: float) -> _event_engine.TeamInput:
+        extra = inputs.get(side) or {}
+        return _event_engine.TeamInput(goals, profile=extra.get("profile") or {}, first_share=share, module=extra.get("module"))
+
+    sigma = config.v2.uncertainty_active
+    rule = config.card_rule
+    targets = _event_engine.Targets(
+        corners=(float(corners[0]), float(corners[1])),
+        yellows=(yellow_mean * home_card_share, yellow_mean * (1.0 - home_card_share)),
+        reds=count.card_red_ratio * yellow_mean,
+        double_share=rule.double_yellow_share if rule.double_yellow_extra else None,
+        corner_variance=_event_engine.count_variance(sum(corners), count.corner_dispersion if count.active else 0.0,
+                                                     config.v2.sigma_corners if sigma else 0.0),
+        yellow_variance=_event_engine.count_variance(yellow_mean, count.card_dispersion if count.active else 0.0,
+                                                     config.v2.sigma_cards if sigma else 0.0),
+        first_share=shares,
+    )
+    options = {"step_minutes": settings.step_minutes, "lanes": settings.lanes}
+    home, away, mix, rows = _event_engine.coherence(
+        np.random.default_rng([config.seed, 4]), team("home", lambda_, shares[0]), team("away", mu, shares[1]), params, targets,
+        scores=scores, pilot=settings.pilot, passes=settings.passes, **options)
+    sample = _event_engine.simulate_adaptive(
+        np.random.default_rng([config.seed, 5]), home, away, params, maximum=len(scores[0]), batch=settings.batch,
+        minimum=settings.minimum, tolerance_pp=settings.tolerance_pp, scores=scores, rule=rule, mix=mix, **options)
+    details = {
+        "active": True, "parametri": params.source, "nota": params.note, "simulazioni": sample["adaptive"]["simulazioni"],
+        "arresto": sample["adaptive"], "coerenza": rows, "dispersione": mix,
+        "scale": {side: {key: round(float(getattr(value, key)), 4) for key in (
+            "corner_scale", "card_scale", "red_scale", "second_yellow_scale", "first_share")}
+            for side, value in (("home", home), ("away", away))},
+        "ledger": sample["ledger"], "warnings": sample["warnings"],
+        "medie": {key: round(value, 4) for key, value in _event_engine.summary(sample).items()},
+        "falli": "media del campionato (StatsBomb) senza effetto dell'arbitro: i gialli seguono già la media attuale",
+    }
+    return sample, details
+
+
 def _sample_scores(config: MatchConfig, lambda_: float, mu: float) -> tuple[np.ndarray, ...]:
     """Sample full-time scores from Dixon-Coles and split them across halves.
 
@@ -1956,11 +2057,7 @@ def _sample_scores(config: MatchConfig, lambda_: float, mu: float) -> tuple[np.n
             p=score_probabilities.ravel(),
         )
         goals_home, goals_away = np.unravel_index(score_samples, score_probabilities.shape)
-    home_share, away_share = first_half_shares(lambda_, mu, config.half_time)
-    tactical = _tactical(config, "first_half")
-    if tactical is not None:
-        home_share = float(np.clip(home_share * tactical.first_half, 0.05, 0.95))
-        away_share = float(np.clip(away_share * tactical.first_half, 0.05, 0.95))
+    home_share, away_share = _first_half_targets(config, lambda_, mu)
     return (
         goals_home, goals_away,
         rng.binomial(goals_home, float(home_share)), rng.binomial(goals_away, float(away_share)),
@@ -2008,6 +2105,8 @@ def simulate_match(config: MatchConfig) -> dict[str, Any]:
     market below samples goals again, so all score-dependent probabilities are
     projections of the same exact-score observations.
     """
+    if config.event_engine.active and config.timeline.active:
+        raise ValueError("Motore a blocchi (fase O) e motore a eventi (fase AK) non possono essere accesi insieme.")
     lambda_, mu, details = final_goal_rates(config)
     ledger, anchoring = details["ledger"], details["anchoring"]
     goals_home, goals_away, first_home, first_away = _sample_scores(config, lambda_, mu)
@@ -2092,6 +2191,27 @@ def simulate_match(config: MatchConfig) -> dict[str, Any]:
     cards_first_away = card_points(half_rng.binomial(away_yellows, card_share), half_rng.binomial(away_reds, card_share), rule)
     counts = (home_corners, away_corners, home_cards, away_cards,
               corners_first_home, corners_first_away, cards_first_home, cards_first_away)
+    event_details = {"active": False}
+    if config.event_engine.active:
+        # Fase AK: stessi punteggi Dixon-Coles; primo tempo, corner e cartellini dal motore a eventi (medie attuali come
+        # vincolo). Con l'arresto adattivo il campione si accorcia ai primi n punteggi, per TUTTI i mercati.
+        sample, event_details = event_engine_sample(config, lambda_, mu, (goals_home, goals_away),
+                                                    (home_corner_signal, away_corner_signal), yellow_mean, home_card_share)
+        size = event_details["simulazioni"]
+        if size < config.simulations:
+            config = replace(config, simulations=size)
+        goals_home, goals_away = goals_home[:size], goals_away[:size]
+        first_home, first_away = sample["first_home"], sample["first_away"]
+        second_home, second_away = goals_home - first_home, goals_away - first_away
+        home_corners, away_corners = sample["corners_home"], sample["corners_away"]
+        corners = home_corners + away_corners
+        home_cards = card_points(sample["yellows_home"], sample["reds_home"], rule, sample["double_yellows_home"])
+        away_cards = card_points(sample["yellows_away"], sample["reds_away"], rule, sample["double_yellows_away"])
+        cards = home_cards + away_cards
+        counts = (home_corners, away_corners, home_cards, away_cards,
+                  sample["corners_first_home"], sample["corners_first_away"],
+                  card_points(sample["yellows_first_home"], sample["reds_first_home"], rule),
+                  card_points(sample["yellows_first_away"], sample["reds_first_away"], rule))
 
     events = _events_for_scores(config, (goals_home, goals_away, first_home, first_away), counts)
     finale, recalibrated = apply_recalibration(_event_percentages(events), config.v2)
@@ -2215,6 +2335,7 @@ def simulate_match(config: MatchConfig) -> dict[str, Any]:
     result["count_anchoring"] = count_anchoring(config)
     result["card_split"] = card_split_details
     result["timeline"] = timeline_details
+    result["event_engine"] = event_details
     result["recalibrated"] = recalibrated  # fase P, punto 4: mercati con la mappa finale accesa
     result["components"] = components
     result["exact_scores"] = exact_scores

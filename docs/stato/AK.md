@@ -163,7 +163,26 @@ Ramo: `fase-ak-motore-eventi` (da `main` dopo la fase AH). `docs/FONTI.md` non e
    Il collo di bottiglia restano le estrazioni casuali (già vettoriali su tutte le simulazioni): 100.000 partite ~2,9 s;
    con l'arresto (Premier λ 1,6/μ 1,1) 40.000 partite in ~1,2 s (tolleranza 0,25), 70.000 in 2,3 s (0,20); l'evento più
    lento è sempre la linea dei corner vicina al 50% (Over 10.5). Test in `test_event_engine.py` (32).
-11. Aggancio a `MatchConfig` e mercati dagli stessi campioni: DA FARE
+11. FATTO (30/10): aggancio a `engine.simulate_match`. Sezione `motore_eventi` di `config/goal_model.json` (`attivo: false`,
+   `passo_minuti` 5, `pilota` 10.000, `passate` 2, `lotto` 10.000, `minimo` 20.000, `tolleranza_pp` 0,25, `corsie` false) letta
+   in `engine.EventEngineParams` → `MatchConfig.event_engine` (default spento); ingressi facoltativi `MatchConfig.event_inputs`
+   = {"home"/"away": {"profile": termini del dizionario, "module": «4-3-3»}} (None = solo medie e stato della partita; il
+   collegamento con le schede tattiche dell'app è dello stadio 15). Parametri del campionato da `MatchConfig.league`
+   (`engine._event_params`, in cache). Con `attivo`:
+   - punteggi Dixon-Coles invariati (modo «punteggi»); `engine.event_engine_sample` costruisce i `Targets` dalle medie FINALI
+     (corner per squadra di `corner_signals`, gialli di `card_total_mean` divisi con la quota di casa della fase T, rossi =
+     `card_red_ratio` × gialli, doppie ammonizioni solo se la regola le pesa, varianze con dispersione e σ attuali, quota del
+     primo tempo tarata × fattore tattico = `_first_half_targets`), applica `coherence` e `simulate_adaptive` (semi [seed, 4] e
+     [seed, 5]);
+   - primo tempo (gol), corner totali/per squadra/1T e punti cartellino totali/per squadra/1T vengono dal motore a eventi;
+   - con l'arresto adattivo il campione è accorciato ai primi n punteggi e `config.simulations` = n per TUTTO (mercati, componenti
+     modello/mercato, esatti, `event_samples` del combo builder, `simulation_count`): tutti i mercati restano dallo stesso campione;
+   - `result["event_engine"]` = parametri, simulazioni, arresto, righe della coerenza, dispersione, scale, ledger, avvisi, medie;
+     spento = {"active": False}. Fase O e fase AK accese insieme → errore esplicito.
+   - Falli: media del campionato senza arbitro (i gialli seguono già la media attuale che contiene l'arbitro); niente mercati falli.
+   Esempio (blocco completo dei test, Serie A, 100.000 simulazioni): spento 2,1 s; acceso 3,0 s con arresto a 40.000; 1X2
+   36,5/26,8/36,7 → 36,6/27,1/36,3; corner medi 4,47 → 4,49; punti cartellino 3,75 → 3,68 (Over 3.5 49,5 → 48,3).
+   Test in `test_event_engine.py` (36): spento di default e senza effetti, aggancio, campioni del combo builder, esclusione con la fase O.
 12-13. Realismo e test di buon senso: DA FARE
 14. Banco fuori campione (3 stagioni, 5 campionati) → `docs/backtest/AK_motore_eventi.md`: DA FARE
 15. «Vedi come andrà»: DA FARE

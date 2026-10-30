@@ -1248,5 +1248,16 @@
       "tenuta": true,
       "partite": 26003
     }
+  },
+  "motore_eventi": {
+    "attivo": false,
+    "passo_minuti": 5,
+    "pilota": 10000,
+    "passate": 2,
+    "lotto": 10000,
+    "minimo": 20000,
+    "tolleranza_pp": 0.25,
+    "corsie": false,
+    "nota": "Motore a eventi della fase AK (event_engine.py, parametri in config/motore_eventi.json): punteggi Dixon-Coles fissi, eventi condizionati e riscalati sulle medie attuali di corner e cartellini (vincolo di coerenza), arresto adattivo. Spento finché la verifica fuori campione dello stadio 14 non lo accende."
   }
 }
