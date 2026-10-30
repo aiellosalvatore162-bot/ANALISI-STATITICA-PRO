@@ -69,5 +69,9 @@ Ramo: `fase-ak-motore-eventi` (da `main` dopo la fase AH). `docs/FONTI.md` non e
 16. Test, merge, push: DA FARE
 
 ## Note
+- Verifica Bundesliga (30/10): l'elenco partite StatsBomb per 1. Bundesliga 2015/2016 (competizione 9, stagione 27) contiene
+  esattamente 34 partite, tutte del Bayer Leverkusen (34 su 34). Il download è COMPLETO: è StatsBomb che pubblica solo quelle.
+  DECISIONE: nessun effetto proprio per la Bundesliga; le 34 partite entrano solo nelle stime comuni (non per campionato) e per la
+  Bundesliga si usano i valori stimati sugli altri campionati, dichiarato in `config/motore_eventi.json`.
 - Prossimo: stadio 2 (`tools/stima_motore.py`) sui file `statsbomb_dettaglio_*.json.gz` + `stili_statsbomb.json.gz` + CSV; poi riempire i beta del dizionario.
 - La conversazione che ha fatto la ricognizione era già molto lunga: il lavoro riparte da qui in una nuova sessione.
