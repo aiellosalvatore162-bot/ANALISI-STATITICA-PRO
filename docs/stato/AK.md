@@ -193,7 +193,10 @@ Ramo: `fase-ak-motore-eventi` (da `main` dopo la fase AH). `docs/FONTI.md` non e
   esattamente 34 partite, tutte del Bayer Leverkusen (34 su 34). Il download è COMPLETO: è StatsBomb che pubblica solo quelle.
   DECISIONE: nessun effetto proprio per la Bundesliga; le 34 partite entrano solo nelle stime comuni (non per campionato) e per la
   Bundesliga si usano i valori stimati sugli altri campionati, dichiarato in `config/motore_eventi.json`.
-- Prossimo: stadi 9-11 (vincolo di coerenza: `*_scale` per squadra dalle medie attuali di corner e gialli, dispersione dei corner,
-  quota del primo tempo nel modo libero; aggancio con `MatchConfig`; arresto adattivo; mercati dagli stessi campioni).
+- Prossimo: stadi 12-13 (realismo e test di buon senso del motore acceso su partite tipo: favorita netta, partita chiusa,
+  espulsione presto, arbitro severo), poi il banco dello stadio 14 che decide `motore_eventi.attivo`. Il modo «libero» resta
+  solo nello strumento (non collegato all'app: cambierebbe i punteggi Dixon-Coles).
+- 30/10: stadi 9-11 fatti in una nuova sessione e uniti a `main`; il motore a eventi è collegato ma SPENTO
+  (`config/goal_model.json` → `motore_eventi.attivo: false`): l'app non cambia finché lo stadio 14 non lo accende.
 - 30/10: stadi 6-8 fatti in una nuova sessione sul ramo `fase-ak-motore-eventi` e uniti a `main` (motore ancora non collegato).
 - 30/10: stadi 3-5 fatti in una nuova sessione e ramo unito a `main` (il motore a eventi non è collegato all'app).
