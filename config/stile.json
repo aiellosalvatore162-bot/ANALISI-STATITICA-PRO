@@ -3,19 +3,47 @@
   "finestra_gare": 8,
   "emivita_gare": 4.0,
   "shrinkage_k": {
-    "forma_reale": 6.0, "possesso": 8.0, "verticalita": 8.0, "fasce": 10.0, "blocco_pressing": 8.0,
-    "aggressivita": 10.0, "palle_inattive": 12.0
+    "forma_reale": 6.0,
+    "possesso": 8.0,
+    "verticalita": 8.0,
+    "fasce": 10.0,
+    "blocco_pressing": 8.0,
+    "aggressivita": 10.0,
+    "palle_inattive": 12.0
   },
-  "winsorizzazione": {"percentili": [2.0, 98.0], "minimo_valori_campionato": 30},
+  "winsorizzazione": {
+    "percentili": [
+      2.0,
+      98.0
+    ],
+    "minimo_valori_campionato": 30
+  },
   "componenti": {
-    "forma_reale": true, "possesso": true, "verticalita": true, "fasce": true,
-    "blocco_pressing": true, "aggressivita": true, "palle_inattive": true
+    "forma_reale": true,
+    "possesso": true,
+    "verticalita": true,
+    "fasce": true,
+    "blocco_pressing": true,
+    "aggressivita": true,
+    "palle_inattive": true
   },
   "forma_reale": {
     "attiva": true,
     "k_xg": 6.0,
     "peso_gol_xg": "alpha_eff = alpha + (1 - alpha) * k_xg / (n + k_xg)",
-    "phi": 0.0,
-    "stimato": null
+    "phi": 0.03831,
+    "stimato": {
+      "data": "2026-10-30",
+      "partite": 10705,
+      "campionati": [
+        "I1",
+        "E0",
+        "D1",
+        "SC0",
+        "D2"
+      ],
+      "ridge": 0.01,
+      "ultima_stagione": "2526"
+    }
   }
 }
