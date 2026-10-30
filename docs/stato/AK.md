@@ -141,7 +141,48 @@ Ramo: `fase-ak-motore-eventi` (da `main` dopo la fase AH). `docs/FONTI.md` non e
      0,17/0,16, 0,29/0,29, 0,29/0,34, 0,22/0,31. Varianza dei corner totali 11,1 contro 13,0 osservata (Premier): manca
      l'eterogeneità tra squadre, da recuperare nello stadio 9 con le medie per squadra e la dispersione attuale.
    - Tempo: 100.000 simulazioni modo punteggi ~2,9 s (era ~1,8 s senza conteggi). Test: `test_event_engine.py` (25).
-9-11. Vincolo di coerenza (riscalatura sulle medie attuali), simulazione vettoriale con arresto adattivo, mercati dagli stessi campioni: DA FARE
+9. FATTO (30/10): vincolo di coerenza in `event_engine.coherence(rng, casa, ospite, params, Targets(...), scores=..., pilot=10_000,
+   passes=2)`. `Targets` = medie del motore attuale DOPO ancoraggio, divisione dei cartellini (fase T) e Claude: corner per squadra,
+   gialli per squadra, rossi totali (`card_red_ratio` × gialli), quota dei rossi da doppia ammonizione (solo se la regola la
+   dichiara, altrimenti resta quella stimata qui), varianza dei corner e dei gialli totali (`count_variance`: Poisson-gamma con la
+   dispersione attuale e l'eventuale σ della fase P), quota tarata dei gol nel primo tempo. Su 2 passate pilota (10.000 partite)
+   riscala `corner_scale` (SOLO i corner di gioco: quelli da tiro restano generati dai tiri parati/respinti), `card_scale`, i nuovi
+   `red_scale` e `second_yellow_scale` (rossi diretti e seconde gialle), e `first_share` in ingresso (risolve lo scarto della quota
+   del primo tempo: ora entro il rumore del pilota, ~0,01). Poi una passata di verifica stima la dispersione mancante: moltiplicatori
+   gamma per simulazione con media 1 (`simulate(mix={"corner": v, "cards": v})`, sui corner di gioco e sulla probabilità di giallo,
+   condivisi tra le due squadre) con v = (varianza obiettivo − varianza ottenuta) / media²; voce `dispersione` nel ledger.
+   Esempio Serie A (λ 1,7 / μ 0,9, obiettivi corner 6,1/3,9, gialli 1,9/2,6, rossi 0,25, varianza corner 18,3 e gialli 7,0):
+   ottenuti corner 6,13/3,91, gialli 1,88/2,58, varianza 18,3 e 6,8 (prima del mix 10,7 e 4,5: era l'eterogeneità mancante dello
+   stadio 8), quota 1T 0,443/0,441. Costo ~0,9 s (3 simulazioni da 10.000). Test: `test_event_engine.py` (29).
+10. FATTO (30/10): `event_engine.simulate_adaptive(rng, casa, ospite, params, maximum=100_000, batch=10_000, minimum=20_000,
+   tolerance_pp=0.25, scores=..., rule=...)`: lotti vettoriali (ogni lotto è una `simulate` su tutti i passi), dopo `minimum`
+   partite si ferma appena l'errore standard Monte Carlo di TUTTI gli eventi di `stop_events` (linee di corner e cartellini
+   totali, per squadra e nel primo tempo, gol del primo tempo, 1X2 corner; punti con la regola del bookmaker) è ≤ 0,25 punti
+   percentuali (IC 95% ±0,5), al più 100.000. Con i punteggi Dixon-Coles usa i PRIMI n (campione casuale anch'esso), così gli
+   stessi n punteggi servono tutti i mercati. `sample["adaptive"]` = simulazioni, lotti, errore raggiunto, evento peggiore, motivo.
+   Il collo di bottiglia restano le estrazioni casuali (già vettoriali su tutte le simulazioni): 100.000 partite ~2,9 s;
+   con l'arresto (Premier λ 1,6/μ 1,1) 40.000 partite in ~1,2 s (tolleranza 0,25), 70.000 in 2,3 s (0,20); l'evento più
+   lento è sempre la linea dei corner vicina al 50% (Over 10.5). Test in `test_event_engine.py` (32).
+11. FATTO (30/10): aggancio a `engine.simulate_match`. Sezione `motore_eventi` di `config/goal_model.json` (`attivo: false`,
+   `passo_minuti` 5, `pilota` 10.000, `passate` 2, `lotto` 10.000, `minimo` 20.000, `tolleranza_pp` 0,25, `corsie` false) letta
+   in `engine.EventEngineParams` → `MatchConfig.event_engine` (default spento); ingressi facoltativi `MatchConfig.event_inputs`
+   = {"home"/"away": {"profile": termini del dizionario, "module": «4-3-3»}} (None = solo medie e stato della partita; il
+   collegamento con le schede tattiche dell'app è dello stadio 15). Parametri del campionato da `MatchConfig.league`
+   (`engine._event_params`, in cache). Con `attivo`:
+   - punteggi Dixon-Coles invariati (modo «punteggi»); `engine.event_engine_sample` costruisce i `Targets` dalle medie FINALI
+     (corner per squadra di `corner_signals`, gialli di `card_total_mean` divisi con la quota di casa della fase T, rossi =
+     `card_red_ratio` × gialli, doppie ammonizioni solo se la regola le pesa, varianze con dispersione e σ attuali, quota del
+     primo tempo tarata × fattore tattico = `_first_half_targets`), applica `coherence` e `simulate_adaptive` (semi [seed, 4] e
+     [seed, 5]);
+   - primo tempo (gol), corner totali/per squadra/1T e punti cartellino totali/per squadra/1T vengono dal motore a eventi;
+   - con l'arresto adattivo il campione è accorciato ai primi n punteggi e `config.simulations` = n per TUTTO (mercati, componenti
+     modello/mercato, esatti, `event_samples` del combo builder, `simulation_count`): tutti i mercati restano dallo stesso campione;
+   - `result["event_engine"]` = parametri, simulazioni, arresto, righe della coerenza, dispersione, scale, ledger, avvisi, medie;
+     spento = {"active": False}. Fase O e fase AK accese insieme → errore esplicito.
+   - Falli: media del campionato senza arbitro (i gialli seguono già la media attuale che contiene l'arbitro); niente mercati falli.
+   Esempio (blocco completo dei test, Serie A, 100.000 simulazioni): spento 2,1 s; acceso 3,0 s con arresto a 40.000; 1X2
+   36,5/26,8/36,7 → 36,6/27,1/36,3; corner medi 4,47 → 4,49; punti cartellino 3,75 → 3,68 (Over 3.5 49,5 → 48,3).
+   Test in `test_event_engine.py` (36): spento di default e senza effetti, aggancio, campioni del combo builder, esclusione con la fase O.
 12-13. Realismo e test di buon senso: DA FARE
 14. Banco fuori campione (3 stagioni, 5 campionati) → `docs/backtest/AK_motore_eventi.md`: DA FARE
 15. «Vedi come andrà»: DA FARE
@@ -152,7 +193,10 @@ Ramo: `fase-ak-motore-eventi` (da `main` dopo la fase AH). `docs/FONTI.md` non e
   esattamente 34 partite, tutte del Bayer Leverkusen (34 su 34). Il download è COMPLETO: è StatsBomb che pubblica solo quelle.
   DECISIONE: nessun effetto proprio per la Bundesliga; le 34 partite entrano solo nelle stime comuni (non per campionato) e per la
   Bundesliga si usano i valori stimati sugli altri campionati, dichiarato in `config/motore_eventi.json`.
-- Prossimo: stadi 9-11 (vincolo di coerenza: `*_scale` per squadra dalle medie attuali di corner e gialli, dispersione dei corner,
-  quota del primo tempo nel modo libero; aggancio con `MatchConfig`; arresto adattivo; mercati dagli stessi campioni).
+- Prossimo: stadi 12-13 (realismo e test di buon senso del motore acceso su partite tipo: favorita netta, partita chiusa,
+  espulsione presto, arbitro severo), poi il banco dello stadio 14 che decide `motore_eventi.attivo`. Il modo «libero» resta
+  solo nello strumento (non collegato all'app: cambierebbe i punteggi Dixon-Coles).
+- 30/10: stadi 9-11 fatti in una nuova sessione e uniti a `main`; il motore a eventi è collegato ma SPENTO
+  (`config/goal_model.json` → `motore_eventi.attivo: false`): l'app non cambia finché lo stadio 14 non lo accende.
 - 30/10: stadi 6-8 fatti in una nuova sessione sul ramo `fase-ak-motore-eventi` e uniti a `main` (motore ancora non collegato).
 - 30/10: stadi 3-5 fatti in una nuova sessione e ramo unito a `main` (il motore a eventi non è collegato all'app).

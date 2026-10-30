@@ -42,7 +42,7 @@ coerenza dello stadio 9); con scala 1 restano le medie StatsBomb del campionato.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace as dataclasses_replace
 import json
 import math
 from pathlib import Path
@@ -205,6 +205,8 @@ class TeamInput:
     corner_scale: float = 1.0            # scale del vincolo di coerenza (stadio 9) sulle medie attuali
     foul_scale: float = 1.0
     card_scale: float = 1.0
+    red_scale: float = 1.0               # rossi diretti per fallo (stadio 9)
+    second_yellow_scale: float = 1.0     # seconde gialle (stadio 9)
 
 
 @dataclass(frozen=True)
@@ -409,15 +411,19 @@ class CountTables:
     corner_other: np.ndarray
     fouls: np.ndarray
     yellow: np.ndarray
+    straight_red: float = 0.0
+    second_yellow: float = 0.0
 
 
 def build_count_tables(params: EventParams, step_minutes: int, *, cross: float = 1.0, other: float = 1.0,
-                       fouls: float = 1.0, yellow: float = 1.0) -> CountTables:
+                       fouls: float = 1.0, yellow: float = 1.0, red: float = 1.0, second: float = 1.0) -> CountTables:
     corner = count_profile(params, params.state_corner, params.band_corner, step_minutes)
     foul = count_profile(params, params.state_fouls, params.band_fouls, step_minutes)
     ratio = ratio_profile(params, params.state_yellow, params.band_yellow, params.state_fouls, params.band_fouls, step_minutes)
     return CountTables(corner_cross=params.corners[0] * cross * corner, corner_other=params.corners[1] * other * corner,
-                       fouls=params.fouls * fouls * foul, yellow=np.clip(params.yellow_per_foul * yellow * ratio, 0.0, 1.0))
+                       fouls=params.fouls * fouls * foul, yellow=np.clip(params.yellow_per_foul * yellow * ratio, 0.0, 1.0),
+                       straight_red=min(params.straight_red_per_foul * red, 1.0),
+                       second_yellow=min(params.second_yellow * second, 1.0))
 
 
 def base_goals(params: EventParams, types: np.ndarray) -> float:
@@ -435,7 +441,8 @@ def _suffix(values: np.ndarray) -> np.ndarray:
 
 
 def _run(rng: np.random.Generator, n: int, home: Tables, away: Tables, params: EventParams, step_minutes: int,
-         scores: tuple[np.ndarray, np.ndarray] | None, counts: Mapping[str, CountTables] | None = None) -> dict[str, np.ndarray]:
+         scores: tuple[np.ndarray, np.ndarray] | None, counts: Mapping[str, CountTables] | None = None,
+         mix: Mapping[str, np.ndarray] | None = None) -> dict[str, np.ndarray]:
     state = MatchState(n, step_minutes)
     kinds = len(SHOT_TYPES)
     out = {f"{key}_{side}": np.zeros((n, kinds), dtype=np.int64) for key in ("shots", "goals_by_type", "saved")
@@ -493,7 +500,7 @@ def _run(rng: np.random.Generator, n: int, home: Tables, away: Tables, params: E
             scored[side] = goals.sum(axis=1)
             if counts is not None:
                 _count_step(rng, out, counts[side], params, side, s, step, saved.sum(axis=1), men[side],
-                            state.minute + step_minutes / 2)
+                            state.minute + step_minutes / 2, mix)
         # Primo gol: minuto uniforme nel passo; se segnano entrambe nello stesso passo, squadra ∝ gol del passo.
         new = np.isnan(out["first_goal_minute"]) & ((scored["home"] + scored["away"]) > 0)
         if new.any():
@@ -516,23 +523,29 @@ def _run(rng: np.random.Generator, n: int, home: Tables, away: Tables, params: E
 
 
 def _count_step(rng: np.random.Generator, out: dict, table: CountTables, params: EventParams, side: str, s: np.ndarray,
-                step: int, saved: np.ndarray, men: np.ndarray, minute: float) -> None:
-    """Corner, falli e cartellini di una squadra in un passo (stadi 6-8)."""
+                step: int, saved: np.ndarray, men: np.ndarray, minute: float,
+                mix: Mapping[str, np.ndarray] | None = None) -> None:
+    """Corner, falli e cartellini di una squadra in un passo (stadi 6-8). ``mix`` = moltiplicatori per simulazione (media 1)
+    dei corner di gioco e della probabilità di giallo: la dispersione in più dello stadio 9."""
     corner_factor = men_factor(params, "corner_gioco", men)
+    if mix is not None:
+        corner_factor = corner_factor * mix["corner"]
     corners = out[f"corners_by_origin_{side}"]
     corners[:, 0] += rng.binomial(saved, min(params.corner_per_saved, 1.0))
     corners[:, 1] += rng.poisson(table.corner_cross[s, step] * corner_factor)
     corners[:, 2] += rng.poisson(table.corner_other[s, step] * corner_factor)
     foul_factor = men_factor(params, "falli", men)
     fouls = rng.poisson(table.fouls[s, step] * foul_factor)
-    yellow_p = np.clip(table.yellow[s, step] * men_factor(params, "gialli", men) / foul_factor, 0.0, 1.0)
-    cards = rng.binomial(fouls, yellow_p)
-    straight = rng.binomial(fouls - cards, min(params.straight_red_per_foul, 1.0))
+    yellow_p = table.yellow[s, step] * men_factor(params, "gialli", men) / foul_factor
+    if mix is not None:
+        yellow_p = yellow_p * mix["cards"]
+    cards = rng.binomial(fouls, np.clip(yellow_p, 0.0, 1.0))
+    straight = rng.binomial(fouls - cards, table.straight_red)
     # Seconda gialla: solo tra i gialli presi quando la squadra è già ammonita (nel passo, dal secondo giallo in poi) e mai
     # più dei giocatori ammoniti e ancora in campo (ogni doppia ammonizione consuma un primo giallo).
     booked = out[f"yellows_{side}"] - out[f"double_yellows_{side}"]
     eligible = np.where(booked > 0, cards, np.maximum(cards - 1, 0))
-    second = np.minimum(rng.binomial(eligible, min(params.second_yellow, 1.0)), (booked + cards) // 2)
+    second = np.minimum(rng.binomial(eligible, table.second_yellow), (booked + cards) // 2)
     out[f"fouls_{side}"] += fouls
     out[f"yellows_{side}"] += cards - second
     out[f"double_yellows_{side}"] += second
@@ -545,12 +558,13 @@ def _count_step(rng: np.random.Generator, out: dict, table: CountTables, params:
 def simulate(rng: np.random.Generator, n: int, home: TeamInput, away: TeamInput, params: EventParams, *,
              scores: tuple[np.ndarray, np.ndarray] | None = None, step_minutes: int = 5, dictionary=None,
              pilot: int = 20_000, passes: int = 3, referee: RefereeInput | None = None,
-             lanes: bool = False) -> dict[str, Any]:
+             lanes: bool = False, mix: Mapping[str, float] | None = None) -> dict[str, Any]:
     """``n`` partite a eventi. Con ``scores`` (punteggi Dixon-Coles) i gol finali sono quelli; senza, nascono dai tiri e la
     forza si riscala sui gol attesi ``home.goals`` / ``away.goals``. Restituisce gli array per simulazione (tiri, gol e
     parate per tipo, xG, primo tempo, primo gol, passi per stato, corner per origine, falli, gialli, rossi e doppie
     ammonizioni, anche nel primo tempo) più ``ledger`` e ``warnings``. ``referee`` porta l'effetto dell'arbitro su falli e
-    gialli; ``lanes`` accende le corsie dei moduli sui corner da cross (pesi dichiarati, da verificare al banco)."""
+    gialli; ``lanes`` accende le corsie dei moduli sui corner da cross (pesi dichiarati, da verificare al banco); ``mix`` =
+    varianze {«corner», «cards»} dei moltiplicatori gamma per simulazione (stadio 9, ``coherence``)."""
     dictionary = dictionary if dictionary is not None else (tactical_dictionary.load() if home.profile or away.profile else None)
     mult_home, rows_home, warn_home = _profile_multipliers(home.profile, dictionary)
     mult_away, rows_away, warn_away = _profile_multipliers(away.profile, dictionary)
@@ -576,7 +590,8 @@ def simulate(rng: np.random.Generator, n: int, home: TeamInput, away: TeamInput,
         return build_count_tables(
             params, step_minutes, cross=own.get("corner_fasce", 1.0) * conceded * lane[side] * team.corner_scale,
             other=conceded * team.corner_scale, fouls=own.get("falli_fatti", 1.0) * referee_fouls * team.foul_scale,
-            yellow=(referee_yellows / referee_fouls) * team.card_scale / team.foul_scale)
+            yellow=(referee_yellows / referee_fouls) * team.card_scale / team.foul_scale,
+            red=team.red_scale, second=team.second_yellow_scale)
 
     counts = {"home": count_tables(home, mult_home, mult_away, "home"),
               "away": count_tables(away, mult_away, mult_home, "away")}
@@ -593,7 +608,10 @@ def simulate(rng: np.random.Generator, n: int, home: TeamInput, away: TeamInput,
         scores = (np.asarray(scores[0], dtype=np.int64), np.asarray(scores[1], dtype=np.int64))
         if len(scores[0]) != n or len(scores[1]) != n:
             raise ValueError("I punteggi Dixon-Coles devono essere uno per simulazione.")
-    out = _run(rng, n, *tables(), params, step_minutes, scores, counts)
+    mix_vectors = None
+    if mix:
+        mix_vectors = {key: _gamma_mix(rng, float(mix.get(key) or 0.0), n) for key in ("corner", "cards")}
+    out = _run(rng, n, *tables(), params, step_minutes, scores, counts, mix_vectors)
     ledger = [
         {"voce": "parametri", "valore": params.source, "nota": params.note or "config/motore_eventi.json"},
         {"voce": "modo", "valore": "punteggi" if scores is not None else "libero",
@@ -613,12 +631,194 @@ def simulate(rng: np.random.Generator, n: int, home: TeamInput, away: TeamInput,
                                         "falli_scala": (home.foul_scale, away.foul_scale),
                                         "gialli_scala": (home.card_scale, away.card_scale)},
          "nota": "corner per origine, falli, gialli, rossi diretti e seconde gialle; espulsioni con uomo in meno/in più"},
+        {"voce": "dispersione", "valore": {key: round(float(value), 5) for key, value in (mix or {}).items()},
+         "nota": "varianza dei moltiplicatori gamma per simulazione (corner di gioco, giallo per fallo)" if mix else "nessuna"},
     ]
     out.update({"types": SHOT_TYPES, "ledger": ledger, "dictionary_rows": {"casa": rows_home, "ospite": rows_away},
                 "warnings": [*(f"casa: {w}" for w in warn_home), *(f"ospite: {w}" for w in warn_away),
                              *referee_warnings, *lane_warnings],
                 "possession_home": _possession(mult_home, mult_away)})
     return out
+
+
+# ---------------------------------------------------------------------------------------------------------------- stadio 9
+
+
+@dataclass(frozen=True)
+class Targets:
+    """Medie del motore attuale (dopo ancoraggio al mercato, divisione dei cartellini e Claude) che il motore a eventi deve
+    rispettare: le distribuzioni nel tempo e tra le origini restano sue, i livelli no."""
+
+    corners: tuple[float, float]                    # corner attesi casa, ospite
+    yellows: tuple[float, float]                    # gialli attesi casa, ospite
+    reds: float                                     # rossi attesi in totale (diretti + doppie ammonizioni)
+    double_share: float | None = None               # quota dei rossi da doppia ammonizione (None = quella stimata qui)
+    corner_variance: float | None = None            # varianza dei corner totali (binomiale negativa del motore attuale)
+    yellow_variance: float | None = None            # varianza dei gialli totali
+    first_share: tuple[float | None, float | None] = (None, None)   # quota tarata dei gol nel primo tempo
+
+
+def count_variance(mean: float, dispersion: float, sigma: float = 0.0) -> float:
+    """Varianza di un conteggio Poisson-gamma (``dispersion`` = 0: Poisson) con media × exp(σZ − σ²/2)."""
+    if mean <= 0.0:
+        return 0.0
+    inverse = 1.0 / dispersion if dispersion > 0.0 else 0.0
+    return mean + mean ** 2 * ((1.0 + inverse) * math.exp(sigma ** 2) - 1.0)
+
+
+def _ratio(target: float, value: float) -> float:
+    return target / value if value > 1e-12 else 1.0
+
+
+def coherence(rng: np.random.Generator, home: TeamInput, away: TeamInput, params: EventParams, targets: Targets, *,
+              scores: tuple[np.ndarray, np.ndarray] | None = None, pilot: int = 10_000, passes: int = 2,
+              **kwargs) -> tuple[TeamInput, TeamInput, dict[str, float], list[dict[str, Any]]]:
+    """Vincolo di coerenza: riscala corner di gioco, gialli, rossi diretti, seconde gialle e quota del primo tempo su
+    ``passes`` simulazioni pilota di ``pilot`` partite finché le medie sono quelle di ``targets``, poi stima la varianza dei
+    moltiplicatori gamma (``mix``) che riporta la varianza dei corner e dei gialli totali a quella del motore attuale.
+    I corner da tiro restano quelli generati dai tiri: la scala agisce solo su quelli di gioco (cross e «altro»).
+    Restituisce (casa, ospite, mix, righe della verifica)."""
+    size = min(pilot, len(scores[0])) if scores is not None else pilot
+    pilot_scores = (np.asarray(scores[0])[:size], np.asarray(scores[1])[:size]) if scores is not None else None
+    teams = {"home": home, "away": away}
+    goal_targets = dict(zip(("home", "away"), targets.first_share))
+    first_input = {side: teams[side].first_share for side in teams}
+    rows = []
+
+    def pilot_run(label: str) -> dict[str, Any]:
+        sample = simulate(rng, size, teams["home"], teams["away"], params, scores=pilot_scores, **kwargs)
+        means = summary(sample)
+        rows.append({"passata": label, **{key: round(means[key], 4) for key in (
+            "corner_home", "corner_away", "gialli_home", "gialli_away", "gol_1t_home", "gol_1t_away")},
+            "rossi": round(means["rossi_home"] + means["rossi_away"], 4)})
+        return sample
+
+    for index in range(passes):
+        sample = pilot_run(str(index + 1))
+        straight = sum(float(np.mean(sample[f"reds_{side}"] - sample[f"double_yellows_{side}"])) for side in teams)
+        doubles = sum(float(np.mean(sample[f"double_yellows_{side}"])) for side in teams)
+        if targets.double_share is None:
+            red_factor = second_factor = _ratio(targets.reds, straight + doubles)
+        else:
+            red_factor = _ratio(targets.reds * (1.0 - targets.double_share), straight)
+            second_factor = _ratio(targets.reds * targets.double_share, doubles)
+        for position, side in enumerate(("home", "away")):
+            team = teams[side]
+            origin = sample[f"corners_by_origin_{side}"].mean(axis=0)
+            target = targets.corners[position]
+            play = max(target - origin[0], 0.05 * target)
+            changes = {"corner_scale": float(team.corner_scale * _ratio(play, origin[1] + origin[2])) if target > 0 else 1e-6,
+                       "card_scale": team.card_scale * _ratio(targets.yellows[position],
+                                                              float(np.mean(sample[f"yellows_{side}"]))),
+                       "red_scale": team.red_scale * red_factor,
+                       "second_yellow_scale": team.second_yellow_scale * second_factor}
+            goals, first = float(np.mean(sample[f"goals_{side}"])), float(np.mean(sample[f"first_{side}"]))
+            if goal_targets[side] is not None and goals > 0 and first > 0:
+                current = team.first_share if team.first_share is not None else first / goals
+                changes["first_share"] = float(np.clip(current * goal_targets[side] / (first / goals), 0.05, 0.95))
+            teams[side] = dataclasses_replace(team, **changes)
+    sample = pilot_run("verifica")
+    mix = {}
+    play = sum(float(sample[f"corners_by_origin_{side}"][:, 1:].sum(axis=1).mean()) for side in teams)
+    corners = sample["corners_home"] + sample["corners_away"]
+    yellows = sample["yellows_home"] + sample["yellows_away"]
+    if targets.corner_variance is not None and play > 0:
+        mix["corner"] = max(targets.corner_variance - float(np.var(corners)), 0.0) / play ** 2
+    if targets.yellow_variance is not None and yellows.mean() > 0:
+        mix["cards"] = max(targets.yellow_variance - float(np.var(yellows)), 0.0) / float(yellows.mean()) ** 2
+    rows[-1].update({"varianza_corner": round(float(np.var(corners)), 3), "varianza_gialli": round(float(np.var(yellows)), 3)})
+    rows.append({"passata": "obiettivo", "corner_home": targets.corners[0], "corner_away": targets.corners[1],
+                 "gialli_home": targets.yellows[0], "gialli_away": targets.yellows[1], "rossi": targets.reds,
+                 "varianza_corner": targets.corner_variance, "varianza_gialli": targets.yellow_variance,
+                 "quota_1t": targets.first_share, "quota_1t_ingresso": tuple(first_input.values())})
+    return teams["home"], teams["away"], mix, rows
+
+
+# ---------------------------------------------------------------------------------------------------------------- stadio 10
+
+CORNER_LINES = (7.5, 8.5, 9.5, 10.5, 11.5, 12.5)
+CARD_LINES = (2.5, 3.5, 4.5, 5.5, 6.5)
+TEAM_CORNER_LINES = (3.5, 4.5, 5.5)
+TEAM_CARD_LINES = (0.5, 1.5, 2.5)
+
+
+def stop_events(sample: Mapping[str, Any], rule=None) -> dict[str, np.ndarray]:
+    """Eventi su cui si misura l'errore Monte Carlo dell'arresto adattivo: le linee di corner e cartellini (totali e per
+    squadra, anche nel primo tempo) e i gol del primo tempo, cioè quello che il motore a eventi aggiunge ai punteggi."""
+    weights = (rule.yellow_weight, rule.red_weight, rule.double_yellow_extra) if rule is not None else (1, 2, 0)
+
+    def points(side, first=False):
+        if first:
+            return weights[0] * sample[f"yellows_first_{side}"] + weights[1] * sample[f"reds_first_{side}"]
+        return weights[0] * sample[f"yellows_{side}"] + weights[1] * sample[f"reds_{side}"] + weights[2] * sample[f"double_yellows_{side}"]
+
+    corners = sample["corners_home"] + sample["corners_away"]
+    cards = points("home") + points("away")
+    first = sample["first_home"] + sample["first_away"]
+    events = {f"Over {line:g} corner": corners > line for line in CORNER_LINES}
+    events.update({f"Over {line:g} cartellini": cards > line for line in CARD_LINES})
+    events.update({f"Over {line:g} gol 1T": first > line for line in (0.5, 1.5)})
+    events["Over 4.5 corner 1T"] = sample["corners_first_home"] + sample["corners_first_away"] > 4.5
+    events["Over 1.5 cartellini 1T"] = points("home", True) + points("away", True) > 1.5
+    for side, label in (("home", "Casa"), ("away", "Ospite")):
+        events.update({f"{label} Over {line:g} corner": sample[f"corners_{side}"] > line for line in TEAM_CORNER_LINES})
+        events.update({f"{label} Over {line:g} cartellini": points(side) > line for line in TEAM_CARD_LINES})
+    events["1 corner"] = sample["corners_home"] > sample["corners_away"]
+    return events
+
+
+def monte_carlo_error(events: Mapping[str, np.ndarray]) -> tuple[float, str]:
+    """Errore standard Monte Carlo più grande tra gli eventi, in punti percentuali, e l'evento che lo dà."""
+    worst, name = 0.0, ""
+    for key, mask in events.items():
+        p = float(np.mean(mask))
+        error = math.sqrt(p * (1.0 - p) / len(mask)) * 100.0
+        if error > worst:
+            worst, name = error, key
+    return worst, name
+
+
+def _concat(parts: list[dict[str, Any]], n: int) -> dict[str, Any]:
+    out = dict(parts[0])
+    for key, value in parts[0].items():
+        if isinstance(value, np.ndarray) and value.ndim and value.shape[0] == len(parts[0]["goals_home"]):
+            out[key] = np.concatenate([part[key] for part in parts])[:n]
+    return out
+
+
+def simulate_adaptive(rng: np.random.Generator, home: TeamInput, away: TeamInput, params: EventParams, *,
+                      maximum: int = 100_000, batch: int = 10_000, minimum: int = 20_000, tolerance_pp: float = 0.25,
+                      scores: tuple[np.ndarray, np.ndarray] | None = None, rule=None, **kwargs) -> dict[str, Any]:
+    """Simulazione a lotti di ``batch`` partite (ognuno vettoriale) con arresto adattivo: dopo ``minimum`` partite si ferma
+    appena l'errore standard Monte Carlo di tutti gli eventi di ``stop_events`` è ≤ ``tolerance_pp`` punti percentuali, al
+    più ``maximum`` (con ``scores`` = al più i punteggi dati: si usano i primi n, che restano un campione casuale).
+    ``sample["adaptive"]`` dice quante partite, l'errore raggiunto e perché si è fermata."""
+    if scores is not None:
+        scores = (np.asarray(scores[0]), np.asarray(scores[1]))
+        maximum = min(maximum, len(scores[0]))
+    batch, minimum = max(1, min(batch, maximum)), min(max(minimum, 1), maximum)
+    parts, done, error, worst, reason = [], 0, math.inf, "", "massimo raggiunto"
+    while done < maximum:
+        size = min(batch, maximum - done)
+        part_scores = (scores[0][done:done + size], scores[1][done:done + size]) if scores is not None else None
+        parts.append(simulate(rng, size, home, away, params, scores=part_scores, **kwargs))
+        done += size
+        if done >= minimum:
+            error, worst = monte_carlo_error(stop_events(_concat(parts, done), rule))
+            if error <= tolerance_pp:
+                reason = f"errore Monte Carlo ≤ {tolerance_pp:g} punti"
+                break
+    sample = _concat(parts, done)
+    sample["adaptive"] = {"simulazioni": done, "lotti": len(parts), "errore_pp": round(error, 4), "evento_peggiore": worst,
+                          "tolleranza_pp": tolerance_pp, "minimo": minimum, "massimo": maximum, "motivo": reason}
+    return sample
+
+
+def _gamma_mix(rng: np.random.Generator, variance: float, n: int) -> np.ndarray:
+    """Moltiplicatori gamma con media 1 e varianza ``variance`` (1 se la varianza è nulla)."""
+    if variance <= 0.0:
+        return np.ones(n)
+    return rng.gamma(1.0 / variance, variance, n)
 
 
 def _possession(home: Mapping[str, float], away: Mapping[str, float]) -> float:

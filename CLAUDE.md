@@ -357,7 +357,11 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   `python -m tools.stima_motore` → `config/motore_eventi.json` (tipi di tiro, corner per origine, stato di partita, incroci
   spenti, arbitri da `referee_stats.py`) e beta del dizionario (solo se l'IC 95% esclude lo zero), report `docs/backtest/AK_stima.md`.
   Stadi 3-8 in `event_engine.py` (stato della partita, tiri per tipo a passi di 5 minuti, gol, corner per origine, falli e cartellini con arbitro ed espulsioni; modo «punteggi» = punteggi
-  Dixon-Coles fissi con eventi condizionati, modo «libero» = gol dai tiri riscalati su λ/μ), NON ancora collegato a `engine.py`.
+  Dixon-Coles fissi con eventi condizionati, modo «libero» = gol dai tiri riscalati su λ/μ). Stadi 9-11: vincolo di coerenza
+  `event_engine.coherence` (corner di gioco, gialli, rossi, quota 1T e dispersione gamma riportati alle medie FINALI del motore
+  attuale), arresto adattivo `simulate_adaptive` (errore Monte Carlo ≤ `tolleranza_pp`, max 100.000, primi n punteggi per tutti i
+  mercati), aggancio `MatchConfig.event_engine` / `event_inputs` (sezione `motore_eventi` di `config/goal_model.json`, `attivo:
+  false` finché lo stadio 14 non lo verifica; incompatibile con la fase O accesa), dettagli in `result["event_engine"]`.
 - Le fonti remote devono degradare con un avviso (come `historical.py` ricade
   al 100% manuale), mai bloccare la simulazione manuale.
 

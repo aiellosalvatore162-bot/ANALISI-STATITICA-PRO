@@ -296,3 +296,168 @@ def test_modo_libero_con_conteggi():
     out = run()
     assert out["goals_home"].mean() == pytest.approx(1.6, abs=0.04)
     assert out["fouls_home"].mean() == pytest.approx(PARAMS.fouls, rel=0.05)
+
+
+# ---------------------------------------------------------------------------------------------------------- stadio 9
+
+
+TARGETS = ee.Targets(corners=(6.1, 3.9), yellows=(1.9, 2.6), reds=0.25, corner_variance=ee.count_variance(10.0, 12.0),
+                     yellow_variance=ee.count_variance(4.5, 8.0), first_share=(0.44, 0.45))
+
+
+def test_varianza_dei_conteggi():
+    assert ee.count_variance(4.0, 0.0) == pytest.approx(4.0)
+    assert ee.count_variance(10.0, 12.0) == pytest.approx(10.0 + 100.0 / 12.0)
+    assert ee.count_variance(10.0, 0.0, 0.2) == pytest.approx(10.0 + 100.0 * (np.exp(0.04) - 1.0))
+    assert ee.count_variance(0.0, 5.0) == 0.0
+
+
+def test_vincolo_di_coerenza_sulle_medie_attuali():
+    scores = dc_scores(lam=1.7, mu=0.9)
+    home, away, mix, rows = ee.coherence(np.random.default_rng(5), ee.TeamInput(1.7, first_share=0.44),
+                                         ee.TeamInput(0.9, first_share=0.45), PARAMS, TARGETS, scores=scores)
+    assert [row["passata"] for row in rows] == ["1", "2", "verifica", "obiettivo"]
+    assert home.corner_scale > 1.0 > away.corner_scale and home.card_scale < away.card_scale
+    out = ee.simulate(np.random.default_rng(9), N, home, away, PARAMS, scores=scores, mix=mix)
+    assert out["corners_home"].mean() == pytest.approx(6.1, rel=0.03)
+    assert out["corners_away"].mean() == pytest.approx(3.9, rel=0.03)
+    assert out["yellows_home"].mean() == pytest.approx(1.9, rel=0.04)
+    assert out["yellows_away"].mean() == pytest.approx(2.6, rel=0.04)
+    assert (out["reds_home"] + out["reds_away"]).mean() == pytest.approx(0.25, rel=0.12)
+    # Gol finali intatti (modo punteggi), quota del primo tempo vicina a quella tarata.
+    assert (out["goals_home"] == scores[0]).all()
+    assert out["first_home"].mean() / out["goals_home"].mean() == pytest.approx(0.44, abs=0.02)
+    assert out["first_away"].mean() / out["goals_away"].mean() == pytest.approx(0.45, abs=0.02)
+    # Dispersione: varianza dei totali come la binomiale negativa del motore attuale.
+    assert mix["corner"] > 0 and mix["cards"] > 0
+    assert np.var(out["corners_home"] + out["corners_away"]) == pytest.approx(TARGETS.corner_variance, rel=0.1)
+    assert np.var(out["yellows_home"] + out["yellows_away"]) == pytest.approx(TARGETS.yellow_variance, rel=0.1)
+    assert next(r for r in out["ledger"] if r["voce"] == "dispersione")["valore"]["corner"] == pytest.approx(mix["corner"], abs=1e-5)
+
+
+def test_coerenza_dei_rossi_con_la_quota_di_doppie_ammonizioni():
+    targets = dataclasses.replace(TARGETS, reds=0.3, double_share=0.4, corner_variance=None, yellow_variance=None)
+    home, away, mix, _ = ee.coherence(np.random.default_rng(5), ee.TeamInput(1.6), ee.TeamInput(1.1), PARAMS, targets,
+                                      scores=dc_scores())
+    assert mix == {} and home.red_scale != home.second_yellow_scale
+    out = ee.simulate(np.random.default_rng(3), N, home, away, PARAMS, scores=dc_scores())
+    reds = (out["reds_home"] + out["reds_away"]).mean()
+    doubles = (out["double_yellows_home"] + out["double_yellows_away"]).mean()
+    assert reds == pytest.approx(0.3, rel=0.12) and doubles / reds == pytest.approx(0.4, abs=0.06)
+
+
+def test_coerenza_tocca_solo_i_corner_di_gioco():
+    targets = dataclasses.replace(TARGETS, corners=(8.0, 2.0))
+    home, away, _, _ = ee.coherence(np.random.default_rng(5), ee.TeamInput(1.6), ee.TeamInput(1.1), PARAMS, targets,
+                                    scores=dc_scores())
+    out = ee.simulate(np.random.default_rng(3), N, home, away, PARAMS, scores=dc_scores())
+    base = run(dc_scores())
+    # I corner da tiro dipendono solo dai tiri: restano quelli del motore.
+    assert out["corners_by_origin_home"][:, 0].mean() == pytest.approx(base["corners_by_origin_home"][:, 0].mean(), rel=0.03)
+    assert out["corners_home"].mean() == pytest.approx(8.0, rel=0.03) and out["corners_away"].mean() == pytest.approx(2.0, rel=0.05)
+
+
+# ---------------------------------------------------------------------------------------------------------- stadio 10
+
+
+def test_errore_monte_carlo():
+    error, name = ee.monte_carlo_error({"a": np.array([True, False] * 50), "b": np.array([True] * 10 + [False] * 90)})
+    assert name == "a" and error == pytest.approx(5.0)
+
+
+def test_arresto_adattivo():
+    scores = dc_scores(n=60_000)
+    home, away = ee.TeamInput(1.6, first_share=0.45), ee.TeamInput(1.1, first_share=0.44)
+    loose = ee.simulate_adaptive(np.random.default_rng(1), home, away, PARAMS, scores=scores, batch=5_000, minimum=10_000,
+                                 tolerance_pp=5.0)
+    assert loose["adaptive"]["simulazioni"] == 10_000 and loose["adaptive"]["lotti"] == 2
+    assert "errore Monte Carlo" in loose["adaptive"]["motivo"]
+    # I punteggi usati sono i primi n: gol finali identici, tutti gli array lunghi n.
+    assert (loose["goals_home"] == scores[0][:10_000]).all() and (loose["goals_away"] == scores[1][:10_000]).all()
+    assert all(len(loose[key]) == 10_000 for key in ("corners_home", "yellows_away", "first_home", "shots_home", "xg_away"))
+    strict = ee.simulate_adaptive(np.random.default_rng(1), home, away, PARAMS, scores=scores, batch=20_000, tolerance_pp=0.0)
+    assert strict["adaptive"]["simulazioni"] == 60_000 and strict["adaptive"]["motivo"] == "massimo raggiunto"
+    # Con tolleranza 0,5 punti servono circa 10.000 partite per una probabilità vicina al 50%.
+    middle = ee.simulate_adaptive(np.random.default_rng(1), home, away, PARAMS, scores=scores, batch=2_500, minimum=2_500,
+                                  tolerance_pp=0.5)
+    assert 7_500 <= middle["adaptive"]["simulazioni"] <= 12_500 and middle["adaptive"]["errore_pp"] <= 0.5
+    # Riproducibile con lo stesso seme; senza punteggi il massimo è ``maximum``.
+    again = ee.simulate_adaptive(np.random.default_rng(1), home, away, PARAMS, scores=scores, batch=5_000, minimum=10_000,
+                                 tolerance_pp=5.0)
+    assert (again["corners_home"] == loose["corners_home"]).all()
+    free = ee.simulate_adaptive(np.random.default_rng(1), home, away, PARAMS, maximum=4_000, batch=2_000, minimum=4_000,
+                                pilot=2_000, passes=1)
+    assert free["adaptive"]["simulazioni"] == 4_000 and len(free["goals_home"]) == 4_000
+
+
+def test_eventi_di_arresto_con_la_regola():
+    import engine
+    out = run(dc_scores())
+    events = ee.stop_events(out, engine.CardRule())
+    assert {"Over 9.5 corner", "Over 4.5 cartellini", "Over 0.5 gol 1T", "Casa Over 4.5 corner", "Ospite Over 1.5 cartellini",
+            "1 corner"} <= set(events)
+    points = ee.card_points(out, engine.CardRule())
+    assert (events["Over 4.5 cartellini"] == (points > 4.5)).all()
+
+
+# ---------------------------------------------------------------------------------------------------------- stadio 11
+
+
+def _engine_config(**changes):
+    import engine
+    from parser import parse_match_input
+    from test_parser import COMPLETE_COPY_BLOCK
+    config = dataclasses.replace(engine.config_from_input(parse_match_input(COMPLETE_COPY_BLOCK), simulations=30_000, seed=7),
+                                 league="I1")
+    return dataclasses.replace(config, event_engine=dataclasses.replace(config.event_engine, **changes))
+
+
+def test_motore_a_eventi_spento_di_default(tmp_path):
+    import engine
+    assert engine.DEFAULT_EVENT_ENGINE.active is False
+    assert engine.load_event_engine().active is False
+    assert engine.load_event_engine(tmp_path / "manca.json") == engine.EventEngineParams()
+    result = engine.simulate_match(_engine_config(minimum=1))   # spento: nessun effetto delle altre opzioni
+    assert result["event_engine"] == {"active": False} and result["model"]["simulation_count"] == 30_000
+
+
+def test_motore_a_eventi_collegato_a_match_config():
+    import engine
+    off = engine.simulate_match(_engine_config())
+    on = engine.simulate_match(_engine_config(active=True, batch=5_000, minimum=10_000, pilot=5_000))
+    details = on["event_engine"]
+    size = details["simulazioni"]
+    assert details["active"] and details["parametri"] == "Serie A" and 10_000 <= size <= 30_000
+    assert on["model"]["simulation_count"] == size
+    assert details["arresto"]["errore_pp"] <= 0.25 or size == 30_000
+    # Stessi punteggi Dixon-Coles (i primi n): 1X2 entro il rumore Monte Carlo, medie di corner e cartellini quelle attuali.
+    for sign in ("1", "X", "2"):
+        assert on["markets"]["1x2"][sign]["percentage"] == pytest.approx(off["markets"]["1x2"][sign]["percentage"], abs=1.5)
+    assert on["markets"]["corners"]["mean"] == pytest.approx(off["markets"]["corners"]["mean"], rel=0.04)
+    assert on["markets"]["cards"]["mean"] == pytest.approx(off["markets"]["cards"]["mean"], rel=0.05)
+    assert on["markets"]["cards"]["Over_3.5"]["percentage"] == pytest.approx(off["markets"]["cards"]["Over_3.5"]["percentage"], abs=4)
+    # Primo tempo dal motore a eventi, vicino alla quota tarata.
+    assert on["markets"]["first_half_1x2"]["X"]["percentage"] == pytest.approx(off["markets"]["first_half_1x2"]["X"]["percentage"], abs=2)
+    assert {row["passata"] for row in details["coerenza"]} >= {"verifica", "obiettivo"}
+    assert set(details["scale"]) == {"home", "away"} and any(r["voce"] == "dispersione" for r in details["ledger"])
+    # Riproducibile.
+    again = engine.simulate_match(_engine_config(active=True, batch=5_000, minimum=10_000, pilot=5_000))
+    assert again["markets"]["corners"] == on["markets"]["corners"]
+
+
+def test_campioni_del_combo_builder_dal_motore_a_eventi():
+    import engine
+    config = dataclasses.replace(_engine_config(active=True, batch=5_000, minimum=5_000, pilot=5_000, tolerance_pp=5.0),
+                                 keep_samples=True)
+    result = engine.simulate_match(config)
+    assert result["sample_size"] == result["event_engine"]["simulazioni"] == 5_000
+    bits = result["event_samples"]["Over 9.5 corner"]
+    assert np.unpackbits(bits)[:5_000].mean() * 100 == pytest.approx(result["markets"]["corners"]["Over_9.5"]["percentage"], abs=0.01)
+
+
+def test_motore_a_eventi_e_blocchi_non_insieme():
+    import engine
+    config = _engine_config(active=True)
+    config = dataclasses.replace(config, timeline=dataclasses.replace(config.timeline, active=True))
+    with pytest.raises(ValueError, match="non possono essere accesi insieme"):
+        engine.simulate_match(config)
