@@ -226,7 +226,7 @@ Ramo: `fase-ak-motore-eventi` (da `main` dopo la fase AH). `docs/FONTI.md` non e
      con punteggio ed espulsioni troppo debole.
    - Possibile passo successivo (NON fatto, servirebbe un nuovo banco con campione diverso per non scegliere sui dati della
      verifica): motore a eventi solo per corner e combo gol+corner, cartellini dal motore attuale.
-14b. Ultima parte (sessione del 30/10, sera). Punto 1, cartellini: IN CORSO (vedi sotto).
+14b. Ultima parte (sessione del 30/10, sera). Punto 1, cartellini: FATTO (vedi sotto). Punto 2, banco nuovo: IN CORSO.
 15. «Vedi come andrà»: DA FARE
 16. Test, merge, push: DA FARE
 
@@ -247,6 +247,16 @@ Ramo: `fase-ak-motore-eventi` (da `main` dopo la fase AH). `docs/FONTI.md` non e
   `stato_partita.legame_cartellini`): esponente proprio di stato dei gialli a e esponente della partita calda sui rossi g.
   Prova a 200 partite: a = 2 → pendenza −0,27 ma gialli con rosso +0,41; a = 2, g = 3 → −0,24 e +1,12 (interagiscono: stima
   alternata a → g → a).
+- FATTO: `python -m tools.event_cards --salva` (400 partite 2024-26 × 10 percorsi, 4.000 simulazioni, ~45 minuti; punti in
+  cache in `data/cache/event_cards/`), report `docs/backtest/AK_cartellini.md`. Esito: **esponente di stato dei gialli 3,36**
+  (± 1,5 a 2 e.s.; prima l'esponente comune 0,50), **partita calda sui rossi 4** (AL BORDO della griglia 1-4, ± 2,5).
+  Momenti: pendenza −0,054 → **−0,316** (reale −0,302 ± 0,065), correlazione −0,031 → −0,181 (reale −0,164), gialli in più
+  con un rosso +0,52 → **+0,74** (reale +1,07 ± 0,23: ancora sotto, oltre 2 e.s.). Il rumore Monte Carlo di questo momento
+  è grande (+0,98 con a 2,5 e +0,79 con a 3 a parità di g): la stima di g è poco precisa. Non si estrapola oltre la griglia:
+  limite dichiarato. In sintesi: dal banco +0,11 → +0,74 sui rossi e −0,07 → −0,18 sulla correlazione (reale −0,18).
+- Note: con esponente 3,36 i gialli del motore dipendono molto dal punteggio (chi è avanti di un gol ne prende di più, a
+  scarto ampio calano); le medie restano quelle del motore attuale (vincolo di coerenza). Test aggiornati
+  (`test_event_sense`: i gialli seguono l'esponente proprio).
 - Banco nuovo pronto (`python -m tools.event_check --campione nuovo`): 2019/20 + 2023/24 per intero, 2.672 partite, nessuna del
   primo banco; tre varianti (attuale, eventi completo, eventi solo corner). Motore per gruppi di mercati:
   `motore_eventi.mercati` (`EventEngineParams.markets`, tempi/corner/cartellini).
