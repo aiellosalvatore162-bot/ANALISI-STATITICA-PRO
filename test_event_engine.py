@@ -18,10 +18,10 @@ def dc_scores(n=N, seed=2, lam=1.6, mu=1.1):
     return rng.poisson(lam, n), rng.poisson(mu, n)
 
 
-def run(scores=None, home=None, away=None, seed=1, **kwargs):
+def run(scores=None, home=None, away=None, seed=1, params=None, **kwargs):
     home = home or ee.TeamInput(1.6, first_share=0.45)
     away = away or ee.TeamInput(1.1, first_share=0.44)
-    return ee.simulate(np.random.default_rng(seed), N, home, away, PARAMS, scores=scores, **kwargs)
+    return ee.simulate(np.random.default_rng(seed), N, home, away, params or PARAMS, scores=scores, **kwargs)
 
 
 def test_parametri_per_campionato_e_comune():
@@ -188,7 +188,8 @@ def test_profili_dei_conteggi_normalizzati():
 
 
 def test_medie_di_corner_falli_e_cartellini():
-    out = run(dc_scores())
+    # Senza il legame cartellini (esponenti forti: la media la rimette il vincolo di coerenza dello stadio 9).
+    out = run(dc_scores(), params=PARAMS.with_card_link(None, 1.0))
     stats = ee.summary(out)
     for side in ("home", "away"):
         assert stats[f"falli_{side}"] == pytest.approx(PARAMS.fouls, rel=0.05)
