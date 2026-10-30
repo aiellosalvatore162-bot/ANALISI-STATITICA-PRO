@@ -809,6 +809,29 @@
       "simulazioni_per_partita": 20,
       "metodo": "inferenza indiretta: pendenza tiri sbagliati ~ gol (residui Poisson con attacco, difesa, casa) osservata contro quella del motore a eventi in modo punteggi con moltiplicatori di stato^a",
       "nota": "lo stesso esponente si applica a tiri, xG, corner di gioco, falli e gialli (ipotesi dichiarata: la stessa distorsione delle stime dentro la partita); effetti dell'uomo in meno/in più e fasce di minuti invariati."
+    },
+    "legame_cartellini": {
+      "esponente_stato_gialli": 3.36,
+      "es_stato_gialli": 0.745,
+      "esponente_calore_rossi": 4.0,
+      "es_calore_rossi": 1.261,
+      "momenti_reali": {
+        "pendenza_gd": -0.3019,
+        "correlazione_gd": -0.1638,
+        "gialli_con_rosso": 1.0673
+      },
+      "momenti_motore": {
+        "pendenza_gd": -0.3156,
+        "correlazione_gd": -0.1807,
+        "gialli_con_rosso": 0.7374
+      },
+      "partite": {
+        "reali": 2851,
+        "motore": 400,
+        "percorsi_per_partita": 10
+      },
+      "data": "2026-10-30",
+      "metodo": "inferenza indiretta sui CSV football-data 2024/25-2025/26 (stagioni di taratura): pendenza dei gialli sul |diff. reti| → esponente di stato dei gialli; gialli in più con un rosso → esponente della partita calda sui rossi. Report docs/backtest/AK_cartellini.md (python -m tools.event_cards)"
     }
   },
   "dizionario": {
