@@ -52,6 +52,10 @@ OPEN_PLAY = {"transizione", "fuori_area", "testa_da_cross", "azione"}
 BANDS = ((0, 30, "0-30"), (30, 60, "30-60"), (60, 75, "60-75"), (75, 200, "75-90"))
 STATES = (-2, -1, 0, 1, 2)
 YELLOW = {"Yellow Card", "Second Yellow"}
+STRAIGHT_RED = {"Red Card"}
+RED = {"Red Card", "Second Yellow"}
+QUANTITIES = ("tiri", "xg", "corner", "corner_gioco", "falli", "gialli")
+MEN = (-1, 0, 1)
 
 
 def shot_type(shot: dict) -> str:
@@ -129,12 +133,38 @@ def corners_fouls_section(matches: list[dict]) -> dict:
                 "corner_per_tiro_parato_respinto": float(origins.get("tiro", 0)) / max(saved, 1),
                 "falli_per_squadra_partita": len(fouls) / team_matches,
                 "falli_per_zona": {zone: float((fouls["z"] == zone).mean()) for zone in ("difesa", "centro", "attacco")},
-                "gialli_per_fallo": yellow / max(len(fouls), 1), "partite": len(rows)}
+                "gialli_per_fallo": yellow / max(len(fouls), 1), **red_rates(rows), "partite": len(rows)}
 
     section = {"comune": block(matches)}
     for league in sorted({match["league"] for match in matches} - NO_OWN_EFFECTS):
         section[league] = block([match for match in matches if match["league"] == league])
     return section
+
+
+def _cards(match: dict) -> list[tuple[int, float, str, str]]:
+    """Cartellini della partita (tempo, minuto, squadra, tipo) in ordine: da fallo e non da fallo."""
+    cards = [(event["p"], event["m"], event["s"], event["card"]) for event in match["fouls"] if event.get("card")]
+    cards += [(event["p"], event["m"], event["s"], event["card"]) for event in match["cards"] if event.get("card")]
+    return sorted(cards)
+
+
+def red_rates(rows: list[dict]) -> dict:
+    """Rossi diretti per fallo e quota di seconde gialle tra i gialli presi da chi ha già un giallo di squadra."""
+    fouls = sum(len(match["fouls"]) for match in rows)
+    straight = second = with_prior = 0
+    for match in rows:
+        booked = {"h": 0, "a": 0}
+        for _, _, side, card in _cards(match):
+            if card in STRAIGHT_RED:
+                straight += 1
+            elif card in YELLOW:
+                if booked[side]:
+                    with_prior += 1
+                    second += card == "Second Yellow"
+                booked[side] += 1
+    return {"rossi_diretti_per_fallo": straight / max(fouls, 1),
+            "seconda_gialla_per_giallo_con_precedente": second / max(with_prior, 1),
+            "rossi_diretti": straight, "seconde_gialle": second}
 
 
 # --- 3. Stato di partita ------------------------------------------------------------------------------------------------
@@ -153,35 +183,41 @@ def goal_times(match: dict) -> list[tuple[int, float, str]]:
 def state_cells(match: dict) -> pd.DataFrame:
     """Celle (squadra, fascia, stato) con esposizione in minuti e conteggi di tiri, xG, corner, falli e gialli."""
     goals = goal_times(match)
+    reds = [(period, minute + 0.5, side) for period, minute, side, card in _cards(match) if card in RED]
     cuts = {1: [0.0, 30.0], 2: [45.0, 60.0, 75.0]}
     pieces = []
     for period in (1, 2):
         start = 0.0 if period == 1 else 45.0
         end = max(float(match["last_minute"].get(period, 0)) + 1.0, start + 45.0)
         points = sorted({start, end, *[cut for cut in cuts[period] if start < cut < end],
-                         *[minute for p, minute, _ in goals if p == period and start < minute < end]})
+                         *[minute for p, minute, _ in goals + reds if p == period and start < minute < end]})
         pieces += [(period, low, high) for low, high in zip(points, points[1:])]
 
     def score_at(period: int, minute: float) -> tuple[int, int]:
         done = [side for p, m, side in goals if (p, m) <= (period, minute)]
         return done.count("h"), done.count("a")
 
-    cells: dict[tuple[str, str, int], dict] = {}
+    def men_at(period: int, minute: float, side: str) -> int:
+        """Uomini in più (+1) o in meno (−1) della squadra: espulsi dell'avversario meno i propri."""
+        done = [team for p, m, team in reds if (p, m) <= (period, minute)]
+        return int(np.clip(done.count("a" if side == "h" else "h") - done.count(side), -1, 1))
+
+    def empty() -> dict:
+        return {"esposizione": 0.0, **{quantity: 0.0 for quantity in QUANTITIES}}
+
+    cells: dict[tuple[str, str, int, int], dict] = {}
     for period, low, high in pieces:
         home, away = score_at(period, low)
         for side, diff in (("h", home - away), ("a", away - home)):
-            key = (side, _band(low), int(np.clip(diff, -2, 2)))
-            cell = cells.setdefault(key, {"esposizione": 0.0, "tiri": 0.0, "xg": 0.0, "corner": 0.0, "falli": 0.0,
-                                          "gialli": 0.0})
-            cell["esposizione"] += high - low
+            key = (side, _band(low), int(np.clip(diff, -2, 2)), men_at(period, low, side))
+            cells.setdefault(key, empty())["esposizione"] += high - low
 
     def add(event: dict, quantity: str, value: float = 1.0) -> None:
         minute = event["m"] + 0.25  # prima del gol dello stesso minuto: il tiro che segna conta nello stato precedente
         home, away = score_at(event["p"], minute)
         diff = home - away if event["s"] == "h" else away - home
-        key = (event["s"], _band(min(minute, 199.0)), int(np.clip(diff, -2, 2)))
-        cell = cells.setdefault(key, {"esposizione": 0.0, "tiri": 0.0, "xg": 0.0, "corner": 0.0, "falli": 0.0, "gialli": 0.0})
-        cell[quantity] += value
+        key = (event["s"], _band(min(minute, 199.0)), int(np.clip(diff, -2, 2)), men_at(event["p"], minute, event["s"]))
+        cells.setdefault(key, empty())[quantity] += value
 
     for shot in match["shots"]:
         add(shot, "tiri")
@@ -189,6 +225,8 @@ def state_cells(match: dict) -> pd.DataFrame:
             add(shot, "xg", float(shot.get("xg") or 0.0))
     for corner in match["corners"]:
         add(corner, "corner")
+        if corner["o"] != "tiro":
+            add(corner, "corner_gioco")
     for foul in match["fouls"]:
         add(foul, "falli")
         if foul.get("card") in YELLOW:
@@ -196,8 +234,8 @@ def state_cells(match: dict) -> pd.DataFrame:
     for card in match["cards"]:
         if card.get("card") in YELLOW:
             add(card, "gialli")
-    return pd.DataFrame([{"match": match["id"], "side": side, "fascia": band, "stato": state, **values}
-                         for (side, band, state), values in cells.items()])
+    return pd.DataFrame([{"match": match["id"], "side": side, "fascia": band, "stato": state, "uomini": men, **values}
+                         for (side, band, state, men), values in cells.items()])
 
 
 def fit_state_effects(cells: pd.DataFrame, quantity: str, weights: np.ndarray | None = None,
@@ -236,7 +274,7 @@ def state_section(matches: list[dict], bootstrap: int, seed: int = 11) -> dict:
              for _ in range(bootstrap)]
     exposure = cells.groupby("stato")["esposizione"].sum() / 2  # minuti di partita (ogni minuto conta per le due squadre)
     section = {"minuti_per_stato": {str(state): float(exposure.get(state, 0.0)) for state in STATES}, "quantita": {}}
-    for quantity in ("tiri", "xg", "corner", "falli", "gialli"):
+    for quantity in QUANTITIES:
         states, bands = fit_state_effects(cells, quantity)
         boot = [fit_state_effects(cells, quantity, weights, iterations=60) for weights in draws]
         section["quantita"][quantity] = {
@@ -248,7 +286,52 @@ def state_section(matches: list[dict], bootstrap: int, seed: int = 11) -> dict:
                        for band, value in bands.items()}}
     section["nota"] = ("moltiplicatori del tasso per minuto rispetto al pareggio (stato 0) e alla fascia 0-30; es = errore "
                        "standard bootstrap per partita del logaritmo; effetto fisso per squadra-partita (la forza non entra); "
-                       "rigori esclusi dagli xG; espulsioni non separate (le gestisce la componente espulsioni)")
+                       "rigori esclusi dagli xG; espulsioni non separate qui (sezione «espulsioni»); corner_gioco = corner "
+                       "non nati da un tiro (cross e altro)")
+    section["espulsioni"] = men_section(cells, draws)
+    return section
+
+
+def fit_men_effects(cells: pd.DataFrame, quantity: str, weights: np.ndarray | None = None,
+                    iterations: int = 200) -> dict[int, float]:
+    """Come ``fit_state_effects`` con un fattore in più per gli uomini in campo (−1, 0, +1; 0 = 1)."""
+    team = pd.factorize(cells["match"].astype(str) + cells["side"])[0]
+    factors = [cells["stato"].map({value: index for index, value in enumerate(STATES)}).to_numpy(),
+               cells["fascia"].map({name: index for index, (_, _, name) in enumerate(BANDS)}).to_numpy(),
+               cells["uomini"].map({value: index for index, value in enumerate(MEN)}).to_numpy()]
+    references = [STATES.index(0), 0, MEN.index(0)]
+    count, exposure = cells[quantity].to_numpy(float), cells["esposizione"].to_numpy(float)
+    weight = np.ones(len(cells)) if weights is None else weights
+    effects = [np.ones(len(STATES)), np.ones(len(BANDS)), np.ones(len(MEN))]
+    team_n = np.bincount(team, weights=weight * count)
+    totals = [np.bincount(index, weights=weight * count, minlength=len(effect)) for index, effect in zip(factors, effects)]
+    for _ in range(iterations):
+        previous = [effect.copy() for effect in effects]
+        rate = effects[0][factors[0]] * effects[1][factors[1]] * effects[2][factors[2]]
+        base = team_n / np.maximum(np.bincount(team, weights=weight * rate * exposure), 1e-12)
+        for position, (index, effect) in enumerate(zip(factors, effects)):
+            others = base[team] * exposure * np.prod([effects[j][factors[j]] for j in range(3) if j != position], axis=0)
+            new = totals[position] / np.maximum(np.bincount(index, weights=weight * others, minlength=len(effect)), 1e-12)
+            effects[position] = new / new[references[position]]
+        if all(np.allclose(a, b, rtol=1e-7) for a, b in zip(effects, previous)):
+            break
+    return {value: float(effects[2][index]) for index, value in enumerate(MEN)}
+
+
+def men_section(cells: pd.DataFrame, draws: list[np.ndarray]) -> dict:
+    """Effetto dell'inferiorità e della superiorità numerica (stato e fascia come controlli)."""
+    exposure = cells.groupby("uomini")["esposizione"].sum() / 2
+    section = {"minuti": {str(men): float(exposure.get(men, 0.0)) for men in MEN}, "quantita": {}}
+    for quantity in QUANTITIES:
+        point = fit_men_effects(cells, quantity)
+        boot = [fit_men_effects(cells, quantity, weights, iterations=60) for weights in draws]
+        section["quantita"][quantity] = {
+            str(men): {"moltiplicatore": point[men],
+                       "es": float(np.std([np.log(max(b[men], 1e-9)) for b in boot], ddof=1)) if boot else None}
+            for men in MEN}
+    section["nota"] = ("moltiplicatore del tasso per minuto con un uomo in meno (−1) o in più (+1) rispetto alla parità, "
+                       "a parità di stato del punteggio e fascia; effetto fisso per squadra-partita; rossi diretti e seconde "
+                       "gialle insieme")
     return section
 
 
@@ -534,6 +617,18 @@ def report(config: dict) -> str:
         cells = [f"{values['stato'][s]['moltiplicatore']:.2f} ± {2 * (values['stato'][s]['es'] or 0) * values['stato'][s]['moltiplicatore']:.2f}"
                  for s in ("-2", "-1", "1", "2")]
         lines.append(f"| {quantity} | " + " | ".join(cells) + " |")
+    men = config["stato_partita"].get("espulsioni")
+    if men:
+        lines += ["", "## Espulsioni (moltiplicatore rispetto alla parità numerica, ± 2 e.s.)", "",
+                  f"Minuti con un uomo in meno o in più: {men['minuti']['-1']:.0f} su "
+                  f"{sum(men['minuti'].values()):.0f}. Rossi diretti per fallo "
+                  f"{common['rossi_diretti_per_fallo']:.4f} ({common['rossi_diretti']}), seconda gialla per giallo preso da una "
+                  f"squadra già ammonita {common['seconda_gialla_per_giallo_con_precedente']:.4f} ({common['seconde_gialle']}).", "",
+                  "| quantità | uomo in meno | uomo in più |", "|---|---|---|"]
+        for quantity, values in men["quantita"].items():
+            lines.append(f"| {quantity} | " + " | ".join(
+                f"{values[m]['moltiplicatore']:.2f} ± {2 * (values[m]['es'] or 0) * values[m]['moltiplicatore']:.2f}"
+                for m in ("-1", "1")) + " |")
     lines += ["", "## Dizionario tattico", "", "| termine → tasso | beta | IC 95% | n | nel dizionario |", "|---|---|---|---|---|"]
     for key, row in config["dizionario"].items():
         if not row["stimabile"]:

@@ -24,8 +24,22 @@ Corner per squadra-partita: tiro 1.53, cross 1.00, altro 2.57; corner per tiro p
 | tiri | 1.35 ± 0.08 | 1.19 ± 0.05 | 0.67 ± 0.03 | 0.50 ± 0.03 |
 | xg | 1.59 ± 0.19 | 1.30 ± 0.09 | 0.65 ± 0.05 | 0.41 ± 0.04 |
 | corner | 1.21 ± 0.12 | 1.24 ± 0.08 | 0.65 ± 0.04 | 0.54 ± 0.05 |
+| corner_gioco | 1.22 ± 0.14 | 1.29 ± 0.09 | 0.67 ± 0.05 | 0.54 ± 0.06 |
 | falli | 0.85 ± 0.04 | 0.90 ± 0.03 | 1.07 ± 0.03 | 1.05 ± 0.05 |
 | gialli | 0.72 ± 0.10 | 0.95 ± 0.10 | 1.25 ± 0.11 | 1.01 ± 0.15 |
+
+## Espulsioni (moltiplicatore rispetto alla parità numerica, ± 2 e.s.)
+
+Minuti con un uomo in meno o in più: 5273 su 146136. Rossi diretti per fallo 0.0043 (200), seconda gialla per giallo preso da una squadra già ammonita 0.0518 (220).
+
+| quantità | uomo in meno | uomo in più |
+|---|---|---|
+| tiri | 0.58 ± 0.06 | 1.43 ± 0.10 |
+| xg | 0.56 ± 0.11 | 1.42 ± 0.18 |
+| corner | 0.53 ± 0.08 | 1.31 ± 0.14 |
+| corner_gioco | 0.54 ± 0.09 | 1.33 ± 0.17 |
+| falli | 0.64 ± 0.05 | 1.00 ± 0.07 |
+| gialli | 0.39 ± 0.06 | 0.93 ± 0.18 |
 
 ## Dizionario tattico
 
