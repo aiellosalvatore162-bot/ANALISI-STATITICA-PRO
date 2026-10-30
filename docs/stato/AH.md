@@ -11,10 +11,10 @@ Ramo: `fase-ah-stili-analista`.
 - `settle_leg` (Fase AA) NON esiste su main: `outcomes.lookup` è il punto di aggancio.
 
 ## Stadi
-2. `outcomes.py` (CSV > ESITO > ESITI_CLAUDE, conflitti visibili): DA FARE
-3. Parser profili unico (`tactical_sheets.parse_profiles(origin, day)`): DA FARE
-4. Campi PARTITA ASSENTI_PESATI / RIPOSO / TURNOVER (`match_extras.py`, `docs/formato_analista.md`, fixture): DA FARE
-5. `match_context.py` + `config/stile_prior.json`: DA FARE
+2. `outcomes.py`: FATTO (today.parse_outcomes delega)
+3. Parser profili unico (`tactical_sheets.parse_profiles(origin, day)`): FATTO
+4. Campi PARTITA (`match_extras.py`, `docs/formato_analista.md`, `tests/fixtures/analista/report_ah.md`): FATTO
+5. `match_context.py` + `config/stile_prior.json` + `tools/stile_prior.py` (prior null finché mancano squadre con profilo+dati): FATTO; turnover/assenti_esterni in `lineup.team_lineup`
 6. Dataset Analista (profili ed esiti con data e fonte): DA FARE
 7. Riquadro «Stile» (`ui_style.py`), vista compatta in Oggi, foglio «Stile»: DA FARE
 8. Test, suite, merge, push: DA FARE
