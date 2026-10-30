@@ -227,7 +227,16 @@ Ramo: `fase-ak-motore-eventi` (da `main` dopo la fase AH). `docs/FONTI.md` non e
    - Possibile passo successivo (NON fatto, servirebbe un nuovo banco con campione diverso per non scegliere sui dati della
      verifica): motore a eventi solo per corner e combo gol+corner, cartellini dal motore attuale.
 14b. Ultima parte (sessione del 30/10, sera). Punto 1, cartellini: FATTO (vedi sotto). Punto 2, banco nuovo: IN CORSO.
-15. «Vedi come andrà»: DA FARE
+15. FATTO (30/10): riquadro «Vedi come andrà» nella Panoramica (`ui_story.render_story`, logica in `match_story.py`).
+   Il motore a eventi somma per passo di 5 minuti tiri, gol, corner, gialli mostrati e rossi per squadra e le partite con
+   almeno un gol nel passo (`sample["passi"]`, sommati tra i lotti); `event_engine.timeline_summary` → fasce di 15 minuti,
+   minuto e squadra del primo gol, almeno un rosso; `result["event_engine"]["andamento"]` quando il motore è acceso.
+   Il riquadro dice sempre quale motore è attivo (`match_story.engine_label`): motore a eventi acceso (anche solo per
+   alcuni mercati) = stessi percorsi della simulazione; spento = esecuzione illustrativa del motore a eventi sulla stessa
+   configurazione (20.000 partite, dopo il pulsante «Mostra l'andamento», in cache per partita), dichiarata e senza effetti
+   su probabilità, EV o registro. Contenuto: quattro frasi (primo gol, gol per tempo e fascia, tiri e corner, gialli e
+   rossi), tabella per fasce, grafico della probabilità di un gol ogni 5 minuti, tabella del primo gol. Test
+   `test_match_story.py` (5): somme per fascia = totali, etichette, modo illustrativo, stessi percorsi, errore spiegato.
 16. Test, merge, push: DA FARE
 
 ## Ultima parte – punto 1: legame tra rossi, gialli e stato della partita
