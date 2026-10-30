@@ -141,7 +141,20 @@ Ramo: `fase-ak-motore-eventi` (da `main` dopo la fase AH). `docs/FONTI.md` non e
      0,17/0,16, 0,29/0,29, 0,29/0,34, 0,22/0,31. Varianza dei corner totali 11,1 contro 13,0 osservata (Premier): manca
      l'eterogeneità tra squadre, da recuperare nello stadio 9 con le medie per squadra e la dispersione attuale.
    - Tempo: 100.000 simulazioni modo punteggi ~2,9 s (era ~1,8 s senza conteggi). Test: `test_event_engine.py` (25).
-9-11. Vincolo di coerenza (riscalatura sulle medie attuali), simulazione vettoriale con arresto adattivo, mercati dagli stessi campioni: DA FARE
+9. FATTO (30/10): vincolo di coerenza in `event_engine.coherence(rng, casa, ospite, params, Targets(...), scores=..., pilot=10_000,
+   passes=2)`. `Targets` = medie del motore attuale DOPO ancoraggio, divisione dei cartellini (fase T) e Claude: corner per squadra,
+   gialli per squadra, rossi totali (`card_red_ratio` × gialli), quota dei rossi da doppia ammonizione (solo se la regola la
+   dichiara, altrimenti resta quella stimata qui), varianza dei corner e dei gialli totali (`count_variance`: Poisson-gamma con la
+   dispersione attuale e l'eventuale σ della fase P), quota tarata dei gol nel primo tempo. Su 2 passate pilota (10.000 partite)
+   riscala `corner_scale` (SOLO i corner di gioco: quelli da tiro restano generati dai tiri parati/respinti), `card_scale`, i nuovi
+   `red_scale` e `second_yellow_scale` (rossi diretti e seconde gialle), e `first_share` in ingresso (risolve lo scarto della quota
+   del primo tempo: ora entro il rumore del pilota, ~0,01). Poi una passata di verifica stima la dispersione mancante: moltiplicatori
+   gamma per simulazione con media 1 (`simulate(mix={"corner": v, "cards": v})`, sui corner di gioco e sulla probabilità di giallo,
+   condivisi tra le due squadre) con v = (varianza obiettivo − varianza ottenuta) / media²; voce `dispersione` nel ledger.
+   Esempio Serie A (λ 1,7 / μ 0,9, obiettivi corner 6,1/3,9, gialli 1,9/2,6, rossi 0,25, varianza corner 18,3 e gialli 7,0):
+   ottenuti corner 6,13/3,91, gialli 1,88/2,58, varianza 18,3 e 6,8 (prima del mix 10,7 e 4,5: era l'eterogeneità mancante dello
+   stadio 8), quota 1T 0,443/0,441. Costo ~0,9 s (3 simulazioni da 10.000). Test: `test_event_engine.py` (29).
+10-11. Simulazione vettoriale con arresto adattivo, aggancio a `MatchConfig` e mercati dagli stessi campioni: DA FARE
 12-13. Realismo e test di buon senso: DA FARE
 14. Banco fuori campione (3 stagioni, 5 campionati) → `docs/backtest/AK_motore_eventi.md`: DA FARE
 15. «Vedi come andrà»: DA FARE

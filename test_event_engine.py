@@ -296,3 +296,62 @@ def test_modo_libero_con_conteggi():
     out = run()
     assert out["goals_home"].mean() == pytest.approx(1.6, abs=0.04)
     assert out["fouls_home"].mean() == pytest.approx(PARAMS.fouls, rel=0.05)
+
+
+# ---------------------------------------------------------------------------------------------------------- stadio 9
+
+
+TARGETS = ee.Targets(corners=(6.1, 3.9), yellows=(1.9, 2.6), reds=0.25, corner_variance=ee.count_variance(10.0, 12.0),
+                     yellow_variance=ee.count_variance(4.5, 8.0), first_share=(0.44, 0.45))
+
+
+def test_varianza_dei_conteggi():
+    assert ee.count_variance(4.0, 0.0) == pytest.approx(4.0)
+    assert ee.count_variance(10.0, 12.0) == pytest.approx(10.0 + 100.0 / 12.0)
+    assert ee.count_variance(10.0, 0.0, 0.2) == pytest.approx(10.0 + 100.0 * (np.exp(0.04) - 1.0))
+    assert ee.count_variance(0.0, 5.0) == 0.0
+
+
+def test_vincolo_di_coerenza_sulle_medie_attuali():
+    scores = dc_scores(lam=1.7, mu=0.9)
+    home, away, mix, rows = ee.coherence(np.random.default_rng(5), ee.TeamInput(1.7, first_share=0.44),
+                                         ee.TeamInput(0.9, first_share=0.45), PARAMS, TARGETS, scores=scores)
+    assert [row["passata"] for row in rows] == ["1", "2", "verifica", "obiettivo"]
+    assert home.corner_scale > 1.0 > away.corner_scale and home.card_scale < away.card_scale
+    out = ee.simulate(np.random.default_rng(9), N, home, away, PARAMS, scores=scores, mix=mix)
+    assert out["corners_home"].mean() == pytest.approx(6.1, rel=0.03)
+    assert out["corners_away"].mean() == pytest.approx(3.9, rel=0.03)
+    assert out["yellows_home"].mean() == pytest.approx(1.9, rel=0.04)
+    assert out["yellows_away"].mean() == pytest.approx(2.6, rel=0.04)
+    assert (out["reds_home"] + out["reds_away"]).mean() == pytest.approx(0.25, rel=0.12)
+    # Gol finali intatti (modo punteggi), quota del primo tempo vicina a quella tarata.
+    assert (out["goals_home"] == scores[0]).all()
+    assert out["first_home"].mean() / out["goals_home"].mean() == pytest.approx(0.44, abs=0.02)
+    assert out["first_away"].mean() / out["goals_away"].mean() == pytest.approx(0.45, abs=0.02)
+    # Dispersione: varianza dei totali come la binomiale negativa del motore attuale.
+    assert mix["corner"] > 0 and mix["cards"] > 0
+    assert np.var(out["corners_home"] + out["corners_away"]) == pytest.approx(TARGETS.corner_variance, rel=0.1)
+    assert np.var(out["yellows_home"] + out["yellows_away"]) == pytest.approx(TARGETS.yellow_variance, rel=0.1)
+    assert next(r for r in out["ledger"] if r["voce"] == "dispersione")["valore"]["corner"] == pytest.approx(mix["corner"], abs=1e-5)
+
+
+def test_coerenza_dei_rossi_con_la_quota_di_doppie_ammonizioni():
+    targets = dataclasses.replace(TARGETS, reds=0.3, double_share=0.4, corner_variance=None, yellow_variance=None)
+    home, away, mix, _ = ee.coherence(np.random.default_rng(5), ee.TeamInput(1.6), ee.TeamInput(1.1), PARAMS, targets,
+                                      scores=dc_scores())
+    assert mix == {} and home.red_scale != home.second_yellow_scale
+    out = ee.simulate(np.random.default_rng(3), N, home, away, PARAMS, scores=dc_scores())
+    reds = (out["reds_home"] + out["reds_away"]).mean()
+    doubles = (out["double_yellows_home"] + out["double_yellows_away"]).mean()
+    assert reds == pytest.approx(0.3, rel=0.12) and doubles / reds == pytest.approx(0.4, abs=0.06)
+
+
+def test_coerenza_tocca_solo_i_corner_di_gioco():
+    targets = dataclasses.replace(TARGETS, corners=(8.0, 2.0))
+    home, away, _, _ = ee.coherence(np.random.default_rng(5), ee.TeamInput(1.6), ee.TeamInput(1.1), PARAMS, targets,
+                                    scores=dc_scores())
+    out = ee.simulate(np.random.default_rng(3), N, home, away, PARAMS, scores=dc_scores())
+    base = run(dc_scores())
+    # I corner da tiro dipendono solo dai tiri: restano quelli del motore.
+    assert out["corners_by_origin_home"][:, 0].mean() == pytest.approx(base["corners_by_origin_home"][:, 0].mean(), rel=0.03)
+    assert out["corners_home"].mean() == pytest.approx(8.0, rel=0.03) and out["corners_away"].mean() == pytest.approx(2.0, rel=0.05)
