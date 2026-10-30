@@ -131,7 +131,8 @@ def day_workbook(registry_rows: Sequence[Mapping[str, Any]], records: Iterable[M
                  tactical_rows: Sequence[Mapping[str, Any]] = (), dual_choices: Sequence[Mapping[str, Any]] = (),
                  reports: Sequence[Mapping[str, Any]] = (), slips: Sequence[Mapping[str, Any]] = (),
                  dataset: Sequence[Mapping[str, Any]] = (), manual: Sequence[Mapping[str, Any]] = (),
-                 quotes_archive: Mapping[str, Any] | None = None, my_markets: Sequence[Mapping[str, Any]] = ()) -> bytes:
+                 quotes_archive: Mapping[str, Any] | None = None, my_markets: Sequence[Mapping[str, Any]] = (),
+                 quote_report: Sequence[Mapping[str, Any]] = ()) -> bytes:
     """Un unico file: Registro (A–S), Analisi, Doppio pronostico, Schede tattiche e il foglio tecnico nascosto."""
     from openpyxl import Workbook
 
@@ -227,6 +228,15 @@ def day_workbook(registry_rows: Sequence[Mapping[str, Any]], records: Iterable[M
     markets_sheet.append(list(MY_MARKET_COLUMNS))
     for row in my_markets:
         markets_sheet.append([_clean(row.get(column)) for column in MY_MARKET_COLUMNS])
+
+    # Fase Z2: report quote partita × mercato (derivato dall'archivio; al ripristino si ricalcola dalle voci «archivio»).
+    import quote_report as report_module
+
+    report_sheet = workbook.create_sheet("Report quote")
+    report_columns = report_module.sheet_columns()
+    report_sheet.append(report_columns)
+    for row in quote_report:
+        report_sheet.append([_clean(row.get(column)) for column in report_columns])
 
     technical = workbook.create_sheet(TECHNICAL_SHEET)
     technical.append(["Tipo", "ID", "JSON (diviso su più colonne se lungo)"])

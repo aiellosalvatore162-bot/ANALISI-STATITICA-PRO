@@ -309,6 +309,13 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   `config/odds_api.json`); «Analizza tutte» (`ui_today._analyze_day`) usa solo l'archivio. «I miei mercati» in
   `my_markets.py`, combo builder in `combo.py` su `result["event_samples"]` (`MatchConfig.keep_samples`, solo «Da
   giocare»). Test in `test_quotes.py` con fixture `tests/fixtures/quote/`.
+- Fase Z2 (report quote): `quote_report.py` legge solo l'archivio unico (nessuna rete, nessuna simulazione): righe =
+  partite selezionate («Da giocare» prime), colonne = mercati di «I miei mercati» (risultati esatti in una colonna);
+  cella ✓ quota · bookmaker · fonte · ora, oppure ✗ con motivo (sospesa, assente nella pagina incollata, non offerto
+  dall'API, fuori livello B, non raccolta). `to_paste`/`paste_text` = lista «Da incollare a mano» con bookmaker suggerito;
+  `summary` = quote per fonte/bookmaker, partite complete, crediti dal registro `quote_crediti`, proiezione a 30 giorni.
+  Interfaccia `ui_quotes.render_quote_report` (expander in Oggi), foglio «Report quote» dell'Excel (derivato: si
+  ricalcola dall'archivio al ripristino). Test in `test_quote_report.py`.
 - Le fonti remote devono degradare con un avviso (come `historical.py` ricade
   al 100% manuale), mai bloccare la simulazione manuale.
 
