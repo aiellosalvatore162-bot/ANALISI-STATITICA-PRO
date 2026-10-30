@@ -1258,6 +1258,61 @@
     "minimo": 20000,
     "tolleranza_pp": 0.25,
     "corsie": false,
-    "nota": "Motore a eventi della fase AK (event_engine.py, parametri in config/motore_eventi.json): punteggi Dixon-Coles fissi, eventi condizionati e riscalati sulle medie attuali di corner e cartellini (vincolo di coerenza), arresto adattivo. Spento finché la verifica fuori campione dello stadio 14 non lo accende."
+    "nota": "Motore a eventi della fase AK (event_engine.py, parametri in config/motore_eventi.json): punteggi Dixon-Coles fissi, eventi condizionati e riscalati sulle medie attuali di corner e cartellini (vincolo di coerenza), arresto adattivo. Spento finché la verifica fuori campione dello stadio 14 non lo accende.",
+    "verifica": {
+      "data": "2026-10-30",
+      "partite": 1454,
+      "gruppi": {
+        "tempi": {
+          "differenza": 0.00024,
+          "errore_standard": 0.00012,
+          "ece_prima": 0.02228,
+          "ece_dopo": 0.02164,
+          "log_loss_prima": 0.69351,
+          "log_loss_dopo": 0.69375
+        },
+        "corner": {
+          "differenza": -0.00123,
+          "errore_standard": 0.00028,
+          "ece_prima": 0.02582,
+          "ece_dopo": 0.02182,
+          "log_loss_prima": 0.69841,
+          "log_loss_dopo": 0.69717
+        },
+        "cartellini": {
+          "differenza": 0.0013,
+          "errore_standard": 0.0004,
+          "ece_prima": 0.01814,
+          "ece_dopo": 0.02129,
+          "log_loss_prima": 0.68212,
+          "log_loss_dopo": 0.68342
+        },
+        "combo": {
+          "differenza": -0.00105,
+          "errore_standard": 0.00034,
+          "ece_prima": 0.02247,
+          "ece_dopo": 0.02059,
+          "log_loss_prima": 0.49897,
+          "log_loss_dopo": 0.49792
+        },
+        "tutti": {
+          "differenza": -0.00031,
+          "errore_standard": 0.00018,
+          "ece_prima": 0.02223,
+          "ece_dopo": 0.02123,
+          "log_loss_prima": 0.62234,
+          "log_loss_dopo": 0.62204
+        }
+      },
+      "decisione": {
+        "accendere": false,
+        "migliora": false,
+        "ece_non_peggiore": true,
+        "gruppi_peggiori": [
+          "cartellini"
+        ]
+      },
+      "report": "docs/backtest/AK_motore_eventi.md"
+    }
   }
 }

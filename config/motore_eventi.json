@@ -766,6 +766,33 @@
         }
       },
       "nota": "moltiplicatore del tasso per minuto con un uomo in meno (−1) o in più (+1) rispetto alla parità, a parità di stato del punteggio e fascia; effetto fisso per squadra-partita; rossi diretti e seconde gialle insieme"
+    },
+    "attenuazione": {
+      "esponente": 0.53,
+      "errore_standard": 0.063,
+      "intervallo_95": [
+        0.407,
+        0.652
+      ],
+      "pendenza_osservata": -0.6021,
+      "errore_pendenza": 0.0684,
+      "curva_motore": {
+        "0": -0.005,
+        "0.1": -0.1398,
+        "0.2": -0.2452,
+        "0.3": -0.378,
+        "0.4": -0.4781,
+        "0.5": -0.5566,
+        "0.6": -0.7099,
+        "0.7": -0.774,
+        "0.8": -0.8868,
+        "0.9": -1.0363,
+        "1": -1.1012
+      },
+      "partite": 1517,
+      "simulazioni_per_partita": 20,
+      "metodo": "inferenza indiretta: pendenza tiri sbagliati ~ gol (residui Poisson con attacco, difesa, casa) osservata contro quella del motore a eventi in modo punteggi con moltiplicatori di stato^a",
+      "nota": "lo stesso esponente si applica a tiri, xG, corner di gioco, falli e gialli (ipotesi dichiarata: la stessa distorsione delle stime dentro la partita); effetti dell'uomo in meno/in più e fasce di minuti invariati."
     }
   },
   "dizionario": {

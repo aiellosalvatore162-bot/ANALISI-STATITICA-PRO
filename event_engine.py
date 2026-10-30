@@ -115,9 +115,29 @@ class EventParams:
     referee_k: tuple[float | None, float | None] = (None, None)                   # shrinkage arbitro su falli e gialli
     referee_source: str = ""
     note: str = ""
+    state_power: float = 1.0                        # esponente di attenuazione dei moltiplicatori di stato (stadio 12)
+
+    def with_state_power(self, power: float) -> "EventParams":
+        """Moltiplicatori di stato (tiri, xG, corner di gioco, falli, gialli) elevati a ``power`` rispetto a quelli attuali.
+        Le normalizzazioni sulla distribuzione degli stati tengono invariate le medie per partita."""
+        relative = power / self.state_power if self.state_power else power
+
+        def scaled(values):
+            return tuple(float(value) ** relative for value in values)
+
+        return dataclasses_replace(self, state_shots=scaled(self.state_shots), state_xg=scaled(self.state_xg),
+                                   state_corner=scaled(self.state_corner), state_fouls=scaled(self.state_fouls),
+                                   state_yellow=scaled(self.state_yellow), state_power=power)
 
     @classmethod
-    def from_config(cls, data: Mapping[str, Any], league: str | None = None) -> "EventParams":
+    def from_config(cls, data: Mapping[str, Any], league: str | None = None, attenuate: bool = True) -> "EventParams":
+        """``attenuate`` = applica l'esponente stimato (``stato_partita.attenuazione``, 1 se manca)."""
+        params = cls._from_config(data, league)
+        power = float((data["stato_partita"].get("attenuazione") or {}).get("esponente", 1.0)) if attenuate else 1.0
+        return params.with_state_power(power) if power != 1.0 else params
+
+    @classmethod
+    def _from_config(cls, data: Mapping[str, Any], league: str | None = None) -> "EventParams":
         name = league_name(league)
         own = (data.get("campionati") or {}).get(name, "") if name else ""
         key = name if own == "propri" and name in data["xg_per_tipo"] else "comune"
@@ -190,8 +210,8 @@ def referee_k(section: Mapping[str, Any], league: str | None) -> tuple[tuple[flo
              float(np.median(values["gialli"])) if values["gialli"] else None), "mediana delle stime")
 
 
-def load(league: str | None = None, path: Path = PATH) -> EventParams:
-    return EventParams.from_config(json.loads(path.read_text(encoding="utf-8")), league)
+def load(league: str | None = None, path: Path = PATH, attenuate: bool = True) -> EventParams:
+    return EventParams.from_config(json.loads(path.read_text(encoding="utf-8")), league, attenuate)
 
 
 @dataclass(frozen=True)
@@ -540,12 +560,13 @@ def _count_step(rng: np.random.Generator, out: dict, table: CountTables, params:
     if mix is not None:
         yellow_p = yellow_p * mix["cards"]
     cards = rng.binomial(fouls, np.clip(yellow_p, 0.0, 1.0))
-    straight = rng.binomial(fouls - cards, table.straight_red)
+    heat = mix["cards"] if mix is not None else 1.0   # partita «calda»: più gialli, rossi diretti e seconde gialle insieme
+    straight = rng.binomial(fouls - cards, np.clip(table.straight_red * heat, 0.0, 1.0))
     # Seconda gialla: solo tra i gialli presi quando la squadra è già ammonita (nel passo, dal secondo giallo in poi) e mai
     # più dei giocatori ammoniti e ancora in campo (ogni doppia ammonizione consuma un primo giallo).
     booked = out[f"yellows_{side}"] - out[f"double_yellows_{side}"]
     eligible = np.where(booked > 0, cards, np.maximum(cards - 1, 0))
-    second = np.minimum(rng.binomial(eligible, table.second_yellow), (booked + cards) // 2)
+    second = np.minimum(rng.binomial(eligible, np.clip(table.second_yellow * heat, 0.0, 1.0)), (booked + cards) // 2)
     out[f"fouls_{side}"] += fouls
     out[f"yellows_{side}"] += cards - second
     out[f"double_yellows_{side}"] += second

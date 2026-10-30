@@ -183,8 +183,49 @@ Ramo: `fase-ak-motore-eventi` (da `main` dopo la fase AH). `docs/FONTI.md` non e
    Esempio (blocco completo dei test, Serie A, 100.000 simulazioni): spento 2,1 s; acceso 3,0 s con arresto a 40.000; 1X2
    36,5/26,8/36,7 → 36,6/27,1/36,3; corner medi 4,47 → 4,49; punti cartellino 3,75 → 3,68 (Over 3.5 49,5 → 48,3).
    Test in `test_event_engine.py` (36): spento di default e senza effetti, aggancio, campioni del combo builder, esclusione con la fase O.
-12-13. Realismo e test di buon senso: DA FARE
-14. Banco fuori campione (3 stagioni, 5 campionati) → `docs/backtest/AK_motore_eventi.md`: DA FARE
+12. FATTO (30/10): realismo. `python -m tools.event_sense [--output docs/backtest/AK_buon_senso.md]`: 5 partite tipo di Serie A
+   (favorita netta, equilibrata, chiusa, arbitro severo, arbitro permissivo) con `simulate_match` spento/acceso e misure sui
+   percorsi. Confronto con i dati reali (football-data 2020-23 + 2026/27, 4.481 partite, residui a parità di quote, medie e
+   campionato): diff. gol/diff. corner −0,16, gol totali/corner −0,06, |diff. gol|/gialli −0,18, gialli in più nelle partite con
+   un rosso +1,07. Difetti trovati e corretti:
+   - effetti di stato troppo forti: StatsBomb dice che chi segna di più sbaglia MENO tiri (pendenza −0,60 ± 0,14 sui residui di una
+     Poisson con attacco, difesa e casa), il motore dava −1,10/−1,30 (distorsione delle stime dentro la partita: i minuti prima di
+     un gol sono minuti di pressione). Nuova stima in `tools/stima_motore.attenuation_section` → `stato_partita.attenuazione` di
+     `config/motore_eventi.json`: esponente dei moltiplicatori di stato per inferenza indiretta = **0,53** (IC 95% 0,41-0,65),
+     applicato a tiri, xG, corner di gioco, falli e gialli (`EventParams.with_state_power`, `load(attenuate=False)` per i
+     grezzi); ipotesi dichiarata, uomo in meno/in più e fasce invariati. Le altre stime restano identiche. Correlazione dentro
+     la partita diff. gol/diff. corner −0,36 → −0,22.
+   - partita «calda»: il moltiplicatore gamma dei cartellini ora vale anche per rossi diretti e seconde gialle (gialli con/senza
+     rosso 0,96 → 1,03). Resta sotto il reale (+24% circa): pesa l'effetto stimato «gialli ×0,39 per chi resta in 10»; limite
+     dichiarato, lo misura il banco.
+   Esempio (favorita netta): corner casa nel 2T 4,30 se sotto all'intervallo, 3,76 se pari, 3,04 se avanti; rosso presto (prima
+   del 30') = tiri ×0,72 e corner avversari ×1,29; quota gol/gialli/corner nel 1T 0,45/0,38/0,49; 19-21% di partite con un rosso.
+   `simulate_match` con `keep_samples` e motore acceso restituisce anche `result["event_engine_sample"]` (percorsi grezzi).
+13. FATTO (30/10): `test_event_sense.py` (7): attenuazione stimata e applicata, punteggi ed esatti identici con medie attuali,
+   chi è sotto spinge/chi è avanti gestisce, espulsione presto, arbitro severo contro permissivo, ritmo (primo gol, quote 1T),
+   partita calda.
+14. FATTO (30/10): banco `python -m tools.event_check [--per-stagione 100] [--processi 2] [--salva] [--ricomincia]` →
+   `docs/backtest/AK_motore_eventi.md` e `motore_eventi.verifica` di `config/goal_model.json`. 1.454 partite football-data
+   (Premier, Liga, Serie A, Bundesliga: 100 per campionato e stagione 2020/21-2022/23 + tutto il 2026/27; la Ligue 1 non ha righe
+   complete nel dataset, quindi 4 campionati e non 5), fuori dalla taratura (2024-26) e dalla stima (StatsBomb 2015/16). Stessa
+   `MatchConfig` dell'app con quote di chiusura, `simulate_match` spento contro acceso (stesso seme), 20.000 simulazioni al
+   massimo, 40 mercati: tempi, corner e cartellini (totali, per squadra, 1X2) e 14 combo. Risultati parziali per campionato in
+   `data/cache/event_check/<campionato>.jsonl` con ripresa; avanzamento in `data/cache/event_check/avanzamento.txt`.
+   Regola: log-loss media giù di oltre 2 e.s. appaiati, ECE media non peggiore, nessun gruppo peggiore di oltre 2 e.s.
+   **Esito: SPENTO** (`motore_eventi.attivo: false`).
+   - Tutti: log-loss 0,62234 → 0,62204 (−0,00031 ± 0,00036: non significativo); ECE 0,02223 → 0,02123.
+   - Corner: −0,00123 ± 0,00056 (meglio; 1X2 corner −0,0057 ± 0,0021, Casa Over 4.5 −0,0027 ± 0,0012), ECE 0,0258 → 0,0218.
+   - Combo: −0,00105 ± 0,00068 (meglio; «1 & 2 corner» −0,0134 ± 0,0065, «1 & Casa Over 4.5 corner» −0,0043 ± 0,0037).
+   - Tempi: +0,00024 ± 0,00025 (pari: la quota del primo tempo era già tarata).
+   - Cartellini: +0,00130 ± 0,00080 (PEGGIO; Ospite Over 1.5 +0,0037 ± 0,0018, Ospite Over 2.5 +0,0019 ± 0,0014; ECE
+     0,0181 → 0,0213).
+   - Medie invariate (corner 9,63/9,63, reali 9,67; punti cartellino 4,41/4,39, reali 4,40). Tempo 0,69 s → 3,13 s a partita.
+   - Correlazioni dei residui (reale / motore a eventi): diff. gol-diff. corner −0,139 / −0,215 (ancora un po' troppo forte);
+     gol-corner −0,030 / −0,005; |diff. gol|-gialli −0,184 / −0,066 (troppo debole); gialli in più con un rosso +0,96 / +0,11
+     (troppo debole). La parte dei cartellini è quella che non regge: divisione tra le squadre peggiore della fase T e legame
+     con punteggio ed espulsioni troppo debole.
+   - Possibile passo successivo (NON fatto, servirebbe un nuovo banco con campione diverso per non scegliere sui dati della
+     verifica): motore a eventi solo per corner e combo gol+corner, cartellini dal motore attuale.
 15. «Vedi come andrà»: DA FARE
 16. Test, merge, push: DA FARE
 
@@ -193,9 +234,10 @@ Ramo: `fase-ak-motore-eventi` (da `main` dopo la fase AH). `docs/FONTI.md` non e
   esattamente 34 partite, tutte del Bayer Leverkusen (34 su 34). Il download è COMPLETO: è StatsBomb che pubblica solo quelle.
   DECISIONE: nessun effetto proprio per la Bundesliga; le 34 partite entrano solo nelle stime comuni (non per campionato) e per la
   Bundesliga si usano i valori stimati sugli altri campionati, dichiarato in `config/motore_eventi.json`.
-- Prossimo: stadi 12-13 (realismo e test di buon senso del motore acceso su partite tipo: favorita netta, partita chiusa,
-  espulsione presto, arbitro severo), poi il banco dello stadio 14 che decide `motore_eventi.attivo`. Il modo «libero» resta
-  solo nello strumento (non collegato all'app: cambierebbe i punteggi Dixon-Coles).
+- Prossimo: stadio 15 («Vedi come andrà», usa `result["event_engine_sample"]`) e 16. Il motore a eventi resta SPENTO dopo il
+  banco dello stadio 14; per riprovarlo: corner/combo da soli oppure cartellini rivisti (uomo in meno, partita calda, divisione
+  per squadra), poi `python -m tools.event_check --ricomincia --salva`.
+- 30/10: stadi 12-14 fatti (banco: motore spento) e uniti a `main`.
 - 30/10: stadi 9-11 fatti in una nuova sessione e uniti a `main`; il motore a eventi è collegato ma SPENTO
   (`config/goal_model.json` → `motore_eventi.attivo: false`): l'app non cambia finché lo stadio 14 non lo accende.
 - 30/10: stadi 6-8 fatti in una nuova sessione sul ramo `fase-ak-motore-eventi` e uniti a `main` (motore ancora non collegato).

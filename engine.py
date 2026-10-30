@@ -2356,6 +2356,9 @@ def simulate_match(config: MatchConfig) -> dict[str, Any]:
         result["event_samples"] = {key: np.packbits(np.asarray(values, dtype=bool)) for key, values in events.items()
                                    if getattr(values, "dtype", None) == bool}
         result["sample_size"] = int(config.simulations)
+        if event_details.get("active"):
+            # Fase AK: percorsi grezzi del motore a eventi (tiri, corner per origine, falli, cartellini, minuti), stesso campione.
+            result["event_engine_sample"] = {key: value for key, value in sample.items() if isinstance(value, np.ndarray)}
     result["statistical_report"] = statistical_report(config, result)
     result["dashboard"] = {
         "goals_distribution": {
