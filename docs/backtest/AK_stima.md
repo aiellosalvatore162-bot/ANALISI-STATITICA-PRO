@@ -41,6 +41,10 @@ Minuti con un uomo in meno o in più: 5273 su 146136. Rossi diretti per fallo 0.
 | falli | 0.64 ± 0.05 | 1.00 ± 0.07 |
 | gialli | 0.39 ± 0.06 | 0.93 ± 0.18 |
 
+## Attenuazione degli effetti di stato (stadio 12)
+
+Esponente 0.53 (IC 95% 0.407-0.652): pendenza tiri sbagliati ~ gol osservata -0.602 ± 0.137 su 1517 partite; motore con esponente 1: -1.101. lo stesso esponente si applica a tiri, xG, corner di gioco, falli e gialli (ipotesi dichiarata: la stessa distorsione delle stime dentro la partita); effetti dell'uomo in meno/in più e fasce di minuti invariati.
+
 ## Dizionario tattico
 
 | termine → tasso | beta | IC 95% | n | nel dizionario |

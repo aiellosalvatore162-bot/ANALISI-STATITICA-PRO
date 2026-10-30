@@ -565,6 +565,96 @@ def referee_section(matches: list[dict]) -> dict:
     return section
 
 
+ATTENUATION_GRID = tuple(round(0.1 * step, 1) for step in range(11))
+
+
+def _fe_poisson(y: np.ndarray, X: np.ndarray, ridge: float = 1e-4, iterations: int = 60) -> np.ndarray:
+    """Medie di una Poisson con effetti fissi (IRLS con una piccola cresta: le leghe sono componenti separate)."""
+    beta = np.zeros(X.shape[1])
+    beta[0] = math.log(max(y.mean(), 1e-9))
+    for _ in range(iterations):
+        mu = np.exp(X @ beta)
+        step = np.linalg.solve(X.T @ (X * mu[:, None]) + ridge * np.eye(X.shape[1]), X.T @ (y - mu) - ridge * beta)
+        beta += step
+        if np.max(np.abs(step)) < 1e-10:
+            break
+    return np.exp(X @ beta)
+
+
+def attenuation_section(matches: list[dict], config: dict, draws: int = 20, bootstrap: int = 200, seed: int = 3) -> dict:
+    """Esponente a dei moltiplicatori di stato per inferenza indiretta (stadio 12).
+
+    Gli effetti di stato stimati dentro la partita sono gonfiati: i minuti prima di un gol sono minuti di pressione, quelli
+    dopo tornano alla media. Misura: pendenza dei tiri sbagliati (senza rigori) sui gol della stessa squadra-partita, dai
+    residui di una Poisson con attacco, difesa avversaria e casa (StatsBomb 2015/16, senza la Bundesliga). Il motore a
+    eventi in modo «punteggi» con moltiplicatori^a, simulato sugli stessi gol attesi, dà la stessa pendenza con l'esponente
+    scelto (interpolazione lineare sulla griglia 0-1); errore standard = bootstrap per partita della pendenza osservata
+    diviso la pendenza della curva del motore."""
+    import event_engine
+
+    rows = []
+    for match in matches:
+        if match["league"] in NO_OWN_EFFECTS:
+            continue
+        for side in ("h", "a"):
+            shots = [shot for shot in match["shots"] if shot["s"] == side and shot_type(shot) != "rigore"]
+            rows.append({"match": match["id"], "team": match["home"] if side == "h" else match["away"],
+                         "opp": match["away"] if side == "h" else match["home"], "home": int(side == "h"),
+                         "goals": sum(1 for shot in shots if shot["g"]), "misses": sum(1 for shot in shots if not shot["g"])})
+    frame = pd.DataFrame(rows)
+    X = np.column_stack([np.ones(len(frame)), frame["home"],
+                         pd.get_dummies(frame["team"]).to_numpy(float)[:, 1:], pd.get_dummies(frame["opp"]).to_numpy(float)[:, 1:]])
+    goal_mean = _fe_poisson(frame["goals"].to_numpy(float), X)
+    miss_mean = _fe_poisson(frame["misses"].to_numpy(float), X)
+    goals_res, miss_res = frame["goals"].to_numpy(float) - goal_mean, frame["misses"].to_numpy(float) - miss_mean
+    observed = float((goals_res * miss_res).sum() / (goals_res ** 2).sum())
+    rng = np.random.default_rng(seed)
+    codes, unique = pd.factorize(frame["match"])
+    boot = []
+    for _ in range(bootstrap):
+        weights = np.bincount(rng.choice(len(unique), len(unique)), minlength=len(unique))[codes]
+        boot.append(float((weights * goals_res * miss_res).sum() / (weights * goals_res ** 2).sum()))
+    error = float(np.std(boot, ddof=1))
+    base = event_engine.EventParams.from_config(config, None, attenuate=False)
+    pairs = frame.assign(mean=goal_mean).groupby("match", sort=False)["mean"].agg(list)
+    # Partite raggruppate per gol attesi arrotondati (un'unica simulazione vettoriale per gruppo).
+    keys = pd.Series([(round(values[0], 1), round(values[1], 1)) for values in pairs]).value_counts()
+    curve = []
+    for power in ATTENUATION_GRID:
+        params = base.with_state_power(power)
+        sim_rng = np.random.default_rng([seed, int(power * 10)])
+        numerator = denominator = 0.0
+        for (lam, mu), count in keys.items():
+            lam, mu, n = max(lam, 0.05), max(mu, 0.05), int(count) * draws
+            scores = (sim_rng.poisson(lam, n), sim_rng.poisson(mu, n))
+            sample = event_engine.simulate(sim_rng, n, event_engine.TeamInput(lam, first_share=0.45),
+                                           event_engine.TeamInput(mu, first_share=0.45), params, scores=scores)
+            for side in ("home", "away"):
+                penalties = sample[f"goals_by_type_{side}"][:, event_engine.PENALTY]
+                goals = sample[f"goals_{side}"] - penalties
+                misses = (sample[f"shots_{side}"] - sample[f"goals_by_type_{side}"]).sum(axis=1) - (
+                    sample[f"shots_{side}"][:, event_engine.PENALTY] - penalties)
+                goals, misses = goals - goals.mean(), misses - misses.mean()
+                numerator += float((goals * misses).sum())
+                denominator += float((goals ** 2).sum())
+        curve.append(numerator / denominator)
+    grid = np.asarray(ATTENUATION_GRID)
+    order = np.argsort(curve)
+    power = float(np.clip(np.interp(observed, np.asarray(curve)[order], grid[order]), 0.0, 1.0))
+    derivative = float(abs(np.polyfit(grid, curve, 1)[0]))
+    return {
+        "esponente": round(power, 3), "errore_standard": round(error / derivative, 3),
+        "intervallo_95": [round(max(power - 1.96 * error / derivative, 0.0), 3), round(min(power + 1.96 * error / derivative, 1.0), 3)],
+        "pendenza_osservata": round(observed, 4), "errore_pendenza": round(error, 4),
+        "curva_motore": {f"{value:g}": round(slope, 4) for value, slope in zip(ATTENUATION_GRID, curve)},
+        "partite": int(len(unique)), "simulazioni_per_partita": draws,
+        "metodo": "inferenza indiretta: pendenza tiri sbagliati ~ gol (residui Poisson con attacco, difesa, casa) osservata "
+                  "contro quella del motore a eventi in modo punteggi con moltiplicatori di stato^a",
+        "nota": "lo stesso esponente si applica a tiri, xG, corner di gioco, falli e gialli (ipotesi dichiarata: la stessa "
+                "distorsione delle stime dentro la partita); effetti dell'uomo in meno/in più e fasce di minuti invariati.",
+    }
+
+
 def run(bootstrap: int = 200, update_dictionary: bool = True) -> dict:
     matches = load_detail()
     dictionary = tactical_dictionary.load()
@@ -588,6 +678,7 @@ def run(bootstrap: int = 200, update_dictionary: bool = True) -> dict:
         "incroci": interactions_section(pairs),
         "arbitri": referee_section(matches),
     }
+    config["stato_partita"]["attenuazione"] = attenuation_section(matches, config)
     CONFIG.write_text(json.dumps(config, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     if update_dictionary:
         tactical_dictionary.PATH.write_text(json.dumps(updated, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
@@ -629,6 +720,13 @@ def report(config: dict) -> str:
             lines.append(f"| {quantity} | " + " | ".join(
                 f"{values[m]['moltiplicatore']:.2f} ± {2 * (values[m]['es'] or 0) * values[m]['moltiplicatore']:.2f}"
                 for m in ("-1", "1")) + " |")
+    attenuation = config["stato_partita"].get("attenuazione")
+    if attenuation:
+        lines += ["", "## Attenuazione degli effetti di stato (stadio 12)", "",
+                  f"Esponente {attenuation['esponente']:g} (IC 95% {attenuation['intervallo_95'][0]:g}-{attenuation['intervallo_95'][1]:g}): "
+                  f"pendenza tiri sbagliati ~ gol osservata {attenuation['pendenza_osservata']:+.3f} ± "
+                  f"{2 * attenuation['errore_pendenza']:.3f} su {attenuation['partite']} partite; motore con esponente 1: "
+                  f"{attenuation['curva_motore']['1']:+.3f}. {attenuation['nota']}"]
     lines += ["", "## Dizionario tattico", "", "| termine → tasso | beta | IC 95% | n | nel dizionario |", "|---|---|---|---|---|"]
     for key, row in config["dizionario"].items():
         if not row["stimabile"]:
