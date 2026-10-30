@@ -135,7 +135,16 @@ def _style_rows() -> list[dict]:
     import style_profile
 
     profiles = [profile for analysis in st.session_state.get("today_analyses", []) for profile in getattr(analysis, "style_profiles", [])]
-    return style_profile.sheet_rows(profiles)
+    rows = style_profile.sheet_rows(profiles)
+    import match_context
+
+    for analysis in st.session_state.get("today_analyses", []):
+        context = getattr(analysis, "context", None)
+        if context:
+            rows += [{"Squadra": item["Squadra"], "Campo": "", "Parametro": f"{item['Campo']} → {item['Parametro']}",
+                      "Descrizione": item["Stato"], "Valore": item["Valore usato"], "Campione": None, "Fonte": item["Come"], "Avviso": ""}
+                     for item in match_context.absorbed_rows(context)]
+    return rows
 
 
 def _quote_report() -> list[dict]:

@@ -46,7 +46,7 @@ def stored_probabilities(final: Mapping[str, float]) -> dict[str, float]:
 
 def from_result(day: date | str, competition: str, home: str, away: str, result: Mapping[str, Any],
                 odds: Mapping[str, float] | None, home_sheet: TacticalSheet | None, away_sheet: TacticalSheet | None,
-                effects=None) -> dict:
+                effects=None, context: Mapping[str, Any] | None = None) -> dict:
     counts = result.get("count_anchoring") or {}
     return {
         "id": record_id(day, home, away), "data": str(day)[:10], "competizione": competition or "", "casa": home,
@@ -60,6 +60,7 @@ def from_result(day: date | str, competition: str, home: str, away: str, result:
                    "gialli": float((counts.get("cartellini") or {}).get("final_mean") or 0.0) or None},
         "regole": {"fattori": dict(effects.factors) if effects is not None else {},
                    "analista": list(effects.analyst_notes) if effects is not None else []},
+        "contesto": context,
         "esito": None, "aggiornato": datetime.now().isoformat(timespec="seconds"),
     }
 

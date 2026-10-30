@@ -317,17 +317,23 @@ def get_lineup_params(home: str, away: str, when, store: pl.PlayerStore, *, leag
     return result
 
 
-def report_from_response(response: Any) -> dict[str, dict[str, Any]] | None:
-    """Formazione e assenti di una risposta/report dell'Analista (``claude_bridge.ClaudeResponse``) per ``get_lineup_params``."""
-    if response is None:
-        return None
+def report_from_response(response: Any, extras: Any = None) -> dict[str, dict[str, Any]] | None:
+    """Formazione e assenti di una risposta/report dell'Analista (``claude_bridge.ClaudeResponse``) per ``get_lineup_params``;
+    con ``extras`` (``match_extras.MatchExtras``) anche ASSENTI_PESATI e TURNOVER (fase AH)."""
     report: dict[str, dict[str, Any]] = {}
     for side in ("casa", "ospite"):
         info: dict[str, Any] = {}
-        if side in response.lineup:
+        if extras:
+            mine = [{"nome": item.player, "peso": item.weight, "fonte": item.source, "ruolo": item.role}
+                    for item in extras.absent if item.side == side]
+            if mine:
+                info["assenti_pesati"] = mine
+            if side in extras.turnover:
+                info["turnover"] = extras.turnover[side][0]
+        if response is not None and side in response.lineup:
             info["formazione"] = response.lineup[side]["formazione"]
             info["fonte"] = response.lineup[side]["fonte"]
-        if response.absent.get(side):
+        if response is not None and response.absent.get(side):
             source = response.absent_source.get(side, "report dell'Analista")
             info["assenti"] = [{"nome": name, "fonte": source, "motivo": "assente (report)"} for name in response.absent[side]]
             info.setdefault("fonte", source)

@@ -57,6 +57,8 @@ class Analysis:
     odds_fields: dict = field(default_factory=dict)   # campi quota del passaggio economico, per ricalcolare
     manual: Any = None                         # voce di manual_data usata per questa analisi (None = nessun manuale)
     style_profiles: list = field(default_factory=list)   # profili di stile casa/ospite (fase AD), per il foglio «Stile»
+    extras: Any = None                         # match_extras.MatchExtras del report (fase AH)
+    context: dict | None = None                # match_context.match_context (riquadro «Stile»)
     lineup: dict | None = None                 # ``lineup.get_lineup_params`` (fase AL): XI atteso, minuti, assenti pesati, rigorista
 
     @property
@@ -210,6 +212,33 @@ def _attach_lineup(analysis: "Analysis", lineup_loader: Callable[[], Any] | None
     analysis.warnings.extend(f"Formazione: {message}" for message in data["avvisi"][:3])
     if data.get("motore"):
         analysis.config = replace(analysis.config, lineup=data["motore"])
+
+
+def apply_report_context(analysis: "Analysis", block: Any, lineup_loader: Callable[[], Any] | None = None) -> None:
+    """Fase AH: ASSENTI_PESATI, RIPOSO e TURNOVER del report entrano nella configurazione (prima della simulazione).
+
+    Il riposo del report vale solo se manca il calendario (``rest_days`` vuoto); assenti e turnover passano dalla formazione
+    (AL): un assente noto a Understat conta una volta sola. Senza report non cambia nulla."""
+    extras = getattr(block, "extras", None)
+    analysis.extras = extras
+    if analysis.config is None or not extras:
+        return
+    if analysis.config.rest_days is None and extras.rest_days:
+        analysis.config = replace(analysis.config, rest_days=(extras.rest_days.get("casa"), extras.rest_days.get("ospite")))
+    if extras.absent or extras.turnover:
+        try:
+            import lineup as lineup_module
+
+            store = lineup_loader() if lineup_loader else None
+            if store is not None and len(store.table) and analysis.config.league:
+                data = lineup_module.get_lineup_params(
+                    analysis.config.home.name, analysis.config.away.name, analysis.match.commence_time.date(), store,
+                    league=analysis.config.league, report=lineup_module.report_from_response(block.response, extras))
+                analysis.lineup = data
+                if data.get("motore"):
+                    analysis.config = replace(analysis.config, lineup=data["motore"])
+        except Exception as exc:
+            analysis.warnings.append(f"Assenti pesati/turnover non applicati ({type(exc).__name__}).")
 
 
 def analyze(match: TodayMatch, build: Callable[..., Any], odds_fields: Mapping[str, Any], *,

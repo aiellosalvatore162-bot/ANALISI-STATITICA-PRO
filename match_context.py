@@ -139,7 +139,7 @@ def labels(profile: Mapping[str, Any] | None, store, league: str | None, when, p
 def match_context(home: str, away: str, when, *, league: str | None = None, style_store=None, player_store=None,
                   sheets: Sequence[Mapping[str, Any]] = (), block=None, response=None,
                   elo: tuple[float | None, float | None] = (None, None), calendar_rest: tuple[int | None, int | None] | None = None,
-                  rules: Mapping[str, Any] | None = None, prior: Mapping[str, Any] | None = None) -> dict[str, Any]:
+                  rules: Mapping[str, Any] | None = None, prior: Mapping[str, Any] | None = None, extras: Any = None) -> dict[str, Any]:
     """Contesto completo della partita. Tutto facoltativo: senza stile, giocatori o report restano le parti misurate."""
     import lineup as lineup_module
     import style_profile
@@ -149,7 +149,7 @@ def match_context(home: str, away: str, when, *, league: str | None = None, styl
     warnings: list[str] = []
     effects = ts.match_effects(sheets, home, away, rules)
     context: dict[str, Any] = {"casa": {"squadra": home}, "ospite": {"squadra": away}, "avvisi": warnings}
-    extras = getattr(block, "extras", None)
+    extras = extras if extras is not None else getattr(block, "extras", None)
     if extras is not None:
         warnings += extras.warnings
     # (a) stile misurato e (b) profilo -> parametri
@@ -175,15 +175,7 @@ def match_context(home: str, away: str, when, *, league: str | None = None, styl
     context["incroci"] = {"fattori": effects.factors, "note": list(effects.notes) + list(effects.analyst_notes),
                           "reazioni_stato": {"casa": effects.reactions[:2], "ospite": effects.reactions[2:]}}
     # (c) formazione, assenti pesati, turnover, riposo (con l'AL: un assente noto a Understat conta una volta sola)
-    report = lineup_module.report_from_response(response) or {}
-    if extras:
-        for side in ("casa", "ospite"):
-            info = report.setdefault(side, {})
-            mine = [{"nome": item.player, "peso": item.weight, "fonte": item.source, "ruolo": item.role} for item in extras.absent if item.side == side]
-            if mine:
-                info["assenti_pesati"] = mine
-            if side in extras.turnover:
-                info["turnover"] = extras.turnover[side][0]
+    report = lineup_module.report_from_response(response, extras) or {}
     lineup = None
     if player_store is not None:
         try:
@@ -236,3 +228,15 @@ def absorbed_rows(context: Mapping[str, Any]) -> list[dict[str, str]]:
                 rows.append({"Squadra": data["squadra"], "Campo": name, "Valore nel report": str(sheet[name])[:80], "Stato": INFORMATIVE,
                              "Parametro": "—", "Valore usato": "—", "Come": FIELD_STATUS[name][1]})
     return rows
+
+
+def dataset_summary(context: Mapping[str, Any], extras: Any = None) -> dict[str, Any]:
+    """Voce compatta per il dataset Analista: parametri del profilo (prior/dato/valore), campo e fonte, extras con la fonte."""
+    summary: dict[str, Any] = {"profilo": {}, "extras": None}
+    for side in ("casa", "ospite"):
+        summary["profilo"][side] = [{key: item[key] for key in ("campo", "categoria", "parametro", "dato", "campione", "prior", "peso_dati",
+                                                               "valore", "fonte_profilo")} for item in context[side].get("profilo", [])]
+    if extras:
+        summary["extras"] = {"assenti_pesati": [vars(item) for item in extras.absent], "riposo": dict(extras.rest_days),
+                             "fonte_riposo": extras.rest_source, "turnover": {k: list(v) for k, v in extras.turnover.items()}}
+    return summary
