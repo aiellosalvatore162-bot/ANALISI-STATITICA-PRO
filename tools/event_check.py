@@ -67,8 +67,8 @@ def evaluation_rows(per_season: int, seed: int = 11) -> pd.DataFrame:
                                        "away_yellows", "home_reds", "away_reds", "close_home", "close_draw", "close_away"])
     features = features[features["league"].isin(LEAGUES)]
     early = features[features["season"].isin(SEASONS)]
-    early = early.groupby(["league", "season"], group_keys=False).apply(
-        lambda frame: frame.sample(min(per_season, len(frame)), random_state=seed))
+    early = pd.concat([frame.sample(min(per_season, len(frame)), random_state=seed)
+                       for _, frame in early.groupby(["league", "season"])])
     late = features[features["season"].isin(HOLDOUT)]
     return pd.concat([early, late]).sort_values("date").reset_index(drop=True)
 
