@@ -58,8 +58,31 @@ Ramo: `fase-ak-motore-eventi` (da `main` dopo la fase AH). `docs/FONTI.md` non e
    Download dettaglio StatsBomb: `python -m tools.minute_data --statsbomb-dettaglio` (in sequenza, pausa 1 s, ripresa dai file
    `.parziale`, log in `data/cache/minuto/dettaglio.log`; fonte da citare «Data: StatsBomb Open Data», StatsBomb Open Data User
    Agreement). COMPLETATO il 30/10: 1.551 partite (Premier 380, Liga 380, Serie A 380, Bundesliga 34, Ligue 1 377), ~0,8 MB in 5 file `statsbomb_dettaglio_*.json.gz`.
-2. `tools/stima_motore.py` → `config/motore_eventi.json` (incroci, xG per tipo, stato di partita, arbitri `referee_stats.py`): DA FARE
-   (prima: download del dettaglio StatsBomb, vedi decisione sopra)
+2. FATTO (30/10): `tools/stima_motore.py` → `config/motore_eventi.json` + beta in `config/dizionario_tattico.json` + report
+   `docs/backtest/AK_stima.md`; arbitri in `referee_stats.py`; test `test_stima_motore.py`. Rigenerare con
+   `python -m tools.stima_motore [--bootstrap 200] [--no-dizionario]` (~45 s, solo cache su disco). Risultati principali:
+   - Tipi di tiro (ordine rigore > palla inattiva > transizione > fuori area > testa da cross > azione; palla inattiva = punizione
+     diretta o possesso da corner, «From Free Kick» resta azione perché copre tutto il possesso): per squadra-partita 0,13 rigori
+     (gol/tiro 0,75), 2,58 palla inattiva (0,080), 0,56 transizione (0,155), 3,92 fuori area (0,030), 0,75 testa da cross (0,117),
+     4,53 azione (0,149). Per campionato e «comune»; Bundesliga = comune.
+   - Corner per squadra-partita: da tiro parato/respinto 1,53, da cross 1,00, altro 2,57; 0,25 corner per tiro parato o respinto;
+     15,0 falli per squadra-partita, 0,151 gialli per fallo; quote dei falli per zona.
+   - Stato di partita (effetto fisso squadra-partita, bootstrap 200 per partita): rispetto al pareggio tiri ×1,35/×1,19 (−2/−1),
+     ×0,67/×0,50 (+1/+2); xG ×1,59/×1,30, ×0,65/×0,41; corner ×1,21/×1,24, ×0,65/×0,54; falli ×0,85/×0,90, ×1,07/×1,05; gialli
+     ×0,72/×0,95, ×1,25/×1,01. Più i moltiplicatori per fascia di minuti.
+   - Dizionario (Poisson con controlli forza delle due squadre e casa, offset = concessioni dell'avversario senza la partita,
+     errore robusto per partita; beta nel dizionario solo se l'IC 95% esclude lo zero, altrimenti 0 con la stima in «motivo»):
+     stimati possesso→quota_possesso +0,115, possesso→tiri_fuori_area +0,085, pressing→falli_fatti +0,034, fasce_cross→cross
+     +0,137, →tiri_da_cross +0,131, →corner_fasce +0,168; verticalizzazione→azioni_pericolose −0,033 (SEGNO OPPOSTO all'atteso:
+     tenuto e segnalato, da rivedere col banco). A zero: possesso/verticalizzazione/transizione→tiri_transizione,
+     altezza_linea→transizione concessa e corner concessi, gestione_blocco_basso. Null con motivo: recuperi_alti, marcatura,
+     adattabilità (restano i valori fissi della fase Q), reazioni (solo effetto medio dello stato di partita). Verticalizzazione e
+     transizione usano lo stesso indicatore: non sommarle. Le 20 righe stili con 0 passaggi (Ligue 1) sono escluse.
+   - Incroci (solo stima, `attiva: false`): verticali contro linea alta −0,049 [−0,131, +0,032], possesso contro pressing (falli)
+     +0,018 [+0,001, +0,034], cross contro blocco basso −0,028 [−0,089, +0,032]. L'accensione si decide allo stadio 14.
+   - Arbitri: Premier (football-data 2019-26, 33 arbitri) varianza dovuta all'arbitro 4,6% sui falli (k 20,8, fuori campione
+     −2,4% MSE) e 1,2% sui gialli (k 80,7, −0,1%); Scozia 5,1% (k 18,8) e 2,2% (k 44); StatsBomb 2015/16 (una stagione) Liga,
+     Serie A, Ligue 1 con quote 2-18%. L'app usa k = 10 fisso: troppo poco shrinkage sui gialli; il cambio si decide col banco.
 3-5. Stato della partita, azioni a passi, tiri e gol (`event_engine.py`): DA FARE
 6-8. Corner, falli e cartellini, effetti dello stato: DA FARE
 9-11. Vincolo di coerenza (riscalatura sulle medie attuali), simulazione vettoriale con arresto adattivo, mercati dagli stessi campioni: DA FARE
@@ -73,5 +96,5 @@ Ramo: `fase-ak-motore-eventi` (da `main` dopo la fase AH). `docs/FONTI.md` non e
   esattamente 34 partite, tutte del Bayer Leverkusen (34 su 34). Il download è COMPLETO: è StatsBomb che pubblica solo quelle.
   DECISIONE: nessun effetto proprio per la Bundesliga; le 34 partite entrano solo nelle stime comuni (non per campionato) e per la
   Bundesliga si usano i valori stimati sugli altri campionati, dichiarato in `config/motore_eventi.json`.
-- Prossimo: stadio 2 (`tools/stima_motore.py`) sui file `statsbomb_dettaglio_*.json.gz` + `stili_statsbomb.json.gz` + CSV; poi riempire i beta del dizionario.
+- Prossimo: stadi 3-5 (`event_engine.py`: stato della partita, azioni a passi, tiri e gol) leggendo `config/motore_eventi.json`.
 - La conversazione che ha fatto la ricognizione era già molto lunga: il lavoro riparte da qui in una nuova sessione.
