@@ -6,7 +6,12 @@
   eventi di una stagione completa per verificare gli effetti sui gol e stimare i tempi di corner,
   falli e cartellini. Dagli eventi si tengono solo minuto, squadra e tipo (il JSON grezzo non si salva).
 
-Uso: ``python -m tools.minute_data --understat 2023 2024`` e ``python -m tools.minute_data --statsbomb``.
+Fase AK: ``--statsbomb-dettaglio`` scarica UNA volta, in sequenza e con pausa tra le richieste, un riassunto più ricco degli
+stessi eventi in una cache separata (``statsbomb_dettaglio_<comp>_<stagione>.json.gz``): tipo, parte del corpo, schema di gioco,
+esito e zona dei tiri (anche se nati da un cross), origine dei corner (tiro parato/deviato, cross, altro), zona e corsia dei falli,
+duelli per squadra. Il JSON grezzo non si salva. Fonte da citare: «Data: StatsBomb Open Data» (StatsBomb Open Data User Agreement).
+
+Uso: ``python -m tools.minute_data --understat 2023 2024``, ``--statsbomb``, ``--statsbomb-dettaglio``.
 """
 
 from __future__ import annotations
@@ -120,15 +125,108 @@ def download_statsbomb(workers: int = 6) -> None:
         print(f"{target.name}: {len(rows)} partite")
 
 
+SAVED = {"Saved", "Blocked", "Saved Off Target", "Saved to Post", "Saved To Post"}
+
+
+def _zone(location, team_side_x: bool = True) -> tuple[str, str, bool]:
+    """(terzo, corsia, in area) da una posizione StatsBomb (campo 120×80, squadra che attacca verso x = 120)."""
+    if not location:
+        return "", "", False
+    x, y = float(location[0]), float(location[1])
+    third = "difesa" if x < 40 else "centro" if x < 80 else "attacco"
+    lane = "sinistra" if y < 80 / 3 else "destra" if y > 160 / 3 else "centro"
+    return third, lane, x >= 102 and 18 <= y <= 62
+
+
+def detail_events(events: list[dict], home: str) -> dict:
+    """Riassunto compatto degli eventi di una partita per la fase AK (funzione pura, senza rete)."""
+    def clock(event):
+        return 60 * int(event.get("minute", 0)) + int(event.get("second", 0))
+
+    shots, corners, fouls, cards = [], [], [], []
+    duels = {"h": 0, "a": 0}
+    passes_by_id = {event["id"]: event for event in events if event["type"]["name"] == "Pass"}
+    for index, event in enumerate(events):
+        kind = event["type"]["name"]
+        side = "h" if event.get("team", {}).get("name") == home else "a"
+        base = {"m": event["minute"], "p": event["period"], "s": side}
+        if kind == "Shot":
+            shot = event["shot"]
+            third, lane, box = _zone(event.get("location"))
+            key_pass = passes_by_id.get(shot.get("key_pass_id"))
+            shots.append({**base, "xg": shot.get("statsbomb_xg", 0.0), "g": shot["outcome"]["name"] == "Goal",
+                          "t": shot.get("type", {}).get("name", ""), "b": shot.get("body_part", {}).get("name", ""),
+                          "pp": event.get("play_pattern", {}).get("name", ""), "o": shot["outcome"]["name"], "area": box,
+                          "c": lane, "cross": bool(key_pass and key_pass.get("pass", {}).get("cross"))})
+        elif kind == "Pass" and event.get("pass", {}).get("type", {}).get("name") == "Corner":
+            origin = "altro"
+            for previous in reversed(events[max(0, index - 40):index]):
+                if clock(event) - clock(previous) > 60 or previous.get("period") != event.get("period"):
+                    break
+                same = previous.get("team", {}).get("name") == event.get("team", {}).get("name")
+                if previous["type"]["name"] == "Shot" and same and previous["shot"]["outcome"]["name"] in SAVED:
+                    origin = "tiro"
+                    break
+                if previous["type"]["name"] == "Pass" and same and previous.get("pass", {}).get("cross"):
+                    origin = "cross"
+                    break
+            corners.append({**base, "o": origin})
+        elif kind == "Foul Committed":
+            third, lane, _ = _zone(event.get("location"))
+            fouls.append({**base, "z": third, "c": lane, "card": event.get("foul_committed", {}).get("card", {}).get("name")})
+        elif kind == "Bad Behaviour":
+            card = event.get("bad_behaviour", {}).get("card", {}).get("name")
+            if card:
+                cards.append({**base, "card": card})
+        elif kind == "Duel":
+            duels[side] += 1
+    return {"shots": shots, "corners": corners, "fouls": fouls, "cards": cards, "duels": duels}
+
+
+def download_statsbomb_detail(pause: float = 1.0) -> None:
+    """Riassunti «dettaglio» delle stagioni StatsBomb, in sequenza, con pausa e ripresa da dove si era fermato."""
+    CACHE.mkdir(parents=True, exist_ok=True)
+    for competition, season in SB_SEASONS:
+        target = CACHE / f"statsbomb_dettaglio_{competition}_{season}.json.gz"
+        partial = CACHE / f"statsbomb_dettaglio_{competition}_{season}.parziale.json.gz"
+        if target.exists():
+            print(f"già in cache: {target.name}", flush=True)
+            continue
+        matches = _get(f"{SB_BASE}/matches/{competition}/{season}.json").json()
+        rows = json.load(gzip.open(partial, "rt", encoding="utf-8")) if partial.exists() else []
+        done = {row["id"] for row in rows}
+        for position, match in enumerate(matches, start=1):
+            if match["match_id"] in done:
+                continue
+            events = _get(f"{SB_BASE}/events/{match['match_id']}.json").json()
+            home = match["home_team"]["home_team_name"]
+            rows.append({"id": match["match_id"], "date": match.get("match_date"), "home": home,
+                         "away": match["away_team"]["away_team_name"], "home_goals": match["home_score"],
+                         "away_goals": match["away_score"], "referee": (match.get("referee") or {}).get("name"),
+                         **detail_events(events, home)})
+            time.sleep(pause)
+            if position % 25 == 0:
+                with gzip.open(partial, "wt", encoding="utf-8") as handle:
+                    json.dump(rows, handle)
+                print(f"{competition}_{season}: {position}/{len(matches)}", flush=True)
+        with gzip.open(target, "wt", encoding="utf-8") as handle:
+            json.dump(rows, handle)
+        partial.unlink(missing_ok=True)
+        print(f"{target.name}: {len(rows)} partite", flush=True)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--understat", nargs="*", type=int, help="Stagioni Understat (anno d'inizio)")
     parser.add_argument("--statsbomb", action="store_true")
+    parser.add_argument("--statsbomb-dettaglio", action="store_true", help="riassunto ricco per la fase AK (una volta)")
     args = parser.parse_args()
     if args.understat:
         download_understat(args.understat)
     if args.statsbomb:
         download_statsbomb()
+    if args.statsbomb_dettaglio:
+        download_statsbomb_detail()
 
 
 if __name__ == "__main__":

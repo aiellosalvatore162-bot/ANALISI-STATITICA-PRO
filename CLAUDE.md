@@ -352,6 +352,10 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   (`today.apply_report_context`), CORREZIONI_CLAUDE come prima. `FIELD_STATUS` elenca ogni campo del report come assorbito o
   «solo informativo». Riquadro «Stile» in `ui_style.py` (vista compatta sortabile, foglio «Stile» dell'Excel, voce `contesto` nel
   dataset Analista). Il report resta facoltativo. Test in `test_style_context.py`; stato in `docs/stato/AH.md`.
+- Fase AK (motore a eventi, in corso sul ramo `fase-ak-motore-eventi`, stato in `docs/stato/AK.md`): dizionario tattico
+  `config/dizionario_tattico.json` + `tactical_dictionary.py`, messa in campo `formation.py`; stima dei parametri con
+  `python -m tools.stima_motore` → `config/motore_eventi.json` (tipi di tiro, corner per origine, stato di partita, incroci
+  spenti, arbitri da `referee_stats.py`) e beta del dizionario (solo se l'IC 95% esclude lo zero), report `docs/backtest/AK_stima.md`.
 - Le fonti remote devono degradare con un avviso (come `historical.py` ricade
   al 100% manuale), mai bloccare la simulazione manuale.
 

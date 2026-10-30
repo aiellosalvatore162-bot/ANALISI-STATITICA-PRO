@@ -28,6 +28,7 @@ CHOICES = {
     "gestione_blocco_basso": ("scarsa", "media", "buona"),
     "non_possesso": ("uomo", "mista", "zona"),
     "blocco": LEVELS, "pressing": LEVELS, "fasce_cross": LEVELS,
+    "possesso": ("palla_a_terra", "misto", "diretto"), "verticalizzazione": ("bassa", "media", "alta"),
     "adattabilita": ("bassa", "media", "alta"),
     "confidenza": ("bassa", "media", "alta"),
 }
@@ -47,6 +48,8 @@ class TacticalSheet:
     blocco: str | None = None
     pressing: str | None = None
     fasce_cross: str | None = None
+    possesso: str | None = None        # fase AK: palla_a_terra / misto / diretto
+    verticalizzazione: str | None = None   # fase AK: bassa / media / alta
     note: str = ""
     allenatore: str = ""
     dal: str | None = None            # data ISO dell'arrivo dell'allenatore
@@ -121,7 +124,7 @@ def parse_profiles(text: str, *, origin: str = "Claude (da confermare)",
                     elif value:
                         warnings.append(f"{team}: transizione «{value}» non valida (1-5), scartata.")
                 elif key in CHOICES:
-                    choice = value.lower().strip().split()[0] if value else ""
+                    choice = value.lower().strip().replace("palla a terra", "palla_a_terra").split()[0] if value else ""
                     if choice in CHOICES[key]:
                         setattr(sheet, key, choice)
                     elif value:
@@ -130,6 +133,8 @@ def parse_profiles(text: str, *, origin: str = "Claude (da confermare)",
                     sheet.dal = _date(value)
                 elif key in TEXT_FIELDS:
                     setattr(sheet, key, "" if value in ("-", "—") else value)
+                elif ":" in part and key and key not in ("profilo_tattico", "squadra"):
+                    warnings.append(f"{team}: termine «{key}» non riconosciuto (vedi config/dizionario_tattico.json), segnalato.")
         if not sheet.fonti:
             warnings.append(f"{team}: nessuna fonte con link, profilo scartato.")
             continue
