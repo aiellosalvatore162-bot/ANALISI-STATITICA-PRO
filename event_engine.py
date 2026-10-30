@@ -116,6 +116,8 @@ class EventParams:
     referee_source: str = ""
     note: str = ""
     state_power: float = 1.0                        # esponente di attenuazione dei moltiplicatori di stato (stadio 12)
+    yellow_state_power: float | None = None         # esponente proprio dei gialli (legame cartellini; None = state_power)
+    red_heat: float = 1.0                           # esponente della partita «calda» su rossi diretti e seconde gialle
 
     def with_state_power(self, power: float) -> "EventParams":
         """Moltiplicatori di stato (tiri, xG, corner di gioco, falli, gialli) elevati a ``power`` rispetto a quelli attuali.
@@ -125,16 +127,32 @@ class EventParams:
         def scaled(values):
             return tuple(float(value) ** relative for value in values)
 
+        yellow = self.state_yellow if self.yellow_state_power is not None else scaled(self.state_yellow)
         return dataclasses_replace(self, state_shots=scaled(self.state_shots), state_xg=scaled(self.state_xg),
                                    state_corner=scaled(self.state_corner), state_fouls=scaled(self.state_fouls),
-                                   state_yellow=scaled(self.state_yellow), state_power=power)
+                                   state_yellow=yellow, state_power=power)
+
+    def with_card_link(self, yellow_power: float | None, red_heat: float) -> "EventParams":
+        """Legame cartellini: moltiplicatori di stato dei gialli elevati a ``yellow_power`` (rispetto ai grezzi; None =
+        quello comune ``state_power``) e partita «calda» (moltiplicatore gamma dei gialli) elevata a ``red_heat`` su rossi
+        diretti e seconde gialle. Le medie restano quelle del vincolo di coerenza."""
+        current = self.yellow_state_power if self.yellow_state_power is not None else self.state_power
+        target = yellow_power if yellow_power is not None else self.state_power
+        relative = target / current if current else target
+        return dataclasses_replace(self, state_yellow=tuple(float(value) ** relative for value in self.state_yellow),
+                                   yellow_state_power=yellow_power, red_heat=float(red_heat))
 
     @classmethod
     def from_config(cls, data: Mapping[str, Any], league: str | None = None, attenuate: bool = True) -> "EventParams":
         """``attenuate`` = applica l'esponente stimato (``stato_partita.attenuazione``, 1 se manca)."""
         params = cls._from_config(data, league)
         power = float((data["stato_partita"].get("attenuazione") or {}).get("esponente", 1.0)) if attenuate else 1.0
-        return params.with_state_power(power) if power != 1.0 else params
+        params = params.with_state_power(power) if power != 1.0 else params
+        link = data["stato_partita"].get("legame_cartellini") or {}
+        if attenuate and link.get("attivo", True) and (link.get("esponente_stato_gialli") is not None
+                                                       or link.get("esponente_calore_rossi") is not None):
+            params = params.with_card_link(link.get("esponente_stato_gialli"), float(link.get("esponente_calore_rossi", 1.0)))
+        return params
 
     @classmethod
     def _from_config(cls, data: Mapping[str, Any], league: str | None = None) -> "EventParams":
@@ -560,7 +578,12 @@ def _count_step(rng: np.random.Generator, out: dict, table: CountTables, params:
     if mix is not None:
         yellow_p = yellow_p * mix["cards"]
     cards = rng.binomial(fouls, np.clip(yellow_p, 0.0, 1.0))
-    heat = mix["cards"] if mix is not None else 1.0   # partita «calda»: più gialli, rossi diretti e seconde gialle insieme
+    # Partita «calda»: più gialli, rossi diretti e seconde gialle insieme (esponente ``red_heat`` del legame cartellini,
+    # riportato a media 1 così che i rossi attesi restino quelli del vincolo di coerenza).
+    heat = 1.0
+    if mix is not None:
+        heat = mix["cards"] ** params.red_heat
+        heat = heat / max(float(heat.mean()), 1e-12)
     straight = rng.binomial(fouls - cards, np.clip(table.straight_red * heat, 0.0, 1.0))
     # Seconda gialla: solo tra i gialli presi quando la squadra è già ammonita (nel passo, dal secondo giallo in poi) e mai
     # più dei giocatori ammoniti e ancora in campo (ogni doppia ammonizione consuma un primo giallo).
@@ -748,6 +771,21 @@ def coherence(rng: np.random.Generator, home: TeamInput, away: TeamInput, params
     if targets.yellow_variance is not None and yellows.mean() > 0:
         mix["cards"] = max(targets.yellow_variance - float(np.var(yellows)), 0.0) / float(yellows.mean()) ** 2
     rows[-1].update({"varianza_corner": round(float(np.var(corners)), 3), "varianza_gialli": round(float(np.var(yellows)), 3)})
+    if mix.get("cards"):
+        # Con la partita «calda» le seconde gialle (giallo × giallo) crescono più dei gialli: rossi riportati alla media.
+        hot = simulate(rng, size, teams["home"], teams["away"], params, scores=pilot_scores, mix=mix, **kwargs)
+        straight = sum(float(np.mean(hot[f"reds_{side}"] - hot[f"double_yellows_{side}"])) for side in teams)
+        doubles = sum(float(np.mean(hot[f"double_yellows_{side}"])) for side in teams)
+        if targets.double_share is None:
+            red_factor = second_factor = _ratio(targets.reds, straight + doubles)
+        else:
+            red_factor = _ratio(targets.reds * (1.0 - targets.double_share), straight)
+            second_factor = _ratio(targets.reds * targets.double_share, doubles)
+        for side in teams:
+            teams[side] = dataclasses_replace(teams[side], red_scale=teams[side].red_scale * red_factor,
+                                              second_yellow_scale=teams[side].second_yellow_scale * second_factor)
+        rows.append({"passata": "rossi con dispersione", "rossi": round(straight + doubles, 4),
+                     "fattore_rossi": round(red_factor, 4), "fattore_seconde": round(second_factor, 4)})
     rows.append({"passata": "obiettivo", "corner_home": targets.corners[0], "corner_away": targets.corners[1],
                  "gialli_home": targets.yellows[0], "gialli_away": targets.yellows[1], "rossi": targets.reds,
                  "varianza_corner": targets.corner_variance, "varianza_gialli": targets.yellow_variance,

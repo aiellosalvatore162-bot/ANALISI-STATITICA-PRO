@@ -316,7 +316,7 @@ def test_vincolo_di_coerenza_sulle_medie_attuali():
     scores = dc_scores(lam=1.7, mu=0.9)
     home, away, mix, rows = ee.coherence(np.random.default_rng(5), ee.TeamInput(1.7, first_share=0.44),
                                          ee.TeamInput(0.9, first_share=0.45), PARAMS, TARGETS, scores=scores)
-    assert [row["passata"] for row in rows] == ["1", "2", "verifica", "obiettivo"]
+    assert [row["passata"] for row in rows] == ["1", "2", "verifica", "rossi con dispersione", "obiettivo"]
     assert home.corner_scale > 1.0 > away.corner_scale and home.card_scale < away.card_scale
     out = ee.simulate(np.random.default_rng(9), N, home, away, PARAMS, scores=scores, mix=mix)
     assert out["corners_home"].mean() == pytest.approx(6.1, rel=0.03)
