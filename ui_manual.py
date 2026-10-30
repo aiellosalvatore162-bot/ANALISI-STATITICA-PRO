@@ -112,6 +112,9 @@ def recompute(index: int, settings: dict) -> Analysis:
                     keep_samples=bool(entry and entry.get("to_play")))
     if fresh.config is not None:
         fresh.flags, fresh.claude, fresh.claude_text = old.flags, old.claude, old.claude_text
+        if old.config is not None and old.config.style:   # il ricalcolo è offline: si tiene il profilo di stile già letto
+            fresh.config = replace(fresh.config, style=old.config.style)
+            fresh.style_profiles = old.style_profiles
         extra = day_archive.engine_odds(entry) if entry else {}
         if extra:  # come «Analizza»: quote dell'archivio per EV e ancoraggio, in una sola simulazione
             anchor, _ = anchor_odds({**fresh.odds, **extra}, day_archive.sharp_odds(entry), day_archive.eurobet_paste(entry))

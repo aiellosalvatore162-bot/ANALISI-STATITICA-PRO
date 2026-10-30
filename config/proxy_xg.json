@@ -1,0 +1,33 @@
+{
+  "modello": "xG proxy = a·tiri in porta + b·altri tiri (minimi quadrati non negativi, senza intercetta)",
+  "a_tiri_in_porta": 0.23055,
+  "b_altri_tiri": 0.06081,
+  "stima_su": {
+    "campionati": [
+      "Serie A",
+      "Premier League",
+      "La Liga",
+      "Bundesliga",
+      "Ligue 1"
+    ],
+    "stagioni": [
+      "2324",
+      "2425"
+    ],
+    "partite": 6898,
+    "r2": 0.556,
+    "errore_quadratico_medio": 0.6239
+  },
+  "verifica_fuori_campione": {
+    "stagioni": [
+      "2526"
+    ],
+    "partite": 3464,
+    "r2": 0.5449,
+    "errore_quadratico_medio": 0.6142
+  },
+  "r2_minimo": 0.5,
+  "usabile": true,
+  "data": "2026-10-30",
+  "fonte": "football-data.co.uk (tiri) + Understat (xG)"
+}
