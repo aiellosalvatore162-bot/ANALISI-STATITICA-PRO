@@ -365,6 +365,14 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   Stadi 12-14: attenuazione degli effetti di stato stimata (`stato_partita.attenuazione`, esponente 0,53), scenari
   `python -m tools.event_sense`, banco `python -m tools.event_check [--salva] [--ricomincia]` (parziali con ripresa in
   `data/cache/event_check/`). Esito del 30/10 su 1.454 partite: SPENTO (corner e combo meglio, cartellini peggio).
+  Ultima parte: uomo in meno su falli e gialli stimato tra partite (`stima_motore.fit_men_between`, gialli ×0,87 invece di
+  ×0,39), legame cartellini per inferenza indiretta (`python -m tools.event_cards --salva`, sezione
+  `stato_partita.legame_cartellini`: esponente di stato dei gialli, partita calda sui rossi), motore per gruppi di mercati
+  (`motore_eventi.mercati`: tempi/corner/cartellini, `EventEngineParams.markets`), seconda verifica
+  `python -m tools.event_check --campione nuovo [--salva]` (2019/20 + 2023/24, 2.672 partite, variante «eventi solo
+  corner»): SPENTO (corner meglio, combo del motore completo pari, cartellini peggio; «solo corner» candidata per un terzo
+  campione). Stadio 15 «Vedi come andrà»: `match_story.py` + `ui_story.py` nella Panoramica (andamento per fasce dagli stessi
+  percorsi, oppure illustrativo dichiarato col motore spento; `event_engine.timeline_summary`, `result["event_engine"]["andamento"]`).
 - Le fonti remote devono degradare con un avviso (come `historical.py` ricade
   al 100% manuale), mai bloccare la simulazione manuale.
 
@@ -387,7 +395,8 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   tattiche, cambio allenatore, incroci di stile (spenti), nuovi mercati e goleade (Q), motore statistico
   v2 con opzioni verificate una per una (P), dati dell'Analista nel modello e storico proprio (Y), modifica
   dei dati in Oggi (R), quote da qualunque bookmaker con archivio unico e combo builder (Z), profilo di stile, forma reale e
-  banco walk-forward (AD), formazioni e giocatori (AL), stili e report dell'Analista come input (AH).
+  banco walk-forward (AD), formazioni e giocatori (AL), stili e report dell'Analista come input (AH), motore a eventi verificato
+  due volte e lasciato spento, con il riquadro «Vedi come andrà» (AK).
 - Test: `python -m pytest -q` (solo fixture salvate, nessuna rete); 2 `xfail`
   noti (PSG-Barcellona, Napoli-Bodø, input stimati).
 

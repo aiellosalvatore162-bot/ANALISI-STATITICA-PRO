@@ -542,7 +542,9 @@ def main() -> None:
             check["gruppi_solo_corner"] = {name: {key: round(value, 5) for key, value in values.items()}
                                            for name, values in run_result["hybrid"].items()}
         _update_config({"motore_eventi": {
-            **section, "attivo": run_result["decision"]["accendere"], "mercati": run_result["decision"]["mercati"],
+            **section, "attivo": run_result["decision"]["accendere"],
+            # Spento: restano tutti i gruppi (quelli che si userebbero riaccendendolo a mano).
+            "mercati": run_result["decision"]["mercati"] or list(engine.EVENT_ENGINE_GROUPS),
             ("verifica_nuova" if new else "verifica"): check,
         }})
 
