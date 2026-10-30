@@ -15,6 +15,6 @@ Ramo: `fase-ah-stili-analista`.
 3. Parser profili unico (`tactical_sheets.parse_profiles(origin, day)`): FATTO
 4. Campi PARTITA (`match_extras.py`, `docs/formato_analista.md`, `tests/fixtures/analista/report_ah.md`): FATTO
 5. `match_context.py` + `config/stile_prior.json` + `tools/stile_prior.py` (prior null finché mancano squadre con profilo+dati): FATTO; turnover/assenti_esterni in `lineup.team_lineup`
-6. Dataset Analista (profili ed esiti con data e fonte): DA FARE
-7. Riquadro «Stile» (`ui_style.py`), vista compatta in Oggi, foglio «Stile»: DA FARE
-8. Test, suite, merge, push: DA FARE
+6. Dataset Analista: profili/esiti già con data e fonte (Y); aggiunta la voce `contesto`: FATTO
+7. Riquadro «Stile» (`ui_style.py`), vista compatta in Oggi, foglio «Stile»: FATTO
+8. `test_style_context.py`, suite, merge, push: vedi git log. Non fatto: unificazione CSV+ESITO dentro la UI di Oggi (l'API `outcomes` è pronta; `settle_leg` della AA non esiste su main); spiegazioni corner/cartellini aspettano la AK.

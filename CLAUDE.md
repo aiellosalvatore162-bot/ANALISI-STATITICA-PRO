@@ -340,6 +340,18 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   dell'ancoraggio (ledger `formazione`); `absences.is_active` è spento se la formazione sposta i gol (niente doppia conta con
   la P). «Sta performando» non entra nei gol attesi (l'attacco è già solo xG; la forma reale della AD è xG−xGA). Riquadro in
   `ui_lineup.py`; stato in `docs/stato/AL.md`; test in `test_lineup.py`.
+- Fase AH (stili e report dell'Analista come input del motore): `outcomes.py` unifica gli esiti (CSV > ESITO con fonte >
+  ESITI_CLAUDE, campo per campo; conflitti sempre mostrati; `lookup` per la verifica delle gambe; `today.parse_outcomes` delega),
+  `tactical_sheets.parse_profiles(origin, day)` è l'unico parser dei profili (`analyst.parse_profiles` lo chiama per regione),
+  campi facoltativi in PARTITA letti da `match_extras.py` (ASSENTI_PESATI, RIPOSO, TURNOVER; riga non valida scartata con avviso;
+  formato in `docs/formato_analista.md`, esempio `tests/fixtures/analista/report_ah.md`). `match_context.match_context(...)`
+  è il contratto verso il motore: stile misurato (AD), profilo qualitativo come PRIOR dei numeri (valore = w·dato + (1−w)·prior,
+  w = n/(n+k), `config/stile_prior.json`, prior `null` finché mancano ≥5 squadre con profilo e dati: `python -m tools.stile_prior`),
+  adattabilità, reazioni di stato, cambio allenatore, assenti pesati / turnover (nell'AL: un assente noto a Understat conta una
+  volta sola; solo gli altri entrano col peso scritto), riposo del report solo se manca il calendario
+  (`today.apply_report_context`), CORREZIONI_CLAUDE come prima. `FIELD_STATUS` elenca ogni campo del report come assorbito o
+  «solo informativo». Riquadro «Stile» in `ui_style.py` (vista compatta sortabile, foglio «Stile» dell'Excel, voce `contesto` nel
+  dataset Analista). Il report resta facoltativo. Test in `test_style_context.py`; stato in `docs/stato/AH.md`.
 - Le fonti remote devono degradare con un avviso (come `historical.py` ricade
   al 100% manuale), mai bloccare la simulazione manuale.
 
@@ -362,7 +374,7 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   tattiche, cambio allenatore, incroci di stile (spenti), nuovi mercati e goleade (Q), motore statistico
   v2 con opzioni verificate una per una (P), dati dell'Analista nel modello e storico proprio (Y), modifica
   dei dati in Oggi (R), quote da qualunque bookmaker con archivio unico e combo builder (Z), profilo di stile, forma reale e
-  banco walk-forward (AD), formazioni e giocatori (AL).
+  banco walk-forward (AD), formazioni e giocatori (AL), stili e report dell'Analista come input (AH).
 - Test: `python -m pytest -q` (solo fixture salvate, nessuna rete); 2 `xfail`
   noti (PSG-Barcellona, Napoli-Bodø, input stimati).
 
