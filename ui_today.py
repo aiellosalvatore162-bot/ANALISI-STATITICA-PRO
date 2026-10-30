@@ -184,6 +184,19 @@ def _render_analyze_all(entries: list[dict], simulations: int, settings: dict) -
         _analyze_day(entries, simulations, settings)
 
 
+def _style_loader():
+    """Archivio di stile per campionato (una volta al giorno, cache su disco); ``None`` se la fonte non risponde."""
+    from datetime import date as _date
+
+    import style_profile
+    from ui_data import source_cache
+
+    def load(league: str):
+        return style_profile.load_store(league, _date.today(), source_cache())
+
+    return load
+
+
 def _analyze_day(entries: list[dict], simulations: int, settings: dict) -> None:
     from datasources.builder import DataProvider
     from datasources.sources import COMPETITIONS, CUP_COMPETITIONS, football_data_org_key
@@ -202,7 +215,7 @@ def _analyze_day(entries: list[dict], simulations: int, settings: dict) -> None:
             competition = match.competition if match.competition in COMPETITIONS or match.competition in CUP_COMPETITIONS else None
             analysis = analyze(match, provider.build, odds_fields(entry), simulations=simulations, competition=competition,
                                settings=settings, sheets=saved_sheets(), manual=manual_for(match),
-                               keep_samples=bool(entry.get("to_play")))
+                               keep_samples=bool(entry.get("to_play")), style_loader=_style_loader())
             if analysis.ok:
                 try:
                     if not _with_quotes(analysis):
@@ -241,7 +254,8 @@ def _prepare_day(entries: list[dict], simulations: int, settings: dict) -> None:
             match = day_archive.today_match(entry)
             competition = match.competition if match.competition in COMPETITIONS or match.competition in CUP_COMPETITIONS else None
             prepared.append(prepare(match, provider.build, odds_fields(entry), simulations=simulations, competition=competition,
-                                    settings=settings, sheets=saved_sheets(), manual=manual_for(match)))
+                                    settings=settings, sheets=saved_sheets(), manual=manual_for(match),
+                                    style_loader=_style_loader()))
             progress.progress(position / len(entries), text=f"{position}/{len(entries)} · {match.label}")
             live.dataframe(pd.DataFrame([{**source, "Partite da preparare": len(entries) - position}
                                          for source in registro.sources()]), hide_index=True, width="stretch")

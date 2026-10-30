@@ -292,6 +292,9 @@ def test_analyze_all_never_calls_credit_endpoints(tmp_path, monkeypatch):
     def forbidden(*args, **kwargs):
         raise AssertionError("«Analizza tutte» ha chiamato The Odds API")
 
+    import style_profile
+
+    monkeypatch.setattr(style_profile, "CACHE_DIR", tmp_path / "stile")
     monkeypatch.setattr(oddsapi.OddsApi, "_get", forbidden)
     monkeypatch.setattr(ui_data, "source_cache", lambda: SourceCache(tmp_path / "c.sqlite", opener=FullWeb(),
                                                                      sleep=lambda _: None, min_interval={}))

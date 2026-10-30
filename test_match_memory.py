@@ -62,7 +62,7 @@ def test_three_matches_in_sequence_give_three_matches_in_the_file(day):
     workbook = load_workbook(__import__("io").BytesIO(content))
     assert workbook.sheetnames == [REGISTRY_SHEET, ANALYSIS_SHEET, DUAL_SHEET, REPORT_SHEET, SLIPS_SHEET, TACTICAL_SHEET,
                                   "Dataset Analista", "Manuali", "Quote",
-                                  "I miei mercati", "Report quote", TECHNICAL_SHEET]
+                                  "I miei mercati", "Report quote", "Stile", TECHNICAL_SHEET]
     assert workbook[TECHNICAL_SHEET].sheet_state == "hidden"
     analysis = list(workbook[ANALYSIS_SHEET].iter_rows(values_only=True))
     assert len(analysis) == 1 + 3

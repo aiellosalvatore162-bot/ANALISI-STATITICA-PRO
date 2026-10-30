@@ -294,6 +294,54 @@ def get_style_params(team: str, when: date | datetime | pd.Timestamp, home: bool
             "forma_reale": real.to_dict(), "parametri": params, "avvisi": warnings}
 
 
+# --- Archivio dal vivo (una volta per campionato al giorno) ---------------------------------------------------------------
+
+def load_store(league: str, today: date, cache=None, seasons: int = 3) -> StyleStore | None:
+    """Archivio di stile di un campionato; cache su disco per campionato e giorno. ``None`` se mancano le partite."""
+    from datetime import timedelta
+
+    from datasources.cache import SourceCache
+    from datasources.sources import COMPETITIONS, FootballDataCoUk, Understat, season_start
+
+    path = CACHE_DIR / f"{league}_{today.isoformat()}.pkl"
+    if path.exists():
+        return StyleStore(pd.read_pickle(path))
+    cache = cache or SourceCache()
+    current = season_start(today)
+    frames = []
+    for offset in range(seasons):
+        start = current - offset
+        frame = FootballDataCoUk(cache).season(league, start, timedelta(hours=24) if offset == 0 else timedelta(days=30)).data
+        if len(frame):
+            frames.append(frame)
+    if not frames:
+        return None
+    raw = pd.concat(frames, ignore_index=True)
+    names = {entry["footballdata"]: entry["understat"] for entry in COMPETITIONS.values()}
+    understat = None
+    if names.get(league):
+        parts = [Understat(cache).league(names[league], current - offset,
+                                         timedelta(hours=24) if offset == 0 else timedelta(days=30)).data.assign(league=league)
+                 for offset in range(seasons)]
+        parts = [part for part in parts if len(part)]
+        understat = pd.concat(parts, ignore_index=True) if parts else None
+    table = build_table(raw, understat, load_proxy())
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    table.to_pickle(path)
+    return StyleStore(table)
+
+
+def match_style(store: StyleStore, home: str, away: str, when, league: str | None = None) -> tuple[dict | None, list[dict], list[str]]:
+    """(style per ``MatchConfig.style`` o None, profili completi di casa e ospite, avvisi) per una partita."""
+    profiles = [get_style_params(home, when, True, store, league), get_style_params(away, when, False, store, league)]
+    warnings = [message for profile in profiles for message in profile["avvisi"]]
+    real = [profile.get("forma_reale") for profile in profiles]
+    if any(item is None or item.get("valore") is None for item in real):
+        return None, profiles, warnings + ["Forma reale non calcolabile: resta la forma W-D-L."]
+    style = {side: {"forma_reale": item["valore"], "n_gare": item["campione"]} for side, item in zip(("home", "away"), real)}
+    return style, profiles, warnings
+
+
 # --- Per il banco walk-forward -------------------------------------------------------------------------------------
 
 def forma_reale_columns(store: StyleStore, matches: pd.DataFrame) -> pd.DataFrame:

@@ -56,6 +56,7 @@ class Analysis:
     auto_sheet: Any = None                     # scheda automatica (prima dei manuali), per «Modifica o completa i dati»
     odds_fields: dict = field(default_factory=dict)   # campi quota del passaggio economico, per ricalcolare
     manual: Any = None                         # voce di manual_data usata per questa analisi (None = nessun manuale)
+    style_profiles: list = field(default_factory=list)   # profili di stile casa/ospite (fase AD), per il foglio «Stile»
 
     @property
     def ok(self) -> bool:
@@ -97,7 +98,8 @@ def _missing_problem(sheet: Any, missing: Sequence[str]) -> tuple[str, str, str]
 def prepare(match: TodayMatch, build: Callable[..., Any], odds_fields: Mapping[str, Any], *,
             simulations: int, competition: str | None = None, settings: Mapping[str, Any] | None = None,
             sheets: Sequence[Mapping[str, Any]] | None = None, manual: Mapping[str, Any] | None = None,
-            auto_sheet: Any = None, keep_samples: bool = False) -> Analysis:
+            auto_sheet: Any = None, keep_samples: bool = False,
+            style_loader: Callable[[str], Any] | None = None) -> Analysis:
     """Tutto quello che precede la simulazione: dati automatici, quote del passaggio economico, blocco e
     configurazione. Scalda anche le cache delle fonti (CSV, Understat, calendario, Elo da risultati), senza
     simulare e senza The Odds API: «Prepara la giornata» chiama solo questa. Una partita che non si può preparare
@@ -155,18 +157,44 @@ def prepare(match: TodayMatch, build: Callable[..., Any], odds_fields: Mapping[s
             analysis.config = replace(config_from_input(parsed, simulations=simulations), league=league_code(sheet.competition),
                                       strength_inputs=strength_inputs(sheet) if hasattr(sheet, "extras") else None,
                                       keep_samples=keep_samples)
+            _attach_style(analysis, style_loader)
     except Exception as exc:  # ultima rete di sicurezza: nessuna partita sparisce, nessuna ferma le altre
         return mark_failed(analysis, "preparazione", "app", f"errore imprevisto ({type(exc).__name__}: {str(exc)[:120]})")
     return analysis
 
 
+def _attach_style(analysis: "Analysis", style_loader: Callable[[str], Any] | None) -> None:
+    """Fase AD: profilo di stile e forma reale come input del motore; senza dati resta la forma W-D-L (con avviso)."""
+    league = analysis.config.league
+    if style_loader is None or not league or not analysis.config.style_model.active:
+        return
+    try:
+        import style_profile
+
+        store = style_loader(league)
+        if store is None:
+            analysis.warnings.append("Stile: partite del campionato non disponibili, nessuna forma reale.")
+            return
+        style, profiles, warnings = style_profile.match_style(store, analysis.config.home.name, analysis.config.away.name,
+                                                              analysis.match.commence_time.date(), league)
+    except Exception as exc:  # le fonti remote degradano con un avviso, mai bloccare la simulazione
+        analysis.warnings.append(f"Stile non disponibile ({type(exc).__name__}): resta la forma W-D-L.")
+        return
+    analysis.style_profiles = profiles
+    analysis.warnings.extend(f"Stile: {message}" for message in warnings)
+    if style is not None:
+        analysis.config = replace(analysis.config, style=style)
+
+
 def analyze(match: TodayMatch, build: Callable[..., Any], odds_fields: Mapping[str, Any], *,
             simulations: int, competition: str | None = None, settings: Mapping[str, Any] | None = None,
             sheets: Sequence[Mapping[str, Any]] | None = None, manual: Mapping[str, Any] | None = None,
-            auto_sheet: Any = None, keep_samples: bool = False) -> Analysis:
+            auto_sheet: Any = None, keep_samples: bool = False,
+            style_loader: Callable[[str], Any] | None = None) -> Analysis:
     """``prepare`` + simulazione; salta la partita (con il motivo) se manca un dato."""
     analysis = prepare(match, build, odds_fields, simulations=simulations, competition=competition, settings=settings,
-                       sheets=sheets, manual=manual, auto_sheet=auto_sheet, keep_samples=keep_samples)
+                       sheets=sheets, manual=manual, auto_sheet=auto_sheet, keep_samples=keep_samples,
+                       style_loader=style_loader)
     if analysis.config is None:
         return analysis
     try:

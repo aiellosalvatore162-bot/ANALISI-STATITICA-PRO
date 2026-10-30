@@ -316,6 +316,18 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   `summary` = quote per fonte/bookmaker, partite complete, crediti dal registro `quote_crediti`, proiezione a 30 giorni.
   Interfaccia `ui_quotes.render_quote_report` (expander in Oggi), foglio «Report quote» dell'Excel (derivato: si
   ricalcola dall'archivio al ripristino). Test in `test_quote_report.py`.
+- Fase AD (stile, forma reale, banco walk-forward): `style_profile.py` (ultime 8 gare con media esponenziale, casa e
+  trasferta separate, shrinkage n/(n+k) verso il campionato, winsorizzazione ai percentili 2-98 del campionato con avviso;
+  xG Understat, altrimenti proxy dai tiri `config/proxy_xg.json` (`python -m tools.proxy_xg --salva`, usato solo se R² ≥ 0.5),
+  altrimenti gol; `get_style_params(squadra, data, casa, store)`, `load_store` una volta per campionato al giorno in
+  `data/cache/stile/`, foglio «Stile» dell'Excel). Impostazioni in `config/stile.json` (interruttore per componente).
+  `engine.StyleModelParams` / `MatchConfig.style`: la forma reale (xG−xGA per gara, centrata sul campionato) sostituisce la
+  forma W-D-L con peso `phi` (stimato dal banco: `--salva-phi`) e `k_xg` alza il peso xG con poche gare; voce `forma_reale`
+  nel formula_ledger. Nota: il modello calibrato ha `form_weight=0` e `attack_xg_share=1`, quindi la forma reale AGGIUNGE un
+  termine e `k_xg` agisce solo sulla difesa. `today.prepare(style_loader=...)` la collega (senza dati resta com'era, con
+  avviso). Banco `tools/backtest_wf.py` (`run(config_attuale, config_nuova, campionati, stagioni, mercati)`, 25 mercati, solo
+  passato, phi ristimato ogni mese, output `docs/backtest/<nome>.md/.csv`); stato dei lavori in `docs/stato/AD.md`. Test in
+  `test_style_profile.py`.
 - Le fonti remote devono degradare con un avviso (come `historical.py` ricade
   al 100% manuale), mai bloccare la simulazione manuale.
 
@@ -337,7 +349,8 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   cartellini per squadra (T), motore minuto per minuto come opzione spenta (O, parte 1), schede
   tattiche, cambio allenatore, incroci di stile (spenti), nuovi mercati e goleade (Q), motore statistico
   v2 con opzioni verificate una per una (P), dati dell'Analista nel modello e storico proprio (Y), modifica
-  dei dati in Oggi (R), quote da qualunque bookmaker con archivio unico e combo builder (Z).
+  dei dati in Oggi (R), quote da qualunque bookmaker con archivio unico e combo builder (Z), profilo di stile, forma reale e
+  banco walk-forward (AD).
 - Test: `python -m pytest -q` (solo fixture salvate, nessuna rete); 2 `xfail`
   noti (PSG-Barcellona, Napoli-Bodø, input stimati).
 
