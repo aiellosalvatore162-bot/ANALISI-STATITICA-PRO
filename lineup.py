@@ -148,6 +148,9 @@ def team_lineup(store: pl.PlayerStore, league: str, key: str, when: pd.Timestamp
         attack_warning = f"fattore {factor:.3f} fuori dall'intervallo storico {limits[0]:.2f}-{limits[1]:.2f}: riportato a {clipped:.3f}"
         factor = clipped
     components = cfg["componenti"]
+    raw_factor = factor
+    exponent = float(cfg["fattore_attacco"].get("esponente") or 1.0)
+    factor = factor ** exponent        # elasticità dei gol attesi alla produzione dei giocatori, stimata dal backtest
     if not components.get("attacco", True):
         factor, attack_warning = 1.0, "componente attacco spenta in config/giocatori.json"
     # assenti pesati: quota persa se mancasse solo lui
@@ -157,6 +160,7 @@ def team_lineup(store: pl.PlayerStore, league: str, key: str, when: pd.Timestamp
         share = 1.0 - alone / base["totale"] if base["totale"] > 0 else 0.0
         weighted.append({"giocatore": index[pid]["player"], "ruolo": index[pid]["role"], "motivo": item.get("motivo", "assente"),
                          "fonte": item.get("fonte", ""), "quota_persa": round(share, 4),
+                         "effetto_gol_attesi": round(1.0 - (1.0 - share) ** exponent, 4),
                          "in_xi_tipo": pid in typical})
     # difesa: quota dei minuti di ruolo dell'XI tipo che manca nell'XI atteso
     missing_share = {}
@@ -185,8 +189,9 @@ def team_lineup(store: pl.PlayerStore, league: str, key: str, when: pd.Timestamp
     return {"disponibile": True, "origine_formazione": origin, "xi": [row for row in on_field if row["come"] == "titolare"],
             "panchina": [row for row in on_field if row["come"] == "panchina"], "assenti": weighted,
             "fattore_attacco": {"valore": round(factor, 4), "campione": int(squad["partite"].sum()),
-                                "fonte": "Σ minuti attesi/90 × (npxG+xA)/90 dell'XI atteso ÷ XI tipo (Understat, ultime 2 stagioni)",
-                                "avviso": attack_warning, "npxg_xi": round(now["npxg"], 3), "npxg_tipo": round(base["npxg"], 3)},
+                                "fonte": "(Σ minuti attesi/90 × (npxG+xA)/90 dell'XI atteso ÷ XI tipo)^esponente stimato dal backtest (Understat, ultime 2 stagioni)",
+                                "avviso": attack_warning, "valore_grezzo": round(raw_factor, 4), "esponente": exponent,
+                                "npxg_xi": round(now["npxg"], 3), "npxg_tipo": round(base["npxg"], 3)},
             "fattore_difesa": {"valore": round(defense, 4), "quota_minuti_mancanti": {r: round(v, 3) for r, v in missing_share.items()},
                                "fonte": defense_label},
             "rigorista": penalty, "performando": performing, "avvisi": warnings}
