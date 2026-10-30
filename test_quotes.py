@@ -326,6 +326,7 @@ def test_my_markets_have_all_columns_even_without_quotes():
 
 def test_combo_joint_comes_from_samples_not_from_the_product():
     config = replace(config_from_input(parse_match_input(VALID), simulations=20_000, seed=7), keep_samples=True)
+    config = replace(config, v2=replace(config.v2, taratura=None))
     result = simulate_match(config)
     plain = simulate_match(replace(config, keep_samples=False))
     assert result["components"] == plain["components"]  # i campioni non cambiano le probabilità

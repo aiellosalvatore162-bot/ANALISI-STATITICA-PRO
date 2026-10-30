@@ -1,0 +1,3765 @@
+{
+ "versione": 1,
+ "data": "2026-10-30",
+ "attiva": true,
+ "parametri": {
+  "minimo_casi_taratura": 400,
+  "minimo_positivi": 30,
+  "soglia_isotonica_casi": 3000,
+  "shrinkage_platt": 200.0,
+  "prior_isotonica": 50.0,
+  "limite_correzione_pp": 15.0,
+  "tolleranza_ece": 0.0005,
+  "min_casi_fascia": 150,
+  "min_casi_oltre80": 300,
+  "scarto_piccolo": 0.03,
+  "scarto_grande": 0.06
+ },
+ "nota": "una sola mappa per mercato; sostituisce la ricalibrazione della fase P dello stesso mercato; etichette dalle celle walk-forward (nessun dato dal futuro)",
+ "mercati": {
+  "1X": {
+   "gruppo": "1X2",
+   "stato": "derivato",
+   "casi": 0
+  },
+  "X2": {
+   "gruppo": "1X2",
+   "stato": "derivato",
+   "casi": 0
+  },
+  "12": {
+   "gruppo": "1X2",
+   "stato": "derivato",
+   "casi": 0
+  },
+  "Over 1.5 gol": {
+   "gruppo": "over/under gol",
+   "stato": "non tarato",
+   "casi": 8753,
+   "scarto_prima": 0.0057,
+   "scarto_dopo": 0.0065,
+   "logloss_prima": 0.51972,
+   "logloss_dopo": 0.52073,
+   "fasce": [
+    {
+     "fascia": "sotto 50",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "50-55",
+     "n": 6,
+     "dichiarato": 0.5364,
+     "uscito": 0.6667,
+     "scarto": 0.1303,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "55-60",
+     "n": 57,
+     "dichiarato": 0.5813,
+     "uscito": 0.5965,
+     "scarto": 0.0152,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "60-70",
+     "n": 1118,
+     "dichiarato": 0.6676,
+     "uscito": 0.6646,
+     "scarto": 0.003,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "70-80",
+     "n": 4034,
+     "dichiarato": 0.7544,
+     "uscito": 0.7442,
+     "scarto": 0.0102,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "oltre 80",
+     "n": 3538,
+     "dichiarato": 0.8463,
+     "uscito": 0.8457,
+     "scarto": 0.0006,
+     "etichetta": "verificata"
+    }
+   ],
+   "motivo": "la correzione non migliora log-loss ed ECE nel walk-forward"
+  },
+  "Over 2.5 gol": {
+   "gruppo": "over/under gol",
+   "stato": "non tarato",
+   "casi": 8753,
+   "scarto_prima": 0.0105,
+   "scarto_dopo": 0.0007,
+   "logloss_prima": 0.66854,
+   "logloss_dopo": 0.6693,
+   "fasce": [
+    {
+     "fascia": "sotto 50",
+     "n": 3424,
+     "dichiarato": 0.4339,
+     "uscito": 0.4244,
+     "scarto": 0.0095,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "50-55",
+     "n": 1664,
+     "dichiarato": 0.5249,
+     "uscito": 0.5276,
+     "scarto": 0.0027,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "55-60",
+     "n": 1519,
+     "dichiarato": 0.5737,
+     "uscito": 0.5879,
+     "scarto": 0.0142,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "60-70",
+     "n": 1667,
+     "dichiarato": 0.6401,
+     "uscito": 0.6563,
+     "scarto": 0.0162,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "70-80",
+     "n": 441,
+     "dichiarato": 0.7344,
+     "uscito": 0.7029,
+     "scarto": 0.0315,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "oltre 80",
+     "n": 38,
+     "dichiarato": 0.8259,
+     "uscito": 0.8158,
+     "scarto": 0.0101,
+     "etichetta": "poco verificata"
+    }
+   ],
+   "motivo": "la correzione non migliora log-loss ed ECE nel walk-forward"
+  },
+  "Over 3.5 gol": {
+   "gruppo": "over/under gol",
+   "stato": "non tarato",
+   "casi": 8753,
+   "scarto_prima": 0.0154,
+   "scarto_dopo": 0.0097,
+   "logloss_prima": 0.59603,
+   "logloss_dopo": 0.59625,
+   "fasce": [
+    {
+     "fascia": "sotto 50",
+     "n": 8387,
+     "dichiarato": 0.3046,
+     "uscito": 0.3036,
+     "scarto": 0.001,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "50-55",
+     "n": 226,
+     "dichiarato": 0.5214,
+     "uscito": 0.4867,
+     "scarto": 0.0347,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "55-60",
+     "n": 82,
+     "dichiarato": 0.5726,
+     "uscito": 0.5732,
+     "scarto": 0.0006,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "60-70",
+     "n": 55,
+     "dichiarato": 0.6298,
+     "uscito": 0.6545,
+     "scarto": 0.0247,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "70-80",
+     "n": 3,
+     "dichiarato": 0.7333,
+     "uscito": 1.0,
+     "scarto": 0.2667,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "oltre 80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    }
+   ],
+   "motivo": "la correzione non migliora log-loss ed ECE nel walk-forward"
+  },
+  "Goal": {
+   "gruppo": "GG/NG",
+   "stato": "tarato",
+   "casi": 8753,
+   "metodo": "isotonica",
+   "origine": "nuova",
+   "mappa": {
+    "metodo": "isotonica",
+    "x": [
+     0.38775,
+     0.42737,
+     0.44752,
+     0.46292,
+     0.47576,
+     0.48665,
+     0.49628,
+     0.50524,
+     0.51455,
+     0.5237,
+     0.53317,
+     0.54256,
+     0.55163,
+     0.56113,
+     0.57169,
+     0.58267,
+     0.59564,
+     0.6097,
+     0.62929,
+     0.6679
+    ],
+    "y": [
+     0.41268,
+     0.44532,
+     0.47917,
+     0.47917,
+     0.47917,
+     0.47917,
+     0.48875,
+     0.52593,
+     0.53429,
+     0.53429,
+     0.53429,
+     0.56519,
+     0.56519,
+     0.57967,
+     0.57967,
+     0.5857,
+     0.63297,
+     0.63297,
+     0.68084,
+     0.69163
+    ]
+   },
+   "scarto_prima": 0.0092,
+   "scarto_dopo": 0.0051,
+   "logloss_prima": 0.67878,
+   "logloss_dopo": 0.67801,
+   "fasce": [
+    {
+     "fascia": "sotto 50",
+     "n": 2825,
+     "dichiarato": 0.4609,
+     "uscito": 0.4665,
+     "scarto": 0.0056,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "50-55",
+     "n": 2163,
+     "dichiarato": 0.5273,
+     "uscito": 0.527,
+     "scarto": 0.0003,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "55-60",
+     "n": 2039,
+     "dichiarato": 0.5734,
+     "uscito": 0.5787,
+     "scarto": 0.0053,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "60-70",
+     "n": 1517,
+     "dichiarato": 0.6379,
+     "uscito": 0.6618,
+     "scarto": 0.0239,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "70-80",
+     "n": 209,
+     "dichiarato": 0.7084,
+     "uscito": 0.689,
+     "scarto": 0.0194,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "oltre 80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    }
+   ]
+  },
+  "Multigol 1-3": {
+   "gruppo": "multigol",
+   "stato": "tarato",
+   "casi": 8753,
+   "metodo": "isotonica",
+   "origine": "nuova",
+   "mappa": {
+    "metodo": "isotonica",
+    "x": [
+     0.4285,
+     0.49446,
+     0.52504,
+     0.54576,
+     0.56095,
+     0.57373,
+     0.5848,
+     0.59482,
+     0.60406,
+     0.61317,
+     0.62192,
+     0.63058,
+     0.63815,
+     0.64624,
+     0.65463,
+     0.66224,
+     0.67005,
+     0.67792,
+     0.68786,
+     0.70103
+    ],
+    "y": [
+     0.45086,
+     0.46229,
+     0.54674,
+     0.56758,
+     0.56758,
+     0.58267,
+     0.58267,
+     0.58267,
+     0.58267,
+     0.63796,
+     0.63796,
+     0.65551,
+     0.67438,
+     0.68549,
+     0.68549,
+     0.70455,
+     0.70455,
+     0.70455,
+     0.71708,
+     0.74191
+    ]
+   },
+   "scarto_prima": 0.0173,
+   "scarto_dopo": 0.002,
+   "logloss_prima": 0.6493,
+   "logloss_dopo": 0.64862,
+   "fasce": [
+    {
+     "fascia": "sotto 50",
+     "n": 629,
+     "dichiarato": 0.4601,
+     "uscito": 0.4452,
+     "scarto": 0.0149,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "50-55",
+     "n": 504,
+     "dichiarato": 0.5265,
+     "uscito": 0.5179,
+     "scarto": 0.0086,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "55-60",
+     "n": 2099,
+     "dichiarato": 0.5789,
+     "uscito": 0.5717,
+     "scarto": 0.0072,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "60-70",
+     "n": 4201,
+     "dichiarato": 0.6593,
+     "uscito": 0.6594,
+     "scarto": 0.0001,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "70-80",
+     "n": 1320,
+     "dichiarato": 0.7169,
+     "uscito": 0.7205,
+     "scarto": 0.0036,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "oltre 80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    }
+   ]
+  },
+  "Multigol 2-4": {
+   "gruppo": "multigol",
+   "stato": "non tarato",
+   "casi": 8753,
+   "scarto_prima": 0.0013,
+   "scarto_dopo": 0.0108,
+   "logloss_prima": 0.66474,
+   "logloss_dopo": 0.66541,
+   "fasce": [
+    {
+     "fascia": "sotto 50",
+     "n": 19,
+     "dichiarato": 0.4694,
+     "uscito": 0.3684,
+     "scarto": 0.101,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "50-55",
+     "n": 140,
+     "dichiarato": 0.5321,
+     "uscito": 0.5643,
+     "scarto": 0.0322,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "55-60",
+     "n": 1127,
+     "dichiarato": 0.5835,
+     "uscito": 0.5812,
+     "scarto": 0.0023,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "60-70",
+     "n": 7467,
+     "dichiarato": 0.6245,
+     "uscito": 0.6235,
+     "scarto": 0.001,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "70-80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "oltre 80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    }
+   ],
+   "motivo": "la correzione non migliora log-loss ed ECE nel walk-forward"
+  },
+  "Multigol 2-5": {
+   "gruppo": "multigol",
+   "stato": "non tarato",
+   "casi": 8753,
+   "scarto_prima": 0.0015,
+   "scarto_dopo": 0.0072,
+   "logloss_prima": 0.60352,
+   "logloss_dopo": 0.60445,
+   "fasce": [
+    {
+     "fascia": "sotto 50",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "50-55",
+     "n": 12,
+     "dichiarato": 0.5364,
+     "uscito": 0.6667,
+     "scarto": 0.1303,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "55-60",
+     "n": 112,
+     "dichiarato": 0.583,
+     "uscito": 0.5625,
+     "scarto": 0.0205,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "60-70",
+     "n": 2815,
+     "dichiarato": 0.6691,
+     "uscito": 0.67,
+     "scarto": 0.0009,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "70-80",
+     "n": 5814,
+     "dichiarato": 0.7264,
+     "uscito": 0.7248,
+     "scarto": 0.0016,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "oltre 80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    }
+   ],
+   "motivo": "la correzione non migliora log-loss ed ECE nel walk-forward"
+  },
+  "Multigol 1-2": {
+   "gruppo": "multigol",
+   "stato": "non tarato",
+   "casi": 8753,
+   "scarto_prima": 0.0125,
+   "scarto_dopo": 0.0084,
+   "logloss_prima": 0.66208,
+   "logloss_dopo": 0.66219,
+   "fasce": [
+    {
+     "fascia": "sotto 50",
+     "n": 8358,
+     "dichiarato": 0.3844,
+     "uscito": 0.3987,
+     "scarto": 0.0143,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "50-55",
+     "n": 389,
+     "dichiarato": 0.5153,
+     "uscito": 0.5347,
+     "scarto": 0.0194,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "55-60",
+     "n": 6,
+     "dichiarato": 0.5544,
+     "uscito": 0.8333,
+     "scarto": 0.2789,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "60-70",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "70-80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "oltre 80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    }
+   ],
+   "motivo": "la correzione non migliora log-loss ed ECE nel walk-forward"
+  },
+  "1 + Over 1.5": {
+   "gruppo": "combo e gruppi",
+   "stato": "non tarato",
+   "casi": 8753,
+   "scarto_prima": 0.0127,
+   "scarto_dopo": 0.0103,
+   "logloss_prima": 0.56413,
+   "logloss_dopo": 0.56458,
+   "fasce": [
+    {
+     "fascia": "sotto 50",
+     "n": 6834,
+     "dichiarato": 0.2817,
+     "uscito": 0.2622,
+     "scarto": 0.0195,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "50-55",
+     "n": 471,
+     "dichiarato": 0.5247,
+     "uscito": 0.5159,
+     "scarto": 0.0088,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "55-60",
+     "n": 417,
+     "dichiarato": 0.5747,
+     "uscito": 0.5827,
+     "scarto": 0.008,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "60-70",
+     "n": 604,
+     "dichiarato": 0.646,
+     "uscito": 0.606,
+     "scarto": 0.04,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "70-80",
+     "n": 322,
+     "dichiarato": 0.743,
+     "uscito": 0.7609,
+     "scarto": 0.0179,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "oltre 80",
+     "n": 105,
+     "dichiarato": 0.8338,
+     "uscito": 0.8095,
+     "scarto": 0.0243,
+     "etichetta": "poco verificata"
+    }
+   ],
+   "motivo": "la correzione non migliora log-loss ed ECE nel walk-forward"
+  },
+  "1 + Over 2.5": {
+   "gruppo": "combo e gruppi",
+   "stato": "non tarato",
+   "casi": 8753,
+   "scarto_prima": 0.0089,
+   "scarto_dopo": 0.0049,
+   "logloss_prima": 0.52944,
+   "logloss_dopo": 0.53002,
+   "fasce": [
+    {
+     "fascia": "sotto 50",
+     "n": 7867,
+     "dichiarato": 0.2465,
+     "uscito": 0.2369,
+     "scarto": 0.0096,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "50-55",
+     "n": 318,
+     "dichiarato": 0.5245,
+     "uscito": 0.5409,
+     "scarto": 0.0164,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "55-60",
+     "n": 238,
+     "dichiarato": 0.574,
+     "uscito": 0.5966,
+     "scarto": 0.0226,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "60-70",
+     "n": 247,
+     "dichiarato": 0.644,
+     "uscito": 0.6073,
+     "scarto": 0.0367,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "70-80",
+     "n": 77,
+     "dichiarato": 0.734,
+     "uscito": 0.7013,
+     "scarto": 0.0327,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "oltre 80",
+     "n": 6,
+     "dichiarato": 0.8238,
+     "uscito": 1.0,
+     "scarto": 0.1762,
+     "etichetta": "poco verificata"
+    }
+   ],
+   "motivo": "la correzione non migliora log-loss ed ECE nel walk-forward"
+  },
+  "1 + Over 3.5": {
+   "gruppo": "combo e gruppi",
+   "stato": "non tarato",
+   "casi": 8753,
+   "scarto_prima": 0.0092,
+   "scarto_dopo": 0.006,
+   "logloss_prima": 0.37593,
+   "logloss_dopo": 0.37622,
+   "fasce": [
+    {
+     "fascia": "sotto 50",
+     "n": 8651,
+     "dichiarato": 0.1526,
+     "uscito": 0.1435,
+     "scarto": 0.0091,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "50-55",
+     "n": 54,
+     "dichiarato": 0.5219,
+     "uscito": 0.5556,
+     "scarto": 0.0337,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "55-60",
+     "n": 32,
+     "dichiarato": 0.5723,
+     "uscito": 0.4688,
+     "scarto": 0.1035,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "60-70",
+     "n": 14,
+     "dichiarato": 0.6235,
+     "uscito": 0.7857,
+     "scarto": 0.1622,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "70-80",
+     "n": 2,
+     "dichiarato": 0.7128,
+     "uscito": 1.0,
+     "scarto": 0.2872,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "oltre 80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    }
+   ],
+   "motivo": "la correzione non migliora log-loss ed ECE nel walk-forward"
+  },
+  "X + Over 1.5": {
+   "gruppo": "combo e gruppi",
+   "stato": "tarato",
+   "casi": 8753,
+   "metodo": "isotonica",
+   "origine": "nuova",
+   "mappa": {
+    "metodo": "isotonica",
+    "x": [
+     0.08818,
+     0.11981,
+     0.13649,
+     0.14896,
+     0.15858,
+     0.16617,
+     0.17267,
+     0.17769,
+     0.18197,
+     0.18576,
+     0.18907,
+     0.19206,
+     0.19456,
+     0.19664,
+     0.19854,
+     0.20018,
+     0.20172,
+     0.20322,
+     0.20466,
+     0.20598
+    ],
+    "y": [
+     0.09693,
+     0.12521,
+     0.13035,
+     0.139,
+     0.17442,
+     0.18838,
+     0.18838,
+     0.18838,
+     0.19217,
+     0.19217,
+     0.20369,
+     0.20369,
+     0.21041,
+     0.2171,
+     0.2171,
+     0.2171,
+     0.2171,
+     0.2171,
+     0.23679,
+     0.24236
+    ]
+   },
+   "scarto_prima": 0.0163,
+   "scarto_dopo": 0.0071,
+   "logloss_prima": 0.48571,
+   "logloss_dopo": 0.48538,
+   "fasce": [
+    {
+     "fascia": "sotto 50",
+     "n": 8753,
+     "dichiarato": 0.1857,
+     "uscito": 0.1925,
+     "scarto": 0.0068,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "50-55",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "55-60",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "60-70",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "70-80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "oltre 80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    }
+   ]
+  },
+  "X + Over 2.5": {
+   "gruppo": "combo e gruppi",
+   "stato": "tarato",
+   "casi": 8753,
+   "metodo": "isotonica",
+   "origine": "nuova",
+   "mappa": {
+    "metodo": "isotonica",
+    "x": [
+     0.02602,
+     0.03431,
+     0.03879,
+     0.04203,
+     0.04474,
+     0.04724,
+     0.04952,
+     0.05174,
+     0.05369,
+     0.05565,
+     0.05788,
+     0.0601,
+     0.06229,
+     0.06461,
+     0.06708,
+     0.06976,
+     0.07291,
+     0.07663,
+     0.0812,
+     0.09116
+    ],
+    "y": [
+     0.04266,
+     0.04266,
+     0.05434,
+     0.05558,
+     0.05558,
+     0.05558,
+     0.06197,
+     0.06197,
+     0.06197,
+     0.06197,
+     0.06197,
+     0.06365,
+     0.06748,
+     0.0752,
+     0.0752,
+     0.0752,
+     0.08663,
+     0.09969,
+     0.1042,
+     0.1042
+    ]
+   },
+   "scarto_prima": 0.0124,
+   "scarto_dopo": 0.0048,
+   "logloss_prima": 0.25171,
+   "logloss_dopo": 0.25068,
+   "fasce": [
+    {
+     "fascia": "sotto 50",
+     "n": 8753,
+     "dichiarato": 0.0648,
+     "uscito": 0.0696,
+     "scarto": 0.0048,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "50-55",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "55-60",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "60-70",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "70-80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "oltre 80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    }
+   ]
+  },
+  "X + Over 3.5": {
+   "gruppo": "combo e gruppi",
+   "stato": "derivato",
+   "casi": 0
+  },
+  "2 + Over 1.5": {
+   "gruppo": "combo e gruppi",
+   "stato": "non tarato",
+   "casi": 8753,
+   "scarto_prima": 0.0115,
+   "scarto_dopo": 0.0061,
+   "logloss_prima": 0.48772,
+   "logloss_dopo": 0.48857,
+   "fasce": [
+    {
+     "fascia": "sotto 50",
+     "n": 8031,
+     "dichiarato": 0.2143,
+     "uscito": 0.2112,
+     "scarto": 0.0031,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "50-55",
+     "n": 252,
+     "dichiarato": 0.5219,
+     "uscito": 0.5357,
+     "scarto": 0.0138,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "55-60",
+     "n": 190,
+     "dichiarato": 0.5723,
+     "uscito": 0.5737,
+     "scarto": 0.0014,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "60-70",
+     "n": 204,
+     "dichiarato": 0.6415,
+     "uscito": 0.6078,
+     "scarto": 0.0337,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "70-80",
+     "n": 70,
+     "dichiarato": 0.738,
+     "uscito": 0.6714,
+     "scarto": 0.0666,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "oltre 80",
+     "n": 6,
+     "dichiarato": 0.8137,
+     "uscito": 0.8333,
+     "scarto": 0.0196,
+     "etichetta": "poco verificata"
+    }
+   ],
+   "motivo": "la correzione non migliora log-loss ed ECE nel walk-forward"
+  },
+  "2 + Over 2.5": {
+   "gruppo": "combo e gruppi",
+   "stato": "non tarato",
+   "casi": 8753,
+   "scarto_prima": 0.0078,
+   "scarto_dopo": 0.0023,
+   "logloss_prima": 0.43668,
+   "logloss_dopo": 0.43788,
+   "fasce": [
+    {
+     "fascia": "sotto 50",
+     "n": 8514,
+     "dichiarato": 0.1824,
+     "uscito": 0.1812,
+     "scarto": 0.0012,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "50-55",
+     "n": 112,
+     "dichiarato": 0.5223,
+     "uscito": 0.4375,
+     "scarto": 0.0848,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "55-60",
+     "n": 67,
+     "dichiarato": 0.5738,
+     "uscito": 0.5373,
+     "scarto": 0.0365,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "60-70",
+     "n": 55,
+     "dichiarato": 0.6399,
+     "uscito": 0.5636,
+     "scarto": 0.0763,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "70-80",
+     "n": 5,
+     "dichiarato": 0.7289,
+     "uscito": 0.6,
+     "scarto": 0.1289,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "oltre 80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    }
+   ],
+   "motivo": "la correzione non migliora log-loss ed ECE nel walk-forward"
+  },
+  "2 + Over 3.5": {
+   "gruppo": "combo e gruppi",
+   "stato": "non tarato",
+   "casi": 8753,
+   "scarto_prima": 0.0058,
+   "scarto_dopo": 0.003,
+   "logloss_prima": 0.27839,
+   "logloss_dopo": 0.27931,
+   "fasce": [
+    {
+     "fascia": "sotto 50",
+     "n": 8739,
+     "dichiarato": 0.0998,
+     "uscito": 0.0945,
+     "scarto": 0.0053,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "50-55",
+     "n": 11,
+     "dichiarato": 0.5163,
+     "uscito": 0.5455,
+     "scarto": 0.0292,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "55-60",
+     "n": 2,
+     "dichiarato": 0.562,
+     "uscito": 1.0,
+     "scarto": 0.438,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "60-70",
+     "n": 1,
+     "dichiarato": 0.6109,
+     "uscito": 0.0,
+     "scarto": 0.6109,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "70-80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "oltre 80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    }
+   ],
+   "motivo": "la correzione non migliora log-loss ed ECE nel walk-forward"
+  },
+  "Goal + Over 2.5": {
+   "gruppo": "combo e gruppi",
+   "stato": "tarato",
+   "casi": 8753,
+   "metodo": "isotonica",
+   "origine": "nuova",
+   "mappa": {
+    "metodo": "isotonica",
+    "x": [
+     0.26551,
+     0.30225,
+     0.32239,
+     0.33752,
+     0.35038,
+     0.36159,
+     0.37222,
+     0.38266,
+     0.39308,
+     0.40335,
+     0.41304,
+     0.42269,
+     0.43286,
+     0.44365,
+     0.45519,
+     0.46804,
+     0.4813,
+     0.4979,
+     0.52253,
+     0.56964
+    ],
+    "y": [
+     0.26729,
+     0.33687,
+     0.33687,
+     0.34341,
+     0.36418,
+     0.36418,
+     0.36838,
+     0.37799,
+     0.37799,
+     0.41876,
+     0.41876,
+     0.41876,
+     0.46984,
+     0.46984,
+     0.47953,
+     0.47953,
+     0.47953,
+     0.55254,
+     0.57114,
+     0.58088
+    ]
+   },
+   "scarto_prima": 0.006,
+   "scarto_dopo": 0.0042,
+   "logloss_prima": 0.66885,
+   "logloss_dopo": 0.66851,
+   "fasce": [
+    {
+     "fascia": "sotto 50",
+     "n": 7441,
+     "dichiarato": 0.3957,
+     "uscito": 0.3991,
+     "scarto": 0.0034,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "50-55",
+     "n": 606,
+     "dichiarato": 0.5252,
+     "uscito": 0.5479,
+     "scarto": 0.0227,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "55-60",
+     "n": 686,
+     "dichiarato": 0.5747,
+     "uscito": 0.5743,
+     "scarto": 0.0004,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "60-70",
+     "n": 20,
+     "dichiarato": 0.6214,
+     "uscito": 0.7,
+     "scarto": 0.0786,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "70-80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "oltre 80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    }
+   ]
+  },
+  "Goal + Over 3.5": {
+   "gruppo": "combo e gruppi",
+   "stato": "non tarato",
+   "casi": 8753,
+   "scarto_prima": 0.0105,
+   "scarto_dopo": 0.0112,
+   "logloss_prima": 0.56454,
+   "logloss_dopo": 0.56456,
+   "fasce": [
+    {
+     "fascia": "sotto 50",
+     "n": 8741,
+     "dichiarato": 0.2622,
+     "uscito": 0.2682,
+     "scarto": 0.006,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "50-55",
+     "n": 11,
+     "dichiarato": 0.5146,
+     "uscito": 0.6364,
+     "scarto": 0.1218,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "55-60",
+     "n": 1,
+     "dichiarato": 0.563,
+     "uscito": 1.0,
+     "scarto": 0.437,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "60-70",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "70-80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "oltre 80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    }
+   ],
+   "motivo": "la correzione non migliora log-loss ed ECE nel walk-forward"
+  },
+  "Esatti 1-0/2-0/2-1": {
+   "gruppo": "combo e gruppi",
+   "stato": "tarato",
+   "casi": 8753,
+   "metodo": "isotonica",
+   "origine": "nuova",
+   "mappa": {
+    "metodo": "isotonica",
+    "x": [
+     0.07483,
+     0.11396,
+     0.13917,
+     0.16107,
+     0.17963,
+     0.19308,
+     0.20658,
+     0.21797,
+     0.2285,
+     0.23829,
+     0.24727,
+     0.25546,
+     0.26292,
+     0.27095,
+     0.27948,
+     0.28869,
+     0.29812,
+     0.30899,
+     0.32333,
+     0.35033
+    ],
+    "y": [
+     0.06305,
+     0.11197,
+     0.14806,
+     0.14806,
+     0.15451,
+     0.17392,
+     0.17696,
+     0.21618,
+     0.23168,
+     0.23439,
+     0.27538,
+     0.27538,
+     0.27538,
+     0.27538,
+     0.31086,
+     0.32624,
+     0.35619,
+     0.35718,
+     0.38758,
+     0.39003
+    ]
+   },
+   "scarto_prima": 0.0201,
+   "scarto_dopo": 0.0129,
+   "logloss_prima": 0.53126,
+   "logloss_dopo": 0.53029,
+   "fasce": [
+    {
+     "fascia": "sotto 50",
+     "n": 8753,
+     "dichiarato": 0.2484,
+     "uscito": 0.2436,
+     "scarto": 0.0048,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "50-55",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "55-60",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "60-70",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "70-80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "oltre 80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    }
+   ]
+  },
+  "Esatti 0-1/0-2/1-2": {
+   "gruppo": "combo e gruppi",
+   "stato": "tarato",
+   "casi": 8753,
+   "metodo": "isotonica",
+   "origine": "nuova",
+   "mappa": {
+    "metodo": "isotonica",
+    "x": [
+     0.04004,
+     0.0664,
+     0.08557,
+     0.10272,
+     0.11918,
+     0.13345,
+     0.14658,
+     0.15991,
+     0.17175,
+     0.18288,
+     0.19392,
+     0.20456,
+     0.21495,
+     0.22589,
+     0.23694,
+     0.24784,
+     0.26077,
+     0.27568,
+     0.2933,
+     0.32438
+    ],
+    "y": [
+     0.05264,
+     0.07499,
+     0.07849,
+     0.07849,
+     0.1272,
+     0.1285,
+     0.1406,
+     0.15636,
+     0.1743,
+     0.1743,
+     0.18993,
+     0.18993,
+     0.21227,
+     0.24054,
+     0.25022,
+     0.25022,
+     0.30075,
+     0.30075,
+     0.34666,
+     0.39494
+    ]
+   },
+   "scarto_prima": 0.0149,
+   "scarto_dopo": 0.0094,
+   "logloss_prima": 0.46386,
+   "logloss_dopo": 0.46323,
+   "fasce": [
+    {
+     "fascia": "sotto 50",
+     "n": 8753,
+     "dichiarato": 0.193,
+     "uscito": 0.1936,
+     "scarto": 0.0006,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "50-55",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "55-60",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "60-70",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "70-80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "oltre 80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    }
+   ]
+  },
+  "Esatti 0-0/1-1": {
+   "gruppo": "combo e gruppi",
+   "stato": "tarato",
+   "casi": 8753,
+   "metodo": "isotonica",
+   "origine": "nuova",
+   "mappa": {
+    "metodo": "isotonica",
+    "x": [
+     0.08725,
+     0.11971,
+     0.13668,
+     0.14959,
+     0.15988,
+     0.16832,
+     0.17576,
+     0.18275,
+     0.18944,
+     0.19598,
+     0.2019,
+     0.20833,
+     0.21496,
+     0.22134,
+     0.22828,
+     0.23574,
+     0.24391,
+     0.25294,
+     0.26522,
+     0.29009
+    ],
+    "y": [
+     0.07507,
+     0.10524,
+     0.12018,
+     0.12018,
+     0.14194,
+     0.14194,
+     0.14194,
+     0.14934,
+     0.17177,
+     0.19418,
+     0.19774,
+     0.19774,
+     0.21165,
+     0.21165,
+     0.21165,
+     0.24507,
+     0.26309,
+     0.26309,
+     0.26309,
+     0.27546
+    ]
+   },
+   "scarto_prima": 0.0115,
+   "scarto_dopo": 0.0025,
+   "logloss_prima": 0.46987,
+   "logloss_dopo": 0.46973,
+   "fasce": [
+    {
+     "fascia": "sotto 50",
+     "n": 8753,
+     "dichiarato": 0.1876,
+     "uscito": 0.1857,
+     "scarto": 0.0019,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "50-55",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "55-60",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "60-70",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "70-80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "oltre 80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    }
+   ]
+  },
+  "Esatti 1-1/2-2": {
+   "gruppo": "combo e gruppi",
+   "stato": "tarato",
+   "casi": 8753,
+   "metodo": "isotonica",
+   "origine": "nuova",
+   "mappa": {
+    "metodo": "isotonica",
+    "x": [
+     0.08207,
+     0.11179,
+     0.12731,
+     0.13921,
+     0.1481,
+     0.15564,
+     0.16178,
+     0.16641,
+     0.17061,
+     0.17446,
+     0.17766,
+     0.18045,
+     0.18283,
+     0.18489,
+     0.18667,
+     0.18824,
+     0.18955,
+     0.19084,
+     0.19206,
+     0.19314
+    ],
+    "y": [
+     0.08186,
+     0.12344,
+     0.12344,
+     0.12344,
+     0.16255,
+     0.16688,
+     0.17037,
+     0.17037,
+     0.1846,
+     0.18947,
+     0.18947,
+     0.18947,
+     0.20571,
+     0.20772,
+     0.20977,
+     0.20977,
+     0.21129,
+     0.21129,
+     0.21129,
+     0.2121
+    ]
+   },
+   "scarto_prima": 0.0154,
+   "scarto_dopo": 0.0072,
+   "logloss_prima": 0.4672,
+   "logloss_dopo": 0.46704,
+   "fasce": [
+    {
+     "fascia": "sotto 50",
+     "n": 8753,
+     "dichiarato": 0.1744,
+     "uscito": 0.1801,
+     "scarto": 0.0057,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "50-55",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "55-60",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "60-70",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "70-80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "oltre 80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    }
+   ]
+  },
+  "Esatti 2-1/3-1/3-2": {
+   "gruppo": "combo e gruppi",
+   "stato": "non tarato",
+   "casi": 8753,
+   "scarto_prima": 0.0073,
+   "scarto_dopo": 0.0036,
+   "logloss_prima": 0.41824,
+   "logloss_dopo": 0.4184,
+   "fasce": [
+    {
+     "fascia": "sotto 50",
+     "n": 8753,
+     "dichiarato": 0.1469,
+     "uscito": 0.1537,
+     "scarto": 0.0068,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "50-55",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "55-60",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "60-70",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "70-80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "oltre 80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    }
+   ],
+   "motivo": "la correzione non migliora log-loss ed ECE nel walk-forward"
+  },
+  "Esatti 1-0/0-1/0-0": {
+   "gruppo": "combo e gruppi",
+   "stato": "derivato",
+   "casi": 0
+  },
+  "Favorita 4+ gol": {
+   "gruppo": "combo e gruppi",
+   "stato": "tarato",
+   "casi": 8753,
+   "metodo": "isotonica",
+   "origine": "nuova",
+   "mappa": {
+    "metodo": "isotonica",
+    "x": [
+     0.02842,
+     0.03887,
+     0.04586,
+     0.05184,
+     0.05774,
+     0.06371,
+     0.06941,
+     0.07554,
+     0.08241,
+     0.0899,
+     0.09817,
+     0.10763,
+     0.11865,
+     0.1309,
+     0.14582,
+     0.1645,
+     0.18704,
+     0.21776,
+     0.26383,
+     0.36888
+    ],
+    "y": [
+     0.0171,
+     0.01805,
+     0.0444,
+     0.0444,
+     0.04889,
+     0.05852,
+     0.06267,
+     0.06809,
+     0.06809,
+     0.07545,
+     0.08529,
+     0.09706,
+     0.12351,
+     0.13554,
+     0.14592,
+     0.14592,
+     0.17337,
+     0.1998,
+     0.2458,
+     0.32081
+    ]
+   },
+   "scarto_prima": 0.0115,
+   "scarto_dopo": 0.0021,
+   "logloss_prima": 0.31448,
+   "logloss_dopo": 0.31422,
+   "fasce": [
+    {
+     "fascia": "sotto 50",
+     "n": 8751,
+     "dichiarato": 0.1082,
+     "uscito": 0.1073,
+     "scarto": 0.0009,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "50-55",
+     "n": 2,
+     "dichiarato": 0.5249,
+     "uscito": 1.0,
+     "scarto": 0.4751,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "55-60",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "60-70",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "70-80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "oltre 80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    }
+   ]
+  },
+  "Favorita vince di 3+": {
+   "gruppo": "combo e gruppi",
+   "stato": "tarato",
+   "casi": 8753,
+   "metodo": "isotonica",
+   "origine": "nuova",
+   "mappa": {
+    "metodo": "isotonica",
+    "x": [
+     0.04955,
+     0.06057,
+     0.06742,
+     0.07362,
+     0.07996,
+     0.08604,
+     0.09271,
+     0.10029,
+     0.10838,
+     0.11846,
+     0.12991,
+     0.14141,
+     0.15544,
+     0.17147,
+     0.19032,
+     0.21396,
+     0.24227,
+     0.2798,
+     0.33477,
+     0.45103
+    ],
+    "y": [
+     0.03535,
+     0.05268,
+     0.05693,
+     0.06306,
+     0.08,
+     0.086,
+     0.09025,
+     0.09476,
+     0.09476,
+     0.09476,
+     0.11597,
+     0.11597,
+     0.15213,
+     0.15213,
+     0.18457,
+     0.194,
+     0.22021,
+     0.26907,
+     0.29225,
+     0.37191
+    ]
+   },
+   "scarto_prima": 0.0167,
+   "scarto_dopo": 0.0044,
+   "logloss_prima": 0.37453,
+   "logloss_dopo": 0.37339,
+   "fasce": [
+    {
+     "fascia": "sotto 50",
+     "n": 8734,
+     "dichiarato": 0.1415,
+     "uscito": 0.1372,
+     "scarto": 0.0043,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "50-55",
+     "n": 15,
+     "dichiarato": 0.5201,
+     "uscito": 0.4,
+     "scarto": 0.1201,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "55-60",
+     "n": 3,
+     "dichiarato": 0.5697,
+     "uscito": 0.6667,
+     "scarto": 0.097,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "60-70",
+     "n": 1,
+     "dichiarato": 0.6239,
+     "uscito": 1.0,
+     "scarto": 0.3761,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "70-80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "oltre 80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    }
+   ]
+  },
+  "Totale 5+ gol": {
+   "gruppo": "combo e gruppi",
+   "stato": "derivato",
+   "casi": 0
+  },
+  "Over 0.5 gol 1T": {
+   "gruppo": "primo tempo",
+   "stato": "non tarato",
+   "casi": 8753,
+   "scarto_prima": 0.0093,
+   "scarto_dopo": 0.0052,
+   "logloss_prima": 0.58725,
+   "logloss_dopo": 0.58743,
+   "fasce": [
+    {
+     "fascia": "sotto 50",
+     "n": 2,
+     "dichiarato": 0.4935,
+     "uscito": 0.5,
+     "scarto": 0.0065,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "50-55",
+     "n": 56,
+     "dichiarato": 0.534,
+     "uscito": 0.5,
+     "scarto": 0.034,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "55-60",
+     "n": 407,
+     "dichiarato": 0.5822,
+     "uscito": 0.5946,
+     "scarto": 0.0124,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "60-70",
+     "n": 3625,
+     "dichiarato": 0.6587,
+     "uscito": 0.6668,
+     "scarto": 0.0081,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "70-80",
+     "n": 3942,
+     "dichiarato": 0.7425,
+     "uscito": 0.7547,
+     "scarto": 0.0122,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "oltre 80",
+     "n": 721,
+     "dichiarato": 0.8303,
+     "uscito": 0.8322,
+     "scarto": 0.0019,
+     "etichetta": "verificata"
+    }
+   ],
+   "motivo": "la correzione non migliora log-loss ed ECE nel walk-forward"
+  },
+  "Over 1.5 gol 1T": {
+   "gruppo": "primo tempo",
+   "stato": "non tarato",
+   "casi": 8753,
+   "scarto_prima": 0.0065,
+   "scarto_dopo": 0.0055,
+   "logloss_prima": 0.63862,
+   "logloss_dopo": 0.63931,
+   "fasce": [
+    {
+     "fascia": "sotto 50",
+     "n": 8222,
+     "dichiarato": 0.3425,
+     "uscito": 0.3477,
+     "scarto": 0.0052,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "50-55",
+     "n": 340,
+     "dichiarato": 0.5217,
+     "uscito": 0.4882,
+     "scarto": 0.0335,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "55-60",
+     "n": 123,
+     "dichiarato": 0.5715,
+     "uscito": 0.5935,
+     "scarto": 0.022,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "60-70",
+     "n": 65,
+     "dichiarato": 0.6341,
+     "uscito": 0.6308,
+     "scarto": 0.0033,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "70-80",
+     "n": 3,
+     "dichiarato": 0.7372,
+     "uscito": 1.0,
+     "scarto": 0.2628,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "oltre 80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    }
+   ],
+   "motivo": "la correzione non migliora log-loss ed ECE nel walk-forward"
+  },
+  "Over 8.5 corner": {
+   "gruppo": "corner",
+   "stato": "non tarato",
+   "casi": 8753,
+   "scarto_prima": 0.0088,
+   "scarto_dopo": 0.0103,
+   "logloss_prima": 0.65978,
+   "logloss_dopo": 0.66039,
+   "fasce": [
+    {
+     "fascia": "sotto 50",
+     "n": 244,
+     "dichiarato": 0.4781,
+     "uscito": 0.4508,
+     "scarto": 0.0273,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "50-55",
+     "n": 1052,
+     "dichiarato": 0.5297,
+     "uscito": 0.5409,
+     "scarto": 0.0112,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "55-60",
+     "n": 2437,
+     "dichiarato": 0.5777,
+     "uscito": 0.5888,
+     "scarto": 0.0111,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "60-70",
+     "n": 4689,
+     "dichiarato": 0.6402,
+     "uscito": 0.6466,
+     "scarto": 0.0064,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "70-80",
+     "n": 330,
+     "dichiarato": 0.7191,
+     "uscito": 0.7152,
+     "scarto": 0.0039,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "oltre 80",
+     "n": 1,
+     "dichiarato": 0.8009,
+     "uscito": 1.0,
+     "scarto": 0.1991,
+     "etichetta": "poco verificata"
+    }
+   ],
+   "motivo": "la correzione non migliora log-loss ed ECE nel walk-forward"
+  },
+  "Over 9.5 corner": {
+   "gruppo": "corner",
+   "stato": "non tarato",
+   "casi": 8753,
+   "scarto_prima": 0.0082,
+   "scarto_dopo": 0.0059,
+   "logloss_prima": 0.68813,
+   "logloss_dopo": 0.68845,
+   "fasce": [
+    {
+     "fascia": "sotto 50",
+     "n": 4954,
+     "dichiarato": 0.4496,
+     "uscito": 0.4665,
+     "scarto": 0.0169,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "50-55",
+     "n": 2528,
+     "dichiarato": 0.5228,
+     "uscito": 0.5324,
+     "scarto": 0.0096,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "55-60",
+     "n": 1064,
+     "dichiarato": 0.5699,
+     "uscito": 0.5667,
+     "scarto": 0.0032,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "60-70",
+     "n": 206,
+     "dichiarato": 0.6217,
+     "uscito": 0.5825,
+     "scarto": 0.0392,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "70-80",
+     "n": 1,
+     "dichiarato": 0.7098,
+     "uscito": 0.0,
+     "scarto": 0.7098,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "oltre 80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    }
+   ],
+   "motivo": "la correzione non migliora log-loss ed ECE nel walk-forward"
+  },
+  "Over 10.5 corner": {
+   "gruppo": "corner",
+   "stato": "non tarato",
+   "casi": 8753,
+   "scarto_prima": 0.0075,
+   "scarto_dopo": 0.0053,
+   "logloss_prima": 0.66017,
+   "logloss_dopo": 0.66047,
+   "fasce": [
+    {
+     "fascia": "sotto 50",
+     "n": 8628,
+     "dichiarato": 0.3743,
+     "uscito": 0.3822,
+     "scarto": 0.0079,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "50-55",
+     "n": 108,
+     "dichiarato": 0.5158,
+     "uscito": 0.5093,
+     "scarto": 0.0065,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "55-60",
+     "n": 16,
+     "dichiarato": 0.5613,
+     "uscito": 0.8125,
+     "scarto": 0.2512,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "60-70",
+     "n": 1,
+     "dichiarato": 0.6072,
+     "uscito": 0.0,
+     "scarto": 0.6072,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "70-80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "oltre 80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    }
+   ],
+   "motivo": "la correzione non migliora log-loss ed ECE nel walk-forward"
+  },
+  "Over 3.5 cartellini": {
+   "gruppo": "cartellini",
+   "stato": "tarato",
+   "casi": 8753,
+   "metodo": "platt",
+   "origine": "precedente (fase P)",
+   "mappa": {
+    "metodo": "platt",
+    "a": -0.03392,
+    "b": 1.19101
+   },
+   "scarto_prima": 0.0265,
+   "scarto_dopo": 0.0119,
+   "logloss_prima": 0.64113,
+   "logloss_dopo": 0.63924,
+   "fasce": [
+    {
+     "fascia": "sotto 50",
+     "n": 1202,
+     "dichiarato": 0.441,
+     "uscito": 0.4035,
+     "scarto": 0.0375,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "50-55",
+     "n": 1049,
+     "dichiarato": 0.5271,
+     "uscito": 0.5071,
+     "scarto": 0.02,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "55-60",
+     "n": 1438,
+     "dichiarato": 0.5764,
+     "uscito": 0.5862,
+     "scarto": 0.0098,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "60-70",
+     "n": 3301,
+     "dichiarato": 0.649,
+     "uscito": 0.6622,
+     "scarto": 0.0132,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "70-80",
+     "n": 1681,
+     "dichiarato": 0.7369,
+     "uscito": 0.749,
+     "scarto": 0.0121,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "oltre 80",
+     "n": 82,
+     "dichiarato": 0.8139,
+     "uscito": 0.8415,
+     "scarto": 0.0276,
+     "etichetta": "poco verificata"
+    }
+   ]
+  },
+  "Over 4.5 cartellini": {
+   "gruppo": "cartellini",
+   "stato": "tarato",
+   "casi": 8753,
+   "metodo": "isotonica",
+   "origine": "nuova",
+   "mappa": {
+    "metodo": "isotonica",
+    "x": [
+     0.25614,
+     0.31126,
+     0.33856,
+     0.35944,
+     0.37652,
+     0.39194,
+     0.40627,
+     0.41907,
+     0.43121,
+     0.44324,
+     0.45541,
+     0.46794,
+     0.48078,
+     0.49406,
+     0.50797,
+     0.52326,
+     0.54025,
+     0.55994,
+     0.58582,
+     0.62908
+    ],
+    "y": [
+     0.19203,
+     0.27325,
+     0.3084,
+     0.35449,
+     0.38129,
+     0.38129,
+     0.39148,
+     0.42889,
+     0.42889,
+     0.42889,
+     0.47924,
+     0.47924,
+     0.50559,
+     0.50559,
+     0.50559,
+     0.50559,
+     0.57546,
+     0.57546,
+     0.60598,
+     0.72083
+    ]
+   },
+   "scarto_prima": 0.0148,
+   "scarto_dopo": 0.0099,
+   "logloss_prima": 0.66192,
+   "logloss_dopo": 0.66182,
+   "fasce": [
+    {
+     "fascia": "sotto 50",
+     "n": 5730,
+     "dichiarato": 0.3717,
+     "uscito": 0.3862,
+     "scarto": 0.0145,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "50-55",
+     "n": 1798,
+     "dichiarato": 0.5174,
+     "uscito": 0.5111,
+     "scarto": 0.0063,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "55-60",
+     "n": 778,
+     "dichiarato": 0.5759,
+     "uscito": 0.5707,
+     "scarto": 0.0052,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "60-70",
+     "n": 376,
+     "dichiarato": 0.6393,
+     "uscito": 0.6702,
+     "scarto": 0.0309,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "70-80",
+     "n": 71,
+     "dichiarato": 0.7148,
+     "uscito": 0.7183,
+     "scarto": 0.0035,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "oltre 80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    }
+   ]
+  },
+  "Over 5.5 cartellini": {
+   "gruppo": "cartellini",
+   "stato": "non tarato",
+   "casi": 8753,
+   "scarto_prima": 0.0133,
+   "scarto_dopo": 0.0096,
+   "logloss_prima": 0.58343,
+   "logloss_dopo": 0.5841,
+   "fasce": [
+    {
+     "fascia": "sotto 50",
+     "n": 8712,
+     "dichiarato": 0.2992,
+     "uscito": 0.2943,
+     "scarto": 0.0049,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "50-55",
+     "n": 37,
+     "dichiarato": 0.5132,
+     "uscito": 0.5405,
+     "scarto": 0.0273,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "55-60",
+     "n": 4,
+     "dichiarato": 0.5595,
+     "uscito": 0.75,
+     "scarto": 0.1905,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "60-70",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "70-80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "oltre 80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    }
+   ],
+   "motivo": "la correzione non migliora log-loss ed ECE nel walk-forward"
+  },
+  "Over 4.5 gol": {
+   "gruppo": "over/under gol",
+   "stato": "non tarato",
+   "casi": 8753,
+   "scarto_prima": 0.0087,
+   "scarto_dopo": 0.0067,
+   "logloss_prima": 0.41706,
+   "logloss_dopo": 0.41756,
+   "fasce": [
+    {
+     "fascia": "sotto 50",
+     "n": 8748,
+     "dichiarato": 0.1616,
+     "uscito": 0.1571,
+     "scarto": 0.0045,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "50-55",
+     "n": 3,
+     "dichiarato": 0.517,
+     "uscito": 0.6667,
+     "scarto": 0.1497,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "55-60",
+     "n": 2,
+     "dichiarato": 0.5605,
+     "uscito": 1.0,
+     "scarto": 0.4395,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "60-70",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "70-80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "oltre 80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    }
+   ],
+   "motivo": "la correzione non migliora log-loss ed ECE nel walk-forward"
+  },
+  "Over 0.5 gol 2T": {
+   "gruppo": "secondo tempo",
+   "stato": "tarato",
+   "casi": 8753,
+   "metodo": "isotonica",
+   "origine": "nuova",
+   "mappa": {
+    "metodo": "isotonica",
+    "x": [
+     0.70236,
+     0.72902,
+     0.74206,
+     0.75064,
+     0.75815,
+     0.76491,
+     0.77163,
+     0.77761,
+     0.78292,
+     0.7885,
+     0.79386,
+     0.79904,
+     0.80407,
+     0.80929,
+     0.81456,
+     0.82035,
+     0.82681,
+     0.83506,
+     0.84599,
+     0.86616
+    ],
+    "y": [
+     0.72254,
+     0.72736,
+     0.72736,
+     0.77072,
+     0.77072,
+     0.77072,
+     0.78288,
+     0.78639,
+     0.78639,
+     0.80374,
+     0.80374,
+     0.8156,
+     0.8156,
+     0.83357,
+     0.84496,
+     0.85276,
+     0.85554,
+     0.85554,
+     0.86054,
+     0.89329
+    ]
+   },
+   "scarto_prima": 0.0145,
+   "scarto_dopo": 0.0028,
+   "logloss_prima": 0.49001,
+   "logloss_dopo": 0.48988,
+   "fasce": [
+    {
+     "fascia": "sotto 50",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "50-55",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "55-60",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "60-70",
+     "n": 7,
+     "dichiarato": 0.6935,
+     "uscito": 0.2857,
+     "scarto": 0.4078,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "70-80",
+     "n": 4218,
+     "dichiarato": 0.7611,
+     "uscito": 0.7641,
+     "scarto": 0.003,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "oltre 80",
+     "n": 4528,
+     "dichiarato": 0.8379,
+     "uscito": 0.8399,
+     "scarto": 0.002,
+     "etichetta": "verificata"
+    }
+   ]
+  },
+  "Over 1.5 gol 2T": {
+   "gruppo": "secondo tempo",
+   "stato": "non tarato",
+   "casi": 8753,
+   "scarto_prima": 0.0149,
+   "scarto_dopo": 0.0115,
+   "logloss_prima": 0.67948,
+   "logloss_dopo": 0.67983,
+   "fasce": [
+    {
+     "fascia": "sotto 50",
+     "n": 6249,
+     "dichiarato": 0.4346,
+     "uscito": 0.4265,
+     "scarto": 0.0081,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "50-55",
+     "n": 1699,
+     "dichiarato": 0.5218,
+     "uscito": 0.5568,
+     "scarto": 0.035,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "55-60",
+     "n": 649,
+     "dichiarato": 0.571,
+     "uscito": 0.5824,
+     "scarto": 0.0114,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "60-70",
+     "n": 156,
+     "dichiarato": 0.6234,
+     "uscito": 0.6795,
+     "scarto": 0.0561,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "70-80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "oltre 80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    }
+   ],
+   "motivo": "la correzione non migliora log-loss ed ECE nel walk-forward"
+  },
+  "Casa Over 0.5 gol": {
+   "gruppo": "per squadra",
+   "stato": "tarato",
+   "casi": 8753,
+   "metodo": "isotonica",
+   "origine": "nuova",
+   "mappa": {
+    "metodo": "isotonica",
+    "x": [
+     0.53234,
+     0.59965,
+     0.63521,
+     0.66103,
+     0.68363,
+     0.70159,
+     0.71695,
+     0.73171,
+     0.74636,
+     0.76028,
+     0.77376,
+     0.78772,
+     0.80179,
+     0.81652,
+     0.83248,
+     0.84909,
+     0.86792,
+     0.88763,
+     0.9102,
+     0.94298
+    ],
+    "y": [
+     0.5111,
+     0.59525,
+     0.61662,
+     0.68112,
+     0.68112,
+     0.72539,
+     0.72539,
+     0.73379,
+     0.77876,
+     0.78548,
+     0.79398,
+     0.81161,
+     0.82562,
+     0.83968,
+     0.86295,
+     0.86992,
+     0.89798,
+     0.89798,
+     0.92093,
+     0.94754
+    ]
+   },
+   "scarto_prima": 0.017,
+   "scarto_dopo": 0.0072,
+   "logloss_prima": 0.49562,
+   "logloss_dopo": 0.49548,
+   "fasce": [
+    {
+     "fascia": "sotto 50",
+     "n": 24,
+     "dichiarato": 0.4613,
+     "uscito": 0.4583,
+     "scarto": 0.003,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "50-55",
+     "n": 177,
+     "dichiarato": 0.5356,
+     "uscito": 0.4859,
+     "scarto": 0.0497,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "55-60",
+     "n": 366,
+     "dichiarato": 0.5775,
+     "uscito": 0.541,
+     "scarto": 0.0365,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "60-70",
+     "n": 1534,
+     "dichiarato": 0.6508,
+     "uscito": 0.6428,
+     "scarto": 0.008,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "70-80",
+     "n": 2540,
+     "dichiarato": 0.7504,
+     "uscito": 0.7528,
+     "scarto": 0.0024,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "oltre 80",
+     "n": 4112,
+     "dichiarato": 0.867,
+     "uscito": 0.8721,
+     "scarto": 0.0051,
+     "etichetta": "verificata"
+    }
+   ]
+  },
+  "Casa Over 1.5 gol": {
+   "gruppo": "per squadra",
+   "stato": "non tarato",
+   "casi": 8753,
+   "scarto_prima": 0.0046,
+   "scarto_dopo": 0.0036,
+   "logloss_prima": 0.62854,
+   "logloss_dopo": 0.62912,
+   "fasce": [
+    {
+     "fascia": "sotto 50",
+     "n": 5641,
+     "dichiarato": 0.3489,
+     "uscito": 0.3421,
+     "scarto": 0.0068,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "50-55",
+     "n": 763,
+     "dichiarato": 0.5242,
+     "uscito": 0.5295,
+     "scarto": 0.0053,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "55-60",
+     "n": 608,
+     "dichiarato": 0.5738,
+     "uscito": 0.5905,
+     "scarto": 0.0167,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "60-70",
+     "n": 953,
+     "dichiarato": 0.646,
+     "uscito": 0.6411,
+     "scarto": 0.0049,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "70-80",
+     "n": 566,
+     "dichiarato": 0.7436,
+     "uscito": 0.7367,
+     "scarto": 0.0069,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "oltre 80",
+     "n": 222,
+     "dichiarato": 0.8414,
+     "uscito": 0.8198,
+     "scarto": 0.0216,
+     "etichetta": "poco verificata"
+    }
+   ],
+   "motivo": "la correzione non migliora log-loss ed ECE nel walk-forward"
+  },
+  "Ospite Over 0.5 gol": {
+   "gruppo": "per squadra",
+   "stato": "tarato",
+   "casi": 8753,
+   "metodo": "isotonica",
+   "origine": "nuova",
+   "mappa": {
+    "metodo": "isotonica",
+    "x": [
+     0.44727,
+     0.51286,
+     0.54919,
+     0.57449,
+     0.59694,
+     0.61659,
+     0.63465,
+     0.65183,
+     0.66739,
+     0.68208,
+     0.69714,
+     0.71426,
+     0.73075,
+     0.7482,
+     0.76703,
+     0.78576,
+     0.80749,
+     0.83236,
+     0.8611,
+     0.90622
+    ],
+    "y": [
+     0.47797,
+     0.53474,
+     0.54167,
+     0.59143,
+     0.59143,
+     0.62696,
+     0.65666,
+     0.65666,
+     0.66249,
+     0.7111,
+     0.73415,
+     0.73415,
+     0.74098,
+     0.76802,
+     0.81155,
+     0.81775,
+     0.81775,
+     0.81775,
+     0.90919,
+     0.93147
+    ]
+   },
+   "scarto_prima": 0.0162,
+   "scarto_dopo": 0.0101,
+   "logloss_prima": 0.56645,
+   "logloss_dopo": 0.56536,
+   "fasce": [
+    {
+     "fascia": "sotto 50",
+     "n": 525,
+     "dichiarato": 0.4726,
+     "uscito": 0.5067,
+     "scarto": 0.0341,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "50-55",
+     "n": 552,
+     "dichiarato": 0.5257,
+     "uscito": 0.5489,
+     "scarto": 0.0232,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "55-60",
+     "n": 1042,
+     "dichiarato": 0.5775,
+     "uscito": 0.5768,
+     "scarto": 0.0007,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "60-70",
+     "n": 2283,
+     "dichiarato": 0.6577,
+     "uscito": 0.6553,
+     "scarto": 0.0024,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "70-80",
+     "n": 2275,
+     "dichiarato": 0.7487,
+     "uscito": 0.7732,
+     "scarto": 0.0245,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "oltre 80",
+     "n": 2076,
+     "dichiarato": 0.8506,
+     "uscito": 0.8603,
+     "scarto": 0.0097,
+     "etichetta": "verificata"
+    }
+   ]
+  },
+  "Ospite Over 1.5 gol": {
+   "gruppo": "per squadra",
+   "stato": "tarato",
+   "casi": 8753,
+   "metodo": "isotonica",
+   "origine": "nuova",
+   "mappa": {
+    "metodo": "isotonica",
+    "x": [
+     0.11429,
+     0.15529,
+     0.18244,
+     0.20346,
+     0.22348,
+     0.24236,
+     0.26054,
+     0.27901,
+     0.29642,
+     0.31378,
+     0.33225,
+     0.35384,
+     0.37721,
+     0.40233,
+     0.43068,
+     0.46119,
+     0.49857,
+     0.54571,
+     0.60433,
+     0.70998
+    ],
+    "y": [
+     0.1483,
+     0.18469,
+     0.18534,
+     0.23486,
+     0.23486,
+     0.25559,
+     0.25559,
+     0.27264,
+     0.29967,
+     0.30125,
+     0.34475,
+     0.34853,
+     0.40634,
+     0.40634,
+     0.4537,
+     0.4892,
+     0.50351,
+     0.51143,
+     0.6513,
+     0.70273
+    ]
+   },
+   "scarto_prima": 0.0096,
+   "scarto_dopo": 0.0045,
+   "logloss_prima": 0.60612,
+   "logloss_dopo": 0.60575,
+   "fasce": [
+    {
+     "fascia": "sotto 50",
+     "n": 7292,
+     "dichiarato": 0.3038,
+     "uscito": 0.3103,
+     "scarto": 0.0065,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "50-55",
+     "n": 465,
+     "dichiarato": 0.5204,
+     "uscito": 0.4989,
+     "scarto": 0.0215,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "55-60",
+     "n": 271,
+     "dichiarato": 0.5743,
+     "uscito": 0.6052,
+     "scarto": 0.0309,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "60-70",
+     "n": 567,
+     "dichiarato": 0.6517,
+     "uscito": 0.6772,
+     "scarto": 0.0255,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "70-80",
+     "n": 144,
+     "dichiarato": 0.7183,
+     "uscito": 0.6875,
+     "scarto": 0.0308,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "oltre 80",
+     "n": 14,
+     "dichiarato": 0.8185,
+     "uscito": 0.7857,
+     "scarto": 0.0328,
+     "etichetta": "poco verificata"
+    }
+   ]
+  },
+  "1": {
+   "gruppo": "1X2",
+   "stato": "non tarato",
+   "casi": 8753,
+   "scarto_prima": 0.0151,
+   "scarto_dopo": 0.0074,
+   "logloss_prima": 0.96634,
+   "logloss_dopo": 0.96705,
+   "fasce": [
+    {
+     "fascia": "sotto 50",
+     "n": 5670,
+     "dichiarato": 0.3215,
+     "uscito": 0.3074,
+     "scarto": 0.0141,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "50-55",
+     "n": 674,
+     "dichiarato": 0.5251,
+     "uscito": 0.5415,
+     "scarto": 0.0164,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "55-60",
+     "n": 638,
+     "dichiarato": 0.5742,
+     "uscito": 0.5831,
+     "scarto": 0.0089,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "60-70",
+     "n": 907,
+     "dichiarato": 0.6493,
+     "uscito": 0.688,
+     "scarto": 0.0387,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "70-80",
+     "n": 605,
+     "dichiarato": 0.7457,
+     "uscito": 0.7488,
+     "scarto": 0.0031,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "oltre 80",
+     "n": 259,
+     "dichiarato": 0.8424,
+     "uscito": 0.8378,
+     "scarto": 0.0046,
+     "etichetta": "poco verificata"
+    }
+   ],
+   "motivo": "la correzione della terna non migliora log-loss ed ECE"
+  },
+  "X": {
+   "gruppo": "1X2",
+   "stato": "non tarato",
+   "casi": 8753,
+   "scarto_prima": 0.0025,
+   "scarto_dopo": 0.0053,
+   "logloss_prima": 0.96634,
+   "logloss_dopo": 0.96705,
+   "fasce": [
+    {
+     "fascia": "sotto 50",
+     "n": 8753,
+     "dichiarato": 0.2543,
+     "uscito": 0.2552,
+     "scarto": 0.0009,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "50-55",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "55-60",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "60-70",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "70-80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "oltre 80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    }
+   ],
+   "motivo": "la correzione della terna non migliora log-loss ed ECE"
+  },
+  "2": {
+   "gruppo": "1X2",
+   "stato": "non tarato",
+   "casi": 8753,
+   "scarto_prima": 0.012,
+   "scarto_dopo": 0.011,
+   "logloss_prima": 0.96634,
+   "logloss_dopo": 0.96705,
+   "fasce": [
+    {
+     "fascia": "sotto 50",
+     "n": 7421,
+     "dichiarato": 0.2581,
+     "uscito": 0.2568,
+     "scarto": 0.0013,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "50-55",
+     "n": 374,
+     "dichiarato": 0.5242,
+     "uscito": 0.5321,
+     "scarto": 0.0079,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "55-60",
+     "n": 350,
+     "dichiarato": 0.5736,
+     "uscito": 0.6,
+     "scarto": 0.0264,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "60-70",
+     "n": 408,
+     "dichiarato": 0.6452,
+     "uscito": 0.6716,
+     "scarto": 0.0264,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "70-80",
+     "n": 168,
+     "dichiarato": 0.7407,
+     "uscito": 0.7857,
+     "scarto": 0.045,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "oltre 80",
+     "n": 32,
+     "dichiarato": 0.8229,
+     "uscito": 0.75,
+     "scarto": 0.0729,
+     "etichetta": "poco verificata"
+    }
+   ],
+   "motivo": "la correzione della terna non migliora log-loss ed ECE"
+  },
+  "1 1T": {
+   "gruppo": "primo tempo",
+   "stato": "non tarato",
+   "casi": 8753,
+   "scarto_prima": 0.0076,
+   "scarto_dopo": 0.0058,
+   "logloss_prima": 1.02584,
+   "logloss_dopo": 1.0264,
+   "fasce": [
+    {
+     "fascia": "sotto 50",
+     "n": 7502,
+     "dichiarato": 0.3092,
+     "uscito": 0.3003,
+     "scarto": 0.0089,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "50-55",
+     "n": 493,
+     "dichiarato": 0.5233,
+     "uscito": 0.5375,
+     "scarto": 0.0142,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "55-60",
+     "n": 330,
+     "dichiarato": 0.5734,
+     "uscito": 0.5364,
+     "scarto": 0.037,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "60-70",
+     "n": 338,
+     "dichiarato": 0.6394,
+     "uscito": 0.6213,
+     "scarto": 0.0181,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "70-80",
+     "n": 87,
+     "dichiarato": 0.7267,
+     "uscito": 0.6552,
+     "scarto": 0.0715,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "oltre 80",
+     "n": 3,
+     "dichiarato": 0.8218,
+     "uscito": 1.0,
+     "scarto": 0.1782,
+     "etichetta": "poco verificata"
+    }
+   ],
+   "motivo": "la correzione della terna non migliora log-loss ed ECE"
+  },
+  "X 1T": {
+   "gruppo": "primo tempo",
+   "stato": "non tarato",
+   "casi": 8753,
+   "scarto_prima": 0.0047,
+   "scarto_dopo": 0.0041,
+   "logloss_prima": 1.02584,
+   "logloss_dopo": 1.0264,
+   "fasce": [
+    {
+     "fascia": "sotto 50",
+     "n": 8540,
+     "dichiarato": 0.3975,
+     "uscito": 0.3993,
+     "scarto": 0.0018,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "50-55",
+     "n": 208,
+     "dichiarato": 0.5156,
+     "uscito": 0.5481,
+     "scarto": 0.0325,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "55-60",
+     "n": 5,
+     "dichiarato": 0.5581,
+     "uscito": 0.8,
+     "scarto": 0.2419,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "60-70",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "70-80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "oltre 80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    }
+   ],
+   "motivo": "la correzione della terna non migliora log-loss ed ECE"
+  },
+  "2 1T": {
+   "gruppo": "primo tempo",
+   "stato": "non tarato",
+   "casi": 8753,
+   "scarto_prima": 0.0079,
+   "scarto_dopo": 0.0061,
+   "logloss_prima": 1.02584,
+   "logloss_dopo": 1.0264,
+   "fasce": [
+    {
+     "fascia": "sotto 50",
+     "n": 8471,
+     "dichiarato": 0.2411,
+     "uscito": 0.2485,
+     "scarto": 0.0074,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "50-55",
+     "n": 151,
+     "dichiarato": 0.5222,
+     "uscito": 0.4901,
+     "scarto": 0.0321,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "55-60",
+     "n": 79,
+     "dichiarato": 0.5711,
+     "uscito": 0.6203,
+     "scarto": 0.0492,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "60-70",
+     "n": 51,
+     "dichiarato": 0.6312,
+     "uscito": 0.6078,
+     "scarto": 0.0234,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "70-80",
+     "n": 1,
+     "dichiarato": 0.718,
+     "uscito": 1.0,
+     "scarto": 0.282,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "oltre 80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    }
+   ],
+   "motivo": "la correzione della terna non migliora log-loss ed ECE"
+  },
+  "1 secondo tempo": {
+   "gruppo": "secondo tempo",
+   "stato": "non tarato",
+   "casi": 8753,
+   "scarto_prima": 0.0132,
+   "scarto_dopo": 0.0099,
+   "logloss_prima": 1.03845,
+   "logloss_dopo": 1.03896,
+   "fasce": [
+    {
+     "fascia": "sotto 50",
+     "n": 7100,
+     "dichiarato": 0.3182,
+     "uscito": 0.3186,
+     "scarto": 0.0004,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "50-55",
+     "n": 590,
+     "dichiarato": 0.5241,
+     "uscito": 0.5458,
+     "scarto": 0.0217,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "55-60",
+     "n": 464,
+     "dichiarato": 0.5735,
+     "uscito": 0.5948,
+     "scarto": 0.0213,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "60-70",
+     "n": 490,
+     "dichiarato": 0.6415,
+     "uscito": 0.6204,
+     "scarto": 0.0211,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "70-80",
+     "n": 107,
+     "dichiarato": 0.7251,
+     "uscito": 0.7009,
+     "scarto": 0.0242,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "oltre 80",
+     "n": 2,
+     "dichiarato": 0.8014,
+     "uscito": 0.5,
+     "scarto": 0.3014,
+     "etichetta": "poco verificata"
+    }
+   ],
+   "motivo": "la correzione della terna non migliora log-loss ed ECE"
+  },
+  "X secondo tempo": {
+   "gruppo": "secondo tempo",
+   "stato": "non tarato",
+   "casi": 8753,
+   "scarto_prima": 0.0047,
+   "scarto_dopo": 0.0015,
+   "logloss_prima": 1.03845,
+   "logloss_dopo": 1.03896,
+   "fasce": [
+    {
+     "fascia": "sotto 50",
+     "n": 8753,
+     "dichiarato": 0.3428,
+     "uscito": 0.3381,
+     "scarto": 0.0047,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "50-55",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "55-60",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "60-70",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "70-80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    },
+    {
+     "fascia": "oltre 80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    }
+   ],
+   "motivo": "la correzione della terna non migliora log-loss ed ECE"
+  },
+  "2 secondo tempo": {
+   "gruppo": "secondo tempo",
+   "stato": "non tarato",
+   "casi": 8753,
+   "scarto_prima": 0.0059,
+   "scarto_dopo": 0.0072,
+   "logloss_prima": 1.03845,
+   "logloss_dopo": 1.03896,
+   "fasce": [
+    {
+     "fascia": "sotto 50",
+     "n": 8100,
+     "dichiarato": 0.266,
+     "uscito": 0.271,
+     "scarto": 0.005,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "50-55",
+     "n": 307,
+     "dichiarato": 0.5244,
+     "uscito": 0.5016,
+     "scarto": 0.0228,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "55-60",
+     "n": 189,
+     "dichiarato": 0.5716,
+     "uscito": 0.582,
+     "scarto": 0.0104,
+     "etichetta": "verificata"
+    },
+    {
+     "fascia": "60-70",
+     "n": 149,
+     "dichiarato": 0.6381,
+     "uscito": 0.5973,
+     "scarto": 0.0408,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "70-80",
+     "n": 8,
+     "dichiarato": 0.7177,
+     "uscito": 0.75,
+     "scarto": 0.0323,
+     "etichetta": "poco verificata"
+    },
+    {
+     "fascia": "oltre 80",
+     "n": 0,
+     "dichiarato": null,
+     "uscito": null,
+     "scarto": null,
+     "etichetta": null
+    }
+   ],
+   "motivo": "la correzione della terna non migliora log-loss ed ECE"
+  }
+ }
+}

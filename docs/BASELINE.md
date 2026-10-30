@@ -1178,3 +1178,229 @@ Calibrazione 1X2 del modello (tutte le classi):
 | 70%-80% | 18 | 0.740 | 0.944 |
 | 80%-90% | 7 | 0.849 | 0.857 |
 
+## Calibrazione per mercato (fase AM)
+
+Generato il 30/10/2026 con `python -m tools.taratura_check`. Walk-forward: ogni stagione è corretta solo con le precedenti. Scarto = ECE (media pesata |dichiarato − uscito|).
+
+| Gruppo | Mercato | Casi | Scarto prima | Scarto dopo | Log-loss prima → dopo | Stato |
+|---|---|---|---|---|---|---|
+| 1X2 | 1X | — | — | — | — | derivato dalla base |
+| 1X2 | X2 | — | — | — | — | derivato dalla base |
+| 1X2 | 12 | — | — | — | — | derivato dalla base |
+| over/under gol | Over 1.5 gol | 8753 | 0.0057 | 0.0065 | 0.51972 → 0.52073 | non tarato |
+| over/under gol | Over 2.5 gol | 8753 | 0.0105 | 0.0007 | 0.66854 → 0.66930 | non tarato |
+| over/under gol | Over 3.5 gol | 8753 | 0.0154 | 0.0097 | 0.59603 → 0.59625 | non tarato |
+| GG/NG | Goal | 8753 | 0.0092 | 0.0051 | 0.67878 → 0.67801 | tarato (isotonica, nuova) |
+| multigol | Multigol 1-3 | 8753 | 0.0173 | 0.0020 | 0.64930 → 0.64862 | tarato (isotonica, nuova) |
+| multigol | Multigol 2-4 | 8753 | 0.0013 | 0.0108 | 0.66474 → 0.66541 | non tarato |
+| multigol | Multigol 2-5 | 8753 | 0.0015 | 0.0072 | 0.60352 → 0.60445 | non tarato |
+| multigol | Multigol 1-2 | 8753 | 0.0125 | 0.0084 | 0.66208 → 0.66219 | non tarato |
+| combo e gruppi | 1 + Over 1.5 | 8753 | 0.0127 | 0.0103 | 0.56413 → 0.56458 | non tarato |
+| combo e gruppi | 1 + Over 2.5 | 8753 | 0.0089 | 0.0049 | 0.52944 → 0.53002 | non tarato |
+| combo e gruppi | 1 + Over 3.5 | 8753 | 0.0092 | 0.0060 | 0.37593 → 0.37622 | non tarato |
+| combo e gruppi | X + Over 1.5 | 8753 | 0.0163 | 0.0071 | 0.48571 → 0.48538 | tarato (isotonica, nuova) |
+| combo e gruppi | X + Over 2.5 | 8753 | 0.0124 | 0.0048 | 0.25171 → 0.25068 | tarato (isotonica, nuova) |
+| combo e gruppi | X + Over 3.5 | — | — | — | — | derivato dalla base |
+| combo e gruppi | 2 + Over 1.5 | 8753 | 0.0115 | 0.0061 | 0.48772 → 0.48857 | non tarato |
+| combo e gruppi | 2 + Over 2.5 | 8753 | 0.0078 | 0.0023 | 0.43668 → 0.43788 | non tarato |
+| combo e gruppi | 2 + Over 3.5 | 8753 | 0.0058 | 0.0030 | 0.27839 → 0.27931 | non tarato |
+| combo e gruppi | Goal + Over 2.5 | 8753 | 0.0060 | 0.0042 | 0.66885 → 0.66851 | tarato (isotonica, nuova) |
+| combo e gruppi | Goal + Over 3.5 | 8753 | 0.0105 | 0.0112 | 0.56454 → 0.56456 | non tarato |
+| combo e gruppi | Esatti 1-0/2-0/2-1 | 8753 | 0.0201 | 0.0129 | 0.53126 → 0.53029 | tarato (isotonica, nuova) |
+| combo e gruppi | Esatti 0-1/0-2/1-2 | 8753 | 0.0149 | 0.0094 | 0.46386 → 0.46323 | tarato (isotonica, nuova) |
+| combo e gruppi | Esatti 0-0/1-1 | 8753 | 0.0115 | 0.0025 | 0.46987 → 0.46973 | tarato (isotonica, nuova) |
+| combo e gruppi | Esatti 1-1/2-2 | 8753 | 0.0154 | 0.0072 | 0.46720 → 0.46704 | tarato (isotonica, nuova) |
+| combo e gruppi | Esatti 2-1/3-1/3-2 | 8753 | 0.0073 | 0.0036 | 0.41824 → 0.41840 | non tarato |
+| combo e gruppi | Esatti 1-0/0-1/0-0 | — | — | — | — | derivato dalla base |
+| combo e gruppi | Favorita 4+ gol | 8753 | 0.0115 | 0.0021 | 0.31448 → 0.31422 | tarato (isotonica, nuova) |
+| combo e gruppi | Favorita vince di 3+ | 8753 | 0.0167 | 0.0044 | 0.37453 → 0.37339 | tarato (isotonica, nuova) |
+| combo e gruppi | Totale 5+ gol | — | — | — | — | derivato dalla base |
+| primo tempo | Over 0.5 gol 1T | 8753 | 0.0093 | 0.0052 | 0.58725 → 0.58743 | non tarato |
+| primo tempo | Over 1.5 gol 1T | 8753 | 0.0065 | 0.0055 | 0.63862 → 0.63931 | non tarato |
+| corner | Over 8.5 corner | 8753 | 0.0088 | 0.0103 | 0.65978 → 0.66039 | non tarato |
+| corner | Over 9.5 corner | 8753 | 0.0082 | 0.0059 | 0.68813 → 0.68845 | non tarato |
+| corner | Over 10.5 corner | 8753 | 0.0075 | 0.0053 | 0.66017 → 0.66047 | non tarato |
+| cartellini | Over 3.5 cartellini | 8753 | 0.0265 | 0.0119 | 0.64113 → 0.63924 | tarato (platt, precedente (fase P)) |
+| cartellini | Over 4.5 cartellini | 8753 | 0.0148 | 0.0099 | 0.66192 → 0.66182 | tarato (isotonica, nuova) |
+| cartellini | Over 5.5 cartellini | 8753 | 0.0133 | 0.0096 | 0.58343 → 0.58410 | non tarato |
+| over/under gol | Over 4.5 gol | 8753 | 0.0087 | 0.0067 | 0.41706 → 0.41756 | non tarato |
+| secondo tempo | Over 0.5 gol 2T | 8753 | 0.0145 | 0.0028 | 0.49001 → 0.48988 | tarato (isotonica, nuova) |
+| secondo tempo | Over 1.5 gol 2T | 8753 | 0.0149 | 0.0115 | 0.67948 → 0.67983 | non tarato |
+| per squadra | Casa Over 0.5 gol | 8753 | 0.0170 | 0.0072 | 0.49562 → 0.49548 | tarato (isotonica, nuova) |
+| per squadra | Casa Over 1.5 gol | 8753 | 0.0046 | 0.0036 | 0.62854 → 0.62912 | non tarato |
+| per squadra | Ospite Over 0.5 gol | 8753 | 0.0162 | 0.0101 | 0.56645 → 0.56536 | tarato (isotonica, nuova) |
+| per squadra | Ospite Over 1.5 gol | 8753 | 0.0096 | 0.0045 | 0.60612 → 0.60575 | tarato (isotonica, nuova) |
+| 1X2 | 1 | 8753 | 0.0151 | 0.0074 | 0.96634 → 0.96705 | non tarato |
+| 1X2 | X | 8753 | 0.0025 | 0.0053 | 0.96634 → 0.96705 | non tarato |
+| 1X2 | 2 | 8753 | 0.0120 | 0.0110 | 0.96634 → 0.96705 | non tarato |
+| primo tempo | 1 1T | 8753 | 0.0076 | 0.0058 | 1.02584 → 1.02640 | non tarato |
+| primo tempo | X 1T | 8753 | 0.0047 | 0.0041 | 1.02584 → 1.02640 | non tarato |
+| primo tempo | 2 1T | 8753 | 0.0079 | 0.0061 | 1.02584 → 1.02640 | non tarato |
+| secondo tempo | 1 secondo tempo | 8753 | 0.0132 | 0.0099 | 1.03845 → 1.03896 | non tarato |
+| secondo tempo | X secondo tempo | 8753 | 0.0047 | 0.0015 | 1.03845 → 1.03896 | non tarato |
+| secondo tempo | 2 secondo tempo | 8753 | 0.0059 | 0.0072 | 1.03845 → 1.03896 | non tarato |
+
+### Dichiarato contro uscito (grezzo, fasce 50+)
+
+| Mercato | Fascia | Dichiarato | Uscito | Casi |
+|---|---|---|---|---|
+| Over 1.5 gol | 50-55 | 53.6% | 66.7% | 6 |
+| Over 1.5 gol | 55-60 | 58.1% | 59.7% | 57 |
+| Over 1.5 gol | 60-70 | 66.8% | 66.5% | 1118 |
+| Over 1.5 gol | 70-80 | 75.4% | 74.4% | 4034 |
+| Over 1.5 gol | oltre 80 | 84.6% | 84.6% | 3538 |
+| Over 2.5 gol | 50-55 | 52.5% | 52.8% | 1664 |
+| Over 2.5 gol | 55-60 | 57.4% | 58.8% | 1519 |
+| Over 2.5 gol | 60-70 | 64.0% | 65.6% | 1667 |
+| Over 2.5 gol | 70-80 | 73.4% | 70.3% | 441 |
+| Over 2.5 gol | oltre 80 | 82.6% | 81.6% | 38 |
+| Over 3.5 gol | 50-55 | 52.1% | 48.7% | 226 |
+| Over 3.5 gol | 55-60 | 57.3% | 57.3% | 82 |
+| Over 3.5 gol | 60-70 | 63.0% | 65.5% | 55 |
+| Over 3.5 gol | 70-80 | 73.3% | 100.0% | 3 |
+| Goal | 50-55 | 52.5% | 54.0% | 2375 |
+| Goal | 55-60 | 57.3% | 59.2% | 1948 |
+| Goal | 60-70 | 63.2% | 67.1% | 1300 |
+| Goal | 70-80 | 71.5% | 67.4% | 43 |
+| Multigol 1-3 | 50-55 | 52.8% | 54.2% | 895 |
+| Multigol 1-3 | 55-60 | 57.7% | 57.7% | 1848 |
+| Multigol 1-3 | 60-70 | 64.9% | 67.5% | 5101 |
+| Multigol 1-3 | 70-80 | 70.5% | 73.2% | 216 |
+| Multigol 2-4 | 50-55 | 53.2% | 56.4% | 140 |
+| Multigol 2-4 | 55-60 | 58.4% | 58.1% | 1127 |
+| Multigol 2-4 | 60-70 | 62.5% | 62.4% | 7467 |
+| Multigol 2-5 | 50-55 | 53.6% | 66.7% | 12 |
+| Multigol 2-5 | 55-60 | 58.3% | 56.2% | 112 |
+| Multigol 2-5 | 60-70 | 66.9% | 67.0% | 2815 |
+| Multigol 2-5 | 70-80 | 72.6% | 72.5% | 5814 |
+| Multigol 1-2 | 50-55 | 51.5% | 53.5% | 389 |
+| Multigol 1-2 | 55-60 | 55.4% | 83.3% | 6 |
+| 1 + Over 1.5 | 50-55 | 52.5% | 51.6% | 471 |
+| 1 + Over 1.5 | 55-60 | 57.5% | 58.3% | 417 |
+| 1 + Over 1.5 | 60-70 | 64.6% | 60.6% | 604 |
+| 1 + Over 1.5 | 70-80 | 74.3% | 76.1% | 322 |
+| 1 + Over 1.5 | oltre 80 | 83.4% | 81.0% | 105 |
+| 1 + Over 2.5 | 50-55 | 52.4% | 54.1% | 318 |
+| 1 + Over 2.5 | 55-60 | 57.4% | 59.7% | 238 |
+| 1 + Over 2.5 | 60-70 | 64.4% | 60.7% | 247 |
+| 1 + Over 2.5 | 70-80 | 73.4% | 70.1% | 77 |
+| 1 + Over 2.5 | oltre 80 | 82.4% | 100.0% | 6 |
+| 1 + Over 3.5 | 50-55 | 52.2% | 55.6% | 54 |
+| 1 + Over 3.5 | 55-60 | 57.2% | 46.9% | 32 |
+| 1 + Over 3.5 | 60-70 | 62.4% | 78.6% | 14 |
+| 1 + Over 3.5 | 70-80 | 71.3% | 100.0% | 2 |
+| 2 + Over 1.5 | 50-55 | 52.2% | 53.6% | 252 |
+| 2 + Over 1.5 | 55-60 | 57.2% | 57.4% | 190 |
+| 2 + Over 1.5 | 60-70 | 64.1% | 60.8% | 204 |
+| 2 + Over 1.5 | 70-80 | 73.8% | 67.1% | 70 |
+| 2 + Over 1.5 | oltre 80 | 81.4% | 83.3% | 6 |
+| 2 + Over 2.5 | 50-55 | 52.2% | 43.8% | 112 |
+| 2 + Over 2.5 | 55-60 | 57.4% | 53.7% | 67 |
+| 2 + Over 2.5 | 60-70 | 64.0% | 56.4% | 55 |
+| 2 + Over 2.5 | 70-80 | 72.9% | 60.0% | 5 |
+| 2 + Over 3.5 | 50-55 | 51.6% | 54.5% | 11 |
+| 2 + Over 3.5 | 55-60 | 56.2% | 100.0% | 2 |
+| 2 + Over 3.5 | 60-70 | 61.1% | 0.0% | 1 |
+| Goal + Over 2.5 | 50-55 | 52.2% | 57.1% | 704 |
+| Goal + Over 2.5 | 55-60 | 57.0% | 59.0% | 249 |
+| Goal + Over 2.5 | 60-70 | 62.0% | 63.6% | 66 |
+| Goal + Over 3.5 | 50-55 | 51.5% | 63.6% | 11 |
+| Goal + Over 3.5 | 55-60 | 56.3% | 100.0% | 1 |
+| Favorita 4+ gol | 50-55 | 51.6% | 22.2% | 9 |
+| Favorita 4+ gol | 55-60 | 55.4% | 66.7% | 3 |
+| Favorita 4+ gol | 60-70 | 62.2% | 100.0% | 3 |
+| Favorita vince di 3+ | 50-55 | 52.1% | 49.2% | 63 |
+| Favorita vince di 3+ | 55-60 | 57.1% | 39.1% | 23 |
+| Favorita vince di 3+ | 60-70 | 63.4% | 33.3% | 9 |
+| Favorita vince di 3+ | 70-80 | 71.8% | 100.0% | 1 |
+| Over 0.5 gol 1T | 50-55 | 53.4% | 50.0% | 56 |
+| Over 0.5 gol 1T | 55-60 | 58.2% | 59.5% | 407 |
+| Over 0.5 gol 1T | 60-70 | 65.9% | 66.7% | 3625 |
+| Over 0.5 gol 1T | 70-80 | 74.2% | 75.5% | 3942 |
+| Over 0.5 gol 1T | oltre 80 | 83.0% | 83.2% | 721 |
+| Over 1.5 gol 1T | 50-55 | 52.2% | 48.8% | 340 |
+| Over 1.5 gol 1T | 55-60 | 57.1% | 59.4% | 123 |
+| Over 1.5 gol 1T | 60-70 | 63.4% | 63.1% | 65 |
+| Over 1.5 gol 1T | 70-80 | 73.7% | 100.0% | 3 |
+| Over 8.5 corner | 50-55 | 53.0% | 54.1% | 1052 |
+| Over 8.5 corner | 55-60 | 57.8% | 58.9% | 2437 |
+| Over 8.5 corner | 60-70 | 64.0% | 64.7% | 4689 |
+| Over 8.5 corner | 70-80 | 71.9% | 71.5% | 330 |
+| Over 8.5 corner | oltre 80 | 80.1% | 100.0% | 1 |
+| Over 9.5 corner | 50-55 | 52.3% | 53.2% | 2528 |
+| Over 9.5 corner | 55-60 | 57.0% | 56.7% | 1064 |
+| Over 9.5 corner | 60-70 | 62.2% | 58.2% | 206 |
+| Over 9.5 corner | 70-80 | 71.0% | 0.0% | 1 |
+| Over 10.5 corner | 50-55 | 51.6% | 50.9% | 108 |
+| Over 10.5 corner | 55-60 | 56.1% | 81.2% | 16 |
+| Over 10.5 corner | 60-70 | 60.7% | 0.0% | 1 |
+| Over 3.5 cartellini | 50-55 | 52.7% | 50.9% | 1205 |
+| Over 3.5 cartellini | 55-60 | 57.7% | 59.7% | 1791 |
+| Over 3.5 cartellini | 60-70 | 64.8% | 67.5% | 3631 |
+| Over 3.5 cartellini | 70-80 | 72.9% | 77.6% | 1054 |
+| Over 3.5 cartellini | oltre 80 | 81.5% | 60.0% | 5 |
+| Over 4.5 cartellini | 50-55 | 52.3% | 53.5% | 1345 |
+| Over 4.5 cartellini | 55-60 | 57.1% | 57.1% | 720 |
+| Over 4.5 cartellini | 60-70 | 62.3% | 73.9% | 264 |
+| Over 4.5 cartellini | 70-80 | 71.1% | 0.0% | 1 |
+| Over 5.5 cartellini | 50-55 | 51.3% | 54.0% | 37 |
+| Over 5.5 cartellini | 55-60 | 56.0% | 75.0% | 4 |
+| Over 4.5 gol | 50-55 | 51.7% | 66.7% | 3 |
+| Over 4.5 gol | 55-60 | 56.0% | 100.0% | 2 |
+| Over 0.5 gol 2T | 60-70 | 68.4% | 70.3% | 145 |
+| Over 0.5 gol 2T | 70-80 | 76.5% | 77.2% | 5059 |
+| Over 0.5 gol 2T | oltre 80 | 82.7% | 85.1% | 3549 |
+| Over 1.5 gol 2T | 50-55 | 52.2% | 55.7% | 1699 |
+| Over 1.5 gol 2T | 55-60 | 57.1% | 58.2% | 649 |
+| Over 1.5 gol 2T | 60-70 | 62.3% | 68.0% | 156 |
+| Casa Over 0.5 gol | 50-55 | 52.8% | 53.9% | 191 |
+| Casa Over 0.5 gol | 55-60 | 57.8% | 56.0% | 389 |
+| Casa Over 0.5 gol | 60-70 | 65.7% | 65.1% | 1718 |
+| Casa Over 0.5 gol | 70-80 | 75.1% | 77.5% | 3066 |
+| Casa Over 0.5 gol | oltre 80 | 86.7% | 88.6% | 3306 |
+| Casa Over 1.5 gol | 50-55 | 52.4% | 52.9% | 763 |
+| Casa Over 1.5 gol | 55-60 | 57.4% | 59.1% | 608 |
+| Casa Over 1.5 gol | 60-70 | 64.6% | 64.1% | 953 |
+| Casa Over 1.5 gol | 70-80 | 74.4% | 73.7% | 566 |
+| Casa Over 1.5 gol | oltre 80 | 84.1% | 82.0% | 222 |
+| Ospite Over 0.5 gol | 50-55 | 52.7% | 54.8% | 590 |
+| Ospite Over 0.5 gol | 55-60 | 57.6% | 58.8% | 935 |
+| Ospite Over 0.5 gol | 60-70 | 65.2% | 66.3% | 2644 |
+| Ospite Over 0.5 gol | 70-80 | 74.8% | 78.0% | 2390 |
+| Ospite Over 0.5 gol | oltre 80 | 85.3% | 87.5% | 1672 |
+| Ospite Over 1.5 gol | 50-55 | 52.3% | 51.3% | 460 |
+| Ospite Over 1.5 gol | 55-60 | 57.4% | 59.4% | 389 |
+| Ospite Over 1.5 gol | 60-70 | 64.5% | 68.4% | 449 |
+| Ospite Over 1.5 gol | 70-80 | 74.2% | 68.9% | 167 |
+| Ospite Over 1.5 gol | oltre 80 | 82.8% | 77.4% | 31 |
+| 1 | 50-55 | 52.5% | 54.1% | 674 |
+| 1 | 55-60 | 57.4% | 58.3% | 638 |
+| 1 | 60-70 | 64.9% | 68.8% | 907 |
+| 1 | 70-80 | 74.6% | 74.9% | 605 |
+| 1 | oltre 80 | 84.2% | 83.8% | 259 |
+| 2 | 50-55 | 52.4% | 53.2% | 374 |
+| 2 | 55-60 | 57.4% | 60.0% | 350 |
+| 2 | 60-70 | 64.5% | 67.2% | 408 |
+| 2 | 70-80 | 74.1% | 78.6% | 168 |
+| 2 | oltre 80 | 82.3% | 75.0% | 32 |
+| 1 1T | 50-55 | 52.3% | 53.8% | 493 |
+| 1 1T | 55-60 | 57.3% | 53.6% | 330 |
+| 1 1T | 60-70 | 63.9% | 62.1% | 338 |
+| 1 1T | 70-80 | 72.7% | 65.5% | 87 |
+| 1 1T | oltre 80 | 82.2% | 100.0% | 3 |
+| X 1T | 50-55 | 51.6% | 54.8% | 208 |
+| X 1T | 55-60 | 55.8% | 80.0% | 5 |
+| 2 1T | 50-55 | 52.2% | 49.0% | 151 |
+| 2 1T | 55-60 | 57.1% | 62.0% | 79 |
+| 2 1T | 60-70 | 63.1% | 60.8% | 51 |
+| 2 1T | 70-80 | 71.8% | 100.0% | 1 |
+| 1 secondo tempo | 50-55 | 52.4% | 54.6% | 590 |
+| 1 secondo tempo | 55-60 | 57.4% | 59.5% | 464 |
+| 1 secondo tempo | 60-70 | 64.1% | 62.0% | 490 |
+| 1 secondo tempo | 70-80 | 72.5% | 70.1% | 107 |
+| 1 secondo tempo | oltre 80 | 80.1% | 50.0% | 2 |
+| 2 secondo tempo | 50-55 | 52.4% | 50.2% | 307 |
+| 2 secondo tempo | 55-60 | 57.2% | 58.2% | 189 |
+| 2 secondo tempo | 60-70 | 63.8% | 59.7% | 149 |
+| 2 secondo tempo | 70-80 | 71.8% | 75.0% | 8 |
+

@@ -203,6 +203,7 @@ abbr.term {{ text-decoration: underline dotted; text-underline-offset: 3px; curs
 .heat td.mine::before {{ content: "★ "; }}
 .heat caption {{ caption-side: bottom; text-align: left; font-size: .82rem; color: var(--muted); padding-top: 6px; }}
 .axis-note {{ font-size: .82rem; color: var(--muted); }}
+.tag {{ font-size: .72rem; color: var(--muted); font-weight: 400; }}
 @media (prefers-color-scheme: dark) {{ .heat td {{ background: var(--hd); color: var(--fd); }} }}
 {".heat td { background: var(--hd); color: var(--fd); }" if theme == "dark" else ""}
 {".heat td { background: var(--hl) !important; color: var(--fl) !important; }" if theme == "light" else ""}
@@ -311,14 +312,22 @@ def grid(cards: Iterable[str], wide: bool = False) -> str:
     return f'<div class="dash-grid{" wide" if wide else ""}">{"".join(cards)}</div>'
 
 
-def bars(rows: Sequence[tuple[str, float]], *, pick: str | None = None, alt: bool = False) -> str:
+def _tag(keys: Mapping[str, str] | None, label: str, value: float) -> str:
+    """Fase AM: etichetta di affidabilità («verificata», …) accanto alla percentuale, se il mercato è noto."""
+    if not keys or label not in keys:
+        return ""
+    text = _taratura().label(keys[label], float(value))
+    return f' <small class="tag" title="Quanto è verificata questa percentuale nello storico">{esc(text)}</small>' if text else ""
+
+
+def bars(rows: Sequence[tuple[str, float]], *, pick: str | None = None, alt: bool = False, keys: Mapping[str, str] | None = None) -> str:
     """Barre orizzontali 0-100% con la linea del 50%."""
     items = []
     for label, value in rows:
         width = max(0.0, min(100.0, float(value)))
         items.append(f'<div class="bar{" chosen" if label == pick else ""}"><span class="label">{esc(label)}</span>'
                      f'<span class="track" role="img" aria-label="{esc(label)} {pct(value)}"><span class="fill{" alt" if alt else ""}" '
-                     f'style="width:{width:.1f}%"></span><span class="fifty"></span></span><span class="value">{pct(value)}</span></div>')
+                     f'style="width:{width:.1f}%"></span><span class="fifty"></span></span><span class="value">{pct(value)}{_tag(keys, label, value)}</span></div>')
     return f'<div class="bars">{"".join(items)}</div><div class="axis-note">La linea verticale segna il 50%.</div>'
 
 
@@ -393,6 +402,7 @@ def outcome_card(result: Mapping) -> str:
                 "2": f"{away} vince in circa {count} partite su 10."}[favorite]
     return card("Esito finale 1X2", "split", pct(one_x_two[favorite]), sentence,
                 split_bar(home, away, one_x_two["1"], one_x_two["X"], one_x_two["2"]),
+                note=esc("Affidabilità: " + ", ".join(f"{k} {_taratura().label(k, one_x_two[k]) or '—'}" for k in ("1", "X", "2"))),
                 big_small={"1": f"vittoria {home}", "X": "pareggio", "2": f"vittoria {away}"}[favorite])
 
 
@@ -401,7 +411,8 @@ def goals_card(result: Mapping) -> str:
     over25 = over_under["Over_2.5"]["percentage"]
     rows = [(f"Over {line}", over_under[f"Over_{line}"]["percentage"]) for line in ("0.5", "1.5", "2.5", "3.5", "4.5")]
     return card("Gol", "ball", pct(over25), f"Almeno 3 gol (Over 2.5) in circa {out_of_ten(over25)} partite su 10.",
-                bars(rows), big_small="Over 2.5", note=f"Under 2.5: {pct(over_under['Under_2.5']['percentage'])}")
+                bars(rows, keys={f"Over {line}": f"Over {line} gol" for line in ("0.5", "1.5", "2.5", "3.5", "4.5")}),
+                big_small="Over 2.5", note=f"Under 2.5: {pct(over_under['Under_2.5']['percentage'])}")
 
 
 def team_goals_card(result: Mapping) -> str:
@@ -412,7 +423,9 @@ def team_goals_card(result: Mapping) -> str:
             ("Goal (segnano entrambe)", finale["Goal"])]
     two_plus = finale["Casa Over 1.5 gol"]
     return card("Gol per squadra", "goal", pct(finale["Goal"]),
-                f"{home} segna almeno 2 gol in circa {out_of_ten(two_plus)} partite su 10.", bars(rows), big_small="Goal")
+                f"{home} segna almeno 2 gol in circa {out_of_ten(two_plus)} partite su 10.",
+                bars(rows, keys={rows[0][0]: "Casa segna", rows[1][0]: "Ospite segna", rows[2][0]: "Casa Over 1.5 gol",
+                                 rows[3][0]: "Ospite Over 1.5 gol", rows[4][0]: "Goal"}), big_small="Goal")
 
 
 def multigol_card(result: Mapping) -> str:
@@ -420,7 +433,7 @@ def multigol_card(result: Mapping) -> str:
     rows = [(f"Multigol {key}", value["percentage"]) for key, value in multigol.items()]
     best = max(rows, key=lambda row: row[1])
     return card("Multigol", "ball", pct(best[1]), f"{best[0]}: il totale gol cade in questa fascia in circa "
-                f"{out_of_ten(best[1])} partite su 10.", bars(rows), big_small=best[0])
+                f"{out_of_ten(best[1])} partite su 10.", bars(rows, keys={label: label for label, _ in rows}), big_small=best[0])
 
 
 def first_half_card(result: Mapping) -> str:
@@ -512,6 +525,12 @@ SOLID_FAMILIES = {
 }
 
 
+def _taratura():
+    import taratura
+
+    return taratura.load()
+
+
 def solid_picks(result: Mapping, limit: int = 4, low: float = 55.0, high: float = 85.0) -> list[dict]:
     """Per famiglia, la giocata più probabile tra quelle non scontate; le famiglie più solide prima."""
     finale = result["components"]["finale"]
@@ -523,7 +542,8 @@ def solid_picks(result: Mapping, limit: int = 4, low: float = 55.0, high: float 
             continue
         market, probability = max(options, key=lambda option: option[1])
         picks.append({"family": family, "market": market, "probability": probability, "fair_odds": 100.0 / probability,
-                      "odds": financial.get(market, {}).get("odds"), "ev": financial.get(market, {}).get("ev_pct")})
+                      "odds": financial.get(market, {}).get("odds"), "ev": financial.get(market, {}).get("ev_pct"),
+                      "label": _taratura().label(market, probability)})
     return sorted(picks, key=lambda pick: -pick["probability"])[:limit]
 
 
@@ -536,7 +556,8 @@ def solid_picks_box(result: Mapping) -> str:
         value = (f" · quota {odd(item['odds'])} · EV {float(item['ev']):+.1f}%" if item["odds"] else " · nessuna quota inserita")
         items.append(f'<div class="pick"><div class="family">{esc(item["family"])}</div><div class="market">{esc(item["market"])}</div>'
                      f'<div><span class="prob">{pct(item["probability"])}</span> · circa {out_of_ten(item["probability"])} su 10 · '
-                     f'{term("quota equa", "Quota equa")} {odd(item["fair_odds"])}{esc(value)}</div></div>')
+                     f'{term("quota equa", "Quota equa")} {odd(item["fair_odds"])}{esc(value)}'
+                     f' · <em>{esc(item["label"] or "")}</em></div></div>')
     return (f'<section class="card"><div class="head">{ICONS["ball"]}<span>Le giocate più solide di questa partita</span></div>'
             f'<div class="say">Le più probabili tra quelle non scontate (55-85%). Solide non vuol dire convenienti: guarda il semaforo del valore.</div>'
             f'<div class="picks">{"".join(items)}</div></section>')

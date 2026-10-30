@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field, fields, replace
 from functools import lru_cache
+import contextvars
 import json
 import math
 from pathlib import Path
@@ -144,11 +145,19 @@ class ModelV2Params:
     sigma_cards: float = 0.0
     recalibration_active: bool = False
     recalibration: Mapping[str, Mapping[str, Any]] = field(default_factory=dict)
+    taratura: Any = None   # fase AM: ``taratura.Taratura``; se accesa sostituisce la ricalibrazione della fase P
     thresholds_active: bool = False
     thresholds: Mapping[str, float] = field(default_factory=dict)   # punto 7: gruppo di mercato → EV minimo (punti %)
     # Fase Y, punto 0: forza corretta per il calendario solo quando mancano le quote 1X2/O-U (modello da solo).
     strength_model_only: bool = False
     strength_goal_params: Any = None   # GoalModelParams ristimati con gli ingressi Dixon-Coles
+
+
+def _load_taratura(goal_model_path: Path):
+    import taratura
+
+    # Solo con il file di configurazione di default (i test con un percorso proprio restano senza taratura).
+    return taratura.load() if goal_model_path == GOAL_MODEL_PATH else None
 
 
 def load_model_v2(path: Path = GOAL_MODEL_PATH) -> ModelV2Params:
@@ -171,6 +180,7 @@ def load_model_v2(path: Path = GOAL_MODEL_PATH) -> ModelV2Params:
         uncertainty_active=bool(uncertainty.get("attiva")), sigma_goals=float(sigma.get("gol", 0.0)),
         sigma_corners=float(sigma.get("corner", 0.0)), sigma_cards=float(sigma.get("cartellini", 0.0)),
         recalibration_active=bool(recalibration.get("attiva")), recalibration=dict(recalibration.get("mappe") or {}),
+        taratura=_load_taratura(path),
         thresholds_active=bool(thresholds.get("attiva")), thresholds=dict(thresholds.get("soglie_ev") or {}),
         strength_model_only=bool(strength.get("solo_modello")) and bool(strength.get("pesi_modello_gol")),
         strength_goal_params=GoalModelParams(**strength["pesi_modello_gol"]) if strength.get("pesi_modello_gol") else None,
@@ -210,7 +220,12 @@ _COMPLEMENT = re.compile(r"^(Over|Under) (.+)$")
 
 
 def apply_recalibration(percentages: Mapping[str, float], params: ModelV2Params) -> tuple[dict[str, float], list[str]]:
-    """Probabilità finali ricalibrate (solo le mappe accese) con i complementi Over/Under coerenti."""
+    """Probabilità finali ricalibrate (solo le mappe accese) con i complementi Over/Under coerenti.
+
+    Con la taratura della fase AM accesa vale solo quella (una sola mappa per mercato, mai sopra la fase P)."""
+    if params.taratura is not None and params.taratura.attiva:
+        out, changed, _ = params.taratura.apply(percentages)
+        return out, changed
     if not params.recalibration_active or not params.recalibration:
         return dict(percentages), []
     out, changed = dict(percentages), []
@@ -1079,13 +1094,21 @@ def _anchored_goal_rates(config: MatchConfig) -> tuple[float, float, dict[str, A
     return float(lambda_), float(mu), {"ledger": ledger, "anchoring": anchoring}
 
 
+# Fase AM: percentuali tarate da mostrare al posto di quelle grezze (per identità della maschera dell'evento).
+_DISPLAY_OVERRIDE: contextvars.ContextVar[Mapping[int, float]] = contextvars.ContextVar("display_override", default={})
+
+
 def _market(mask: np.ndarray) -> dict[str, Any]:
     count = int(mask.sum())
     interval = _confidence(mask)
     probability = count / len(mask)
+    tarata = _DISPLAY_OVERRIDE.get().get(id(mask))
+    if tarata is not None:
+        probability = tarata / 100.0
     return {
         "count": count,
         "percentage": round(probability * 100.0, 2),
+        **({"tarata": True} if tarata is not None else {}),
         "fair_odds": round(1.0 / probability, 3) if probability > 0.0 else None,
         "confidence_interval_95": interval,
         "reliability_pct": _reliability(interval),
@@ -2234,7 +2257,9 @@ def simulate_match(config: MatchConfig) -> dict[str, Any]:
         cards = home_cards + away_cards
 
     events = _events_for_scores(config, (goals_home, goals_away, first_home, first_away), counts)
-    finale, recalibrated = apply_recalibration(_event_percentages(events), config.v2)
+    raw_percentages = _event_percentages(events)
+    finale, recalibrated = apply_recalibration(raw_percentages, config.v2)
+    _DISPLAY_OVERRIDE.set({id(events[key]): finale[key] for key in recalibrated if key in events})
     components = {"finale": finale, "modello": None, "mercato": None}
     exact_scores = {"finale": _score_percentages(goals_home, goals_away), "modello": None, "mercato": None}
     if anchoring["active"]:
@@ -2297,6 +2322,7 @@ def simulate_match(config: MatchConfig) -> dict[str, Any]:
         "team_cards": {key.replace(" ", "_"): _market(value) for key, value in events.items() if key.startswith(("Casa ", "Ospite ")) and "cartellini" in key},
     }
     markets["catalog"] = _catalog_markets(events)
+    _DISPLAY_OVERRIDE.set({})
     outcomes = {"1": goals_home > goals_away, "X": goals_home == goals_away, "2": goals_home < goals_away}
     conditional_scenarios = _conditional_scenarios(events, outcomes)
     score_pairs, counts = np.unique(np.column_stack((goals_home, goals_away)), axis=0, return_counts=True)
@@ -2356,6 +2382,8 @@ def simulate_match(config: MatchConfig) -> dict[str, Any]:
     result["card_split"] = card_split_details
     result["timeline"] = timeline_details
     result["event_engine"] = event_details
+    result["taratura"] = {"attiva": bool(config.v2.taratura is not None and config.v2.taratura.attiva),
+                          "mercati_cambiati": list(recalibrated)}
     result["recalibrated"] = recalibrated  # fase P, punto 4: mercati con la mappa finale accesa
     result["components"] = components
     result["exact_scores"] = exact_scores
