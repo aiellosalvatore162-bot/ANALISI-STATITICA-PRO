@@ -328,6 +328,18 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   avviso). Banco `tools/backtest_wf.py` (`run(config_attuale, config_nuova, campionati, stagioni, mercati)`, 25 mercati, solo
   passato, phi ristimato ogni mese, output `docs/backtest/<nome>.md/.csv`); stato dei lavori in `docs/stato/AD.md`. Test in
   `test_style_profile.py`.
+- Fase AL (formazioni e giocatori): `players.py` (tassi npxG/xA/tiri per 90 dalle rose Understat in cache `data/cache/fase_p`,
+  decadimento 240 giorni su 2 stagioni, shrinkage n/(n+k) verso la media del RUOLO POR/DIF/CEN/ATT, winsorizzazione ai
+  percentili del ruolo con avviso, rigori da `penalties`), `lineup.py` (XI tipo = ultimi 5 undici, formazione/assenti dal report
+  dell'Analista via righe facoltative `formazione_casa/ospite: 11 nomi | fonte: url` e `assenti_*` di `claude_bridge`, minuti attesi,
+  assenti PESATI, fattore attacco = produzione XI atteso / XI tipo ^ esponente, fattore difesa per ruolo, rigorista con
+  sostituto, «sta performando» gol−npxG con shrinkage x/(x+k); `get_lineup_params(casa, ospite, data, store, report=...)`).
+  Impostazioni e stime in `config/giocatori.json` (`python -m tools.lineup_check --salva` → `docs/backtest/AL_giocatori.md`).
+  Esito del backtest (1606 partite): esponente attacco ≈ 0 (−0.10 ± 0.21), pesi difesa non stimabili → fattori neutri (1.0)
+  e difesa solo etichetta; k performando 14.2 (giocatore) e 37.4 (squadra). `MatchConfig.lineup` agisce prima
+  dell'ancoraggio (ledger `formazione`); `absences.is_active` è spento se la formazione sposta i gol (niente doppia conta con
+  la P). «Sta performando» non entra nei gol attesi (l'attacco è già solo xG; la forma reale della AD è xG−xGA). Riquadro in
+  `ui_lineup.py`; stato in `docs/stato/AL.md`; test in `test_lineup.py`.
 - Le fonti remote devono degradare con un avviso (come `historical.py` ricade
   al 100% manuale), mai bloccare la simulazione manuale.
 
@@ -350,7 +362,7 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   tattiche, cambio allenatore, incroci di stile (spenti), nuovi mercati e goleade (Q), motore statistico
   v2 con opzioni verificate una per una (P), dati dell'Analista nel modello e storico proprio (Y), modifica
   dei dati in Oggi (R), quote da qualunque bookmaker con archivio unico e combo builder (Z), profilo di stile, forma reale e
-  banco walk-forward (AD).
+  banco walk-forward (AD), formazioni e giocatori (AL).
 - Test: `python -m pytest -q` (solo fixture salvate, nessuna rete); 2 `xfail`
   noti (PSG-Barcellona, Napoli-Bodø, input stimati).
 

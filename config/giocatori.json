@@ -22,9 +22,23 @@
     "k_frequenza_partite": 30.0
   },
   "performando": {
-    "k_xg": 10.0,
+    "k_xg": 14.23,
     "soglia_etichetta": 0.75,
-    "stimato": null
+    "stimato": {
+      "data": "2026-10-30",
+      "partite": 1606,
+      "campionati": [
+        "I1",
+        "E0",
+        "D1",
+        "SP1"
+      ],
+      "beta": {
+        "giocatore": 0.1204,
+        "squadra": 0.4553
+      }
+    },
+    "k_xg_squadra": 37.38
   },
   "difesa": {
     "pesi_ruolo": {
@@ -32,12 +46,40 @@
       "DIF": 0.0,
       "CEN": 0.0
     },
-    "stimato": null
+    "stimato": {
+      "data": "2026-10-30",
+      "partite": 1606,
+      "campionati": [
+        "I1",
+        "E0",
+        "D1",
+        "SP1"
+      ],
+      "z": {
+        "POR": 0.92,
+        "DIF": 0.17,
+        "CEN": -1.19
+      }
+    }
   },
   "fattore_attacco": {
-    "limiti": null,
-    "esponente": 1.0,
-    "stimato": null
+    "limiti": [
+      0.7781,
+      1.3262
+    ],
+    "esponente": 0.0,
+    "stimato": {
+      "data": "2026-10-30",
+      "partite": 1606,
+      "campionati": [
+        "I1",
+        "E0",
+        "D1",
+        "SP1"
+      ],
+      "esponente_grezzo": -0.0969,
+      "errore_standard": 0.2088
+    }
   },
   "componenti": {
     "attacco": true,

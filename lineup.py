@@ -286,3 +286,22 @@ def get_lineup_params(home: str, away: str, when, store: pl.PlayerStore, *, leag
         result["motore"] = None
         result["avvisi"].append("Formazione non disponibile per entrambe le squadre: nessun fattore applicato al motore.")
     return result
+
+
+def report_from_response(response: Any) -> dict[str, dict[str, Any]] | None:
+    """Formazione e assenti di una risposta/report dell'Analista (``claude_bridge.ClaudeResponse``) per ``get_lineup_params``."""
+    if response is None:
+        return None
+    report: dict[str, dict[str, Any]] = {}
+    for side in ("casa", "ospite"):
+        info: dict[str, Any] = {}
+        if side in response.lineup:
+            info["formazione"] = response.lineup[side]["formazione"]
+            info["fonte"] = response.lineup[side]["fonte"]
+        if response.absent.get(side):
+            source = response.absent_source.get(side, "report dell'Analista")
+            info["assenti"] = [{"nome": name, "fonte": source, "motivo": "assente (report)"} for name in response.absent[side]]
+            info.setdefault("fonte", source)
+        if info:
+            report[side] = info
+    return report or None

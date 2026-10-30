@@ -57,6 +57,7 @@ class Analysis:
     odds_fields: dict = field(default_factory=dict)   # campi quota del passaggio economico, per ricalcolare
     manual: Any = None                         # voce di manual_data usata per questa analisi (None = nessun manuale)
     style_profiles: list = field(default_factory=list)   # profili di stile casa/ospite (fase AD), per il foglio «Stile»
+    lineup: dict | None = None                 # ``lineup.get_lineup_params`` (fase AL): XI atteso, minuti, assenti pesati, rigorista
 
     @property
     def ok(self) -> bool:
@@ -99,7 +100,8 @@ def prepare(match: TodayMatch, build: Callable[..., Any], odds_fields: Mapping[s
             simulations: int, competition: str | None = None, settings: Mapping[str, Any] | None = None,
             sheets: Sequence[Mapping[str, Any]] | None = None, manual: Mapping[str, Any] | None = None,
             auto_sheet: Any = None, keep_samples: bool = False,
-            style_loader: Callable[[str], Any] | None = None) -> Analysis:
+            style_loader: Callable[[str], Any] | None = None,
+            lineup_loader: Callable[[], Any] | None = None) -> Analysis:
     """Tutto quello che precede la simulazione: dati automatici, quote del passaggio economico, blocco e
     configurazione. Scalda anche le cache delle fonti (CSV, Understat, calendario, Elo da risultati), senza
     simulare e senza The Odds API: «Prepara la giornata» chiama solo questa. Una partita che non si può preparare
@@ -158,6 +160,7 @@ def prepare(match: TodayMatch, build: Callable[..., Any], odds_fields: Mapping[s
                                       strength_inputs=strength_inputs(sheet) if hasattr(sheet, "extras") else None,
                                       keep_samples=keep_samples)
             _attach_style(analysis, style_loader)
+            _attach_lineup(analysis, lineup_loader)
     except Exception as exc:  # ultima rete di sicurezza: nessuna partita sparisce, nessuna ferma le altre
         return mark_failed(analysis, "preparazione", "app", f"errore imprevisto ({type(exc).__name__}: {str(exc)[:120]})")
     return analysis
@@ -186,15 +189,39 @@ def _attach_style(analysis: "Analysis", style_loader: Callable[[str], Any] | Non
         analysis.config = replace(analysis.config, style=style)
 
 
+def _attach_lineup(analysis: "Analysis", lineup_loader: Callable[[], Any] | None) -> None:
+    """Fase AL: formazione attesa (XI tipo, o report dell'Analista se già letto) e fattori per il motore."""
+    if lineup_loader is None or not analysis.config.league:
+        return
+    try:
+        import lineup as lineup_module
+
+        store = lineup_loader()
+        if store is None or not len(store.table):
+            analysis.warnings.append("Formazioni: dati giocatore non disponibili (python -m tools.player_data).")
+            return
+        data = lineup_module.get_lineup_params(analysis.config.home.name, analysis.config.away.name, analysis.match.commence_time.date(),
+                                               store, league=analysis.config.league,
+                                               report=lineup_module.report_from_response(analysis.claude))
+    except Exception as exc:  # le fonti degradano con un avviso, mai bloccare la simulazione
+        analysis.warnings.append(f"Formazioni non disponibili ({type(exc).__name__}): nessun fattore applicato.")
+        return
+    analysis.lineup = data
+    analysis.warnings.extend(f"Formazione: {message}" for message in data["avvisi"][:3])
+    if data.get("motore"):
+        analysis.config = replace(analysis.config, lineup=data["motore"])
+
+
 def analyze(match: TodayMatch, build: Callable[..., Any], odds_fields: Mapping[str, Any], *,
             simulations: int, competition: str | None = None, settings: Mapping[str, Any] | None = None,
             sheets: Sequence[Mapping[str, Any]] | None = None, manual: Mapping[str, Any] | None = None,
             auto_sheet: Any = None, keep_samples: bool = False,
-            style_loader: Callable[[str], Any] | None = None) -> Analysis:
+            style_loader: Callable[[str], Any] | None = None,
+            lineup_loader: Callable[[], Any] | None = None) -> Analysis:
     """``prepare`` + simulazione; salta la partita (con il motivo) se manca un dato."""
     analysis = prepare(match, build, odds_fields, simulations=simulations, competition=competition, settings=settings,
                        sheets=sheets, manual=manual, auto_sheet=auto_sheet, keep_samples=keep_samples,
-                       style_loader=style_loader)
+                       style_loader=style_loader, lineup_loader=lineup_loader)
     if analysis.config is None:
         return analysis
     try:

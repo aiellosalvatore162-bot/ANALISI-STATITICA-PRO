@@ -186,6 +186,8 @@ def run(campionati: Sequence[str] = ("I1", "E0", "D1", "SP1"), stagioni: Sequenc
     train_all = np.concatenate([training, training])
     gamma_fit, gamma_se = _poisson_fit(x_all[train_all], goals_all[train_all], rate_all[train_all])
     gamma = float(max(gamma_fit[0], 0.0))
+    full_factor = evaluate(sub, sub, base, dict(base, **{"lambda": np.clip(lam * attack_home, 0.05, 5.0),
+                                                         "mu": np.clip(mu * attack_away, 0.05, 5.0)}))      # γ = 1, non usato
     attack_home, attack_away = attack_home ** gamma, attack_away ** gamma
     after_attack = dict(base, **{"lambda": np.clip(lam * attack_home, 0.05, 5.0), "mu": np.clip(mu * attack_away, 0.05, 5.0)})
     attack_only = evaluate(sub, sub, base, after_attack)
@@ -201,7 +203,7 @@ def run(campionati: Sequence[str] = ("I1", "E0", "D1", "SP1"), stagioni: Sequenc
     full = evaluate(sub, sub, base, after_full)
     performing = estimate_performing(store)
     return {"partite": len(sub), "campionati": list(campionati), "stagioni": list(stagioni), "limiti_attacco": percentiles, "esponente": {"valore": gamma, "grezzo": float(gamma_fit[0]), "se": float(gamma_se[0])},
-            "solo_attacco": attack_only, "completo": full, "difesa": defense, "performando": performing,
+            "solo_attacco": attack_only, "fattore_pieno": full_factor, "completo": full, "difesa": defense, "performando": performing,
             "distribuzione": sub[["home_lu_attack", "away_lu_attack"]].stack().describe(percentiles=[0.01, 0.05, 0.5, 0.95, 0.99]).round(4).to_dict(),
             "inizio_dati": str(store.table["date"].min().date())}
 
@@ -229,7 +231,10 @@ def render(result: dict[str, Any]) -> str:
              f"Esponente del fattore attacco (elasticità dei gol attesi alla produzione npxG+xA, stimato nel periodo di taratura): "
              f"γ = {result['esponente']['grezzo']:.3f} ± {result['esponente']['se']:.3f} (usato: {result['esponente']['valore']:.3f}; "
              "l'1 vorrebbe dire che i gol seguono la produzione 1 a 1, ma npxG+xA conta due volte ogni occasione).", "",
-             "## Solo fattore attacco", ""] + table(result["solo_attacco"]) + [
+             "## Solo fattore attacco (con l'esponente stimato)", ""] + table(result["solo_attacco"]) + [
+             "", "## Per confronto: fattore PIENO (γ = 1), non usato", "",
+             "Se i gol seguissero la produzione 1 a 1 (come nelle assenze della Fase P), questo sarebbe l'effetto sul modello senza ancoraggio:", ""] \
+        + table(result["fattore_pieno"][result["fattore_pieno"]["ambito"] == "tutte"]) + [
              "", "## Attacco + difesa per ruolo", ""] + table(result["completo"]) + [
              "", "## Pesi della difesa per ruolo (stimati nel periodo di taratura)", "",
              "| Ruolo | β | e.s. | z | Peso applicato |", "|---|---|---|---|---|"]

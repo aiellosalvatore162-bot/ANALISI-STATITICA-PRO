@@ -165,6 +165,9 @@ def render_today() -> None:
     _render_dual(analyses, settings)
     _render_sharp_list(analyses)
     render_my_markets(analyses)
+    from ui_lineup import render_lineups
+
+    render_lineups(analyses)
     render_combo(analyses)
     _render_quick(analyses, settings)
     _render_builder(analyses, settings)
@@ -182,6 +185,13 @@ def _render_analyze_all(entries: list[dict], simulations: int, settings: dict) -
         _prepare_day(entries, simulations, settings)
     if columns[1].button("Analizza tutte", type="primary", key="today_analyze"):
         _analyze_day(entries, simulations, settings)
+
+
+def _lineup_loader():
+    """Archivio giocatori Understat dalla cache locale (``python -m tools.player_data``), letto una volta per sessione."""
+    from ui_lineup import player_store
+
+    return player_store
 
 
 def _style_loader():
@@ -215,7 +225,8 @@ def _analyze_day(entries: list[dict], simulations: int, settings: dict) -> None:
             competition = match.competition if match.competition in COMPETITIONS or match.competition in CUP_COMPETITIONS else None
             analysis = analyze(match, provider.build, odds_fields(entry), simulations=simulations, competition=competition,
                                settings=settings, sheets=saved_sheets(), manual=manual_for(match),
-                               keep_samples=bool(entry.get("to_play")), style_loader=_style_loader())
+                               keep_samples=bool(entry.get("to_play")), style_loader=_style_loader(),
+                               lineup_loader=_lineup_loader())
             if analysis.ok:
                 try:
                     if not _with_quotes(analysis):
@@ -255,7 +266,7 @@ def _prepare_day(entries: list[dict], simulations: int, settings: dict) -> None:
             competition = match.competition if match.competition in COMPETITIONS or match.competition in CUP_COMPETITIONS else None
             prepared.append(prepare(match, provider.build, odds_fields(entry), simulations=simulations, competition=competition,
                                     settings=settings, sheets=saved_sheets(), manual=manual_for(match),
-                                    style_loader=_style_loader()))
+                                    style_loader=_style_loader(), lineup_loader=_lineup_loader()))
             progress.progress(position / len(entries), text=f"{position}/{len(entries)} · {match.label}")
             live.dataframe(pd.DataFrame([{**source, "Partite da preparare": len(entries) - position}
                                          for source in registro.sources()]), hide_index=True, width="stretch")

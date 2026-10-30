@@ -555,6 +555,10 @@ class MatchConfig:
     # Fase AD: {"home": {"forma_reale": x, "n_gare": n}, "away": {...}} da ``style_profile.get_style_params``; None = come prima.
     style: Mapping[str, Mapping[str, float]] | None = None
     style_model: StyleModelParams = DEFAULT_STYLE_MODEL
+    # Fase AL: {"home": {"attack": f, "defense": g}, "away": {...}} da ``lineup.get_lineup_params(...)["motore"]``:
+    # f moltiplica i gol della squadra (formazione vs XI tipo, già con l'esponente stimato), g quelli dell'avversario
+    # (difesa indebolita). Agisce sul modello PRIMA dell'ancoraggio al mercato; None = come prima.
+    lineup: Mapping[str, Mapping[str, float]] | None = None
 
     def __post_init__(self) -> None:
         if self.goal_model not in GOAL_MODELS:
@@ -685,6 +689,10 @@ def expected_goals(config: MatchConfig) -> tuple[float, float, dict[str, Any]]:
         elo_diff=config.home.elo - config.away.elo,
         **(real or {}),
     )
+    lineup = config.lineup
+    if lineup:
+        lambda_ = float(np.clip(lambda_ * lineup["home"]["attack"] * lineup["away"]["defense"], 0.05, 5.0))
+        mu = float(np.clip(mu * lineup["away"]["attack"] * lineup["home"]["defense"], 0.05, 5.0))
     value = {key: float(part) for key, part in parts.items()}
 
     def side(sign: float, attack_key: str, defense_key: str, score: float) -> dict[str, float]:
@@ -709,6 +717,10 @@ def expected_goals(config: MatchConfig) -> tuple[float, float, dict[str, Any]]:
         "away": side(-1.0, "away_attack", "home_weak_defense", away_form),
         "weights": asdict(params),
     }
+    if lineup:
+        ledger["formazione"] = {"usata": True, "casa": dict(lineup["home"]), "ospite": dict(lineup["away"]),
+                                "formula": "λ × attacco casa × difesa ospite; μ × attacco ospite × difesa casa "
+                                           "(fase AL: XI atteso vs XI tipo, esponente e pesi di ruolo stimati dal backtest)"}
     style_model = config.style_model
     if style_model.active:
         ledger["forma_reale"] = _real_form_ledger(config, real)
