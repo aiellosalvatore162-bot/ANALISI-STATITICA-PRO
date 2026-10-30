@@ -48,7 +48,16 @@ Ramo: `fase-ak-motore-eventi` (da `main` dopo la fase AH). `docs/FONTI.md` non e
 - Ricalibrazione finale accesa solo per «Over 3.5 cartellini» (Platt, a −0.034, b 1.191; `ricalibrazione` in `goal_model.json`).
 
 ## Stadi
-1b. `config/dizionario_tattico.json` + messa in campo per zone/corsie: DA FARE
+1b. FATTO: `config/dizionario_tattico.json` (11 termini: possesso, verticalizzazione, altezza_linea, pressing, marcatura,
+   transizione, fasce_cross, gestione_blocco_basso, adattabilita, reazione_svantaggio/vantaggio; valori ammessi, punteggio
+   −1…+1, tassi spostati con segno; beta/intervallo/n/fonte = null finché lo stadio 2 non li stima), `tactical_dictionary.py`
+   (`apply_profile`: moltiplicatore = exp(Σ beta·punteggio), termini/valori sconosciuti SEMPRE segnalati), `formation.py`
+   (modulo → ruoli per linea e corsia, accoppiamenti fascia contro fascia speculare, `lane_shares` = dove nascono le azioni),
+   campi `possesso` e `verticalizzazione` nella scheda tattica, avviso per termini non riconosciuti in `parse_profiles`.
+   Test `test_event_dictionary.py` (un test per termine con beta di prova: si muove solo il tasso dichiarato, nel verso giusto).
+   Download dettaglio StatsBomb: `python -m tools.minute_data --statsbomb-dettaglio` (in sequenza, pausa 1 s, ripresa dai file
+   `.parziale`, log in `data/cache/minuto/dettaglio.log`; fonte da citare «Data: StatsBomb Open Data», StatsBomb Open Data User
+   Agreement). Avviato il 30/10: se non è finito, rilanciarlo riprende da dove si era fermato.
 2. `tools/stima_motore.py` → `config/motore_eventi.json` (incroci, xG per tipo, stato di partita, arbitri `referee_stats.py`): DA FARE
    (prima: download del dettaglio StatsBomb, vedi decisione sopra)
 3-5. Stato della partita, azioni a passi, tiri e gol (`event_engine.py`): DA FARE
@@ -60,4 +69,5 @@ Ramo: `fase-ak-motore-eventi` (da `main` dopo la fase AH). `docs/FONTI.md` non e
 16. Test, merge, push: DA FARE
 
 ## Note
+- Prossimo: stadio 2 (`tools/stima_motore.py`) sui file `statsbomb_dettaglio_*.json.gz` + `stili_statsbomb.json.gz` + CSV; poi riempire i beta del dizionario.
 - La conversazione che ha fatto la ricognizione era già molto lunga: il lavoro riparte da qui in una nuova sessione.

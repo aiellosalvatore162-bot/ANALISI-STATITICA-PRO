@@ -37,6 +37,8 @@ FIELD_STATUS: dict[str, tuple[str, str]] = {
     "blocco": (ABSORBED, "prior di «deep_concessi» (altezza del blocco) + condizione degli incroci"),
     "pressing": (ABSORBED, "prior di «ppda»"),
     "fasce_cross": (ABSORBED, "prior di «corner_per_tiro»"),
+    "possesso": (ABSORBED, "termine del dizionario tattico → tassi del motore a eventi"),
+    "verticalizzazione": (ABSORBED, "termine del dizionario tattico → tassi del motore a eventi"),
     "adattabilita": (ABSORBED, "attenuazione degli incroci (ADAPTABILITY) e verso quale profilo si sposta"),
     "se_in_svantaggio": (ABSORBED, "regola di stato per la AK (reaction_factors)"),
     "se_in_vantaggio": (ABSORBED, "regola di stato per la AK (reaction_factors)"),

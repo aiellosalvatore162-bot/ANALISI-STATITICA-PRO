@@ -1,0 +1,301 @@
+{
+  "nota": "Fase AK. Ogni termine che si può scrivere nel profilo tattico o nel report, con i valori ammessi, il punteggio (−1…+1) e i tassi del motore a eventi che sposta. Moltiplicatore di un tasso = exp(Σ beta·punteggio). beta, intervallo, n e fonte si riempiono con python -m tools.stima_motore (dati StatsBomb Open Data e football-data); beta null = effetto non ancora stimato (nessun numero scelto a mano). Un termine o un valore non riconosciuto viene segnalato, mai ignorato.",
+  "tassi": [
+    "azioni_pericolose",
+    "quota_possesso",
+    "tiri_transizione",
+    "tiri_fuori_area",
+    "tiri_da_cross",
+    "cross",
+    "corner_fasce",
+    "tiri_contro_blocco_basso",
+    "recuperi_alti",
+    "falli_fatti",
+    "tiri_transizione_concessi",
+    "corner_concessi",
+    "spinta_in_svantaggio",
+    "spinta_in_vantaggio",
+    "attenuazione_incroci"
+  ],
+  "termini": {
+    "possesso": {
+      "campo_scheda": "possesso",
+      "punteggio": {
+        "palla_a_terra": 1,
+        "misto": 0,
+        "diretto": -1
+      },
+      "sinonimi": {
+        "palla a terra": "palla_a_terra",
+        "corto": "palla_a_terra",
+        "lungo": "diretto"
+      },
+      "effetti": [
+        {
+          "tasso": "quota_possesso",
+          "segno": 1,
+          "beta": null,
+          "intervallo": null,
+          "n": 0,
+          "fonte": null
+        },
+        {
+          "tasso": "tiri_transizione",
+          "segno": -1,
+          "beta": null,
+          "intervallo": null,
+          "n": 0,
+          "fonte": null
+        },
+        {
+          "tasso": "tiri_fuori_area",
+          "segno": 1,
+          "beta": null,
+          "intervallo": null,
+          "n": 0,
+          "fonte": null
+        }
+      ]
+    },
+    "verticalizzazione": {
+      "campo_scheda": "verticalizzazione",
+      "punteggio": {
+        "bassa": -1,
+        "media": 0,
+        "alta": 1
+      },
+      "effetti": [
+        {
+          "tasso": "tiri_transizione",
+          "segno": 1,
+          "beta": null,
+          "intervallo": null,
+          "n": 0,
+          "fonte": null
+        },
+        {
+          "tasso": "azioni_pericolose",
+          "segno": 1,
+          "beta": null,
+          "intervallo": null,
+          "n": 0,
+          "fonte": null
+        }
+      ]
+    },
+    "altezza_linea": {
+      "campo_scheda": "blocco",
+      "punteggio": {
+        "bassa": -1,
+        "media": 0,
+        "alta": 1,
+        "basso": -1,
+        "medio": 0,
+        "alto": 1
+      },
+      "effetti": [
+        {
+          "tasso": "tiri_transizione_concessi",
+          "segno": 1,
+          "beta": null,
+          "intervallo": null,
+          "n": 0,
+          "fonte": null
+        },
+        {
+          "tasso": "corner_concessi",
+          "segno": -1,
+          "beta": null,
+          "intervallo": null,
+          "n": 0,
+          "fonte": null
+        },
+        {
+          "tasso": "recuperi_alti",
+          "segno": 1,
+          "beta": null,
+          "intervallo": null,
+          "n": 0,
+          "fonte": null
+        }
+      ]
+    },
+    "pressing": {
+      "campo_scheda": "pressing",
+      "punteggio": {
+        "basso": -1,
+        "medio": 0,
+        "alto": 1
+      },
+      "effetti": [
+        {
+          "tasso": "recuperi_alti",
+          "segno": 1,
+          "beta": null,
+          "intervallo": null,
+          "n": 0,
+          "fonte": null
+        },
+        {
+          "tasso": "falli_fatti",
+          "segno": 1,
+          "beta": null,
+          "intervallo": null,
+          "n": 0,
+          "fonte": null
+        }
+      ]
+    },
+    "marcatura": {
+      "campo_scheda": "non_possesso",
+      "punteggio": {
+        "uomo": 1,
+        "mista": 0,
+        "zona": -1
+      },
+      "sinonimi": {
+        "a uomo": "uomo",
+        "a zona": "zona"
+      },
+      "effetti": [
+        {
+          "tasso": "falli_fatti",
+          "segno": 1,
+          "beta": null,
+          "intervallo": null,
+          "n": 0,
+          "fonte": null
+        }
+      ]
+    },
+    "transizione": {
+      "campo_scheda": "transizione",
+      "punteggio": {
+        "1": -1,
+        "2": -0.5,
+        "3": 0,
+        "4": 0.5,
+        "5": 1
+      },
+      "effetti": [
+        {
+          "tasso": "tiri_transizione",
+          "segno": 1,
+          "beta": null,
+          "intervallo": null,
+          "n": 0,
+          "fonte": null
+        }
+      ]
+    },
+    "fasce_cross": {
+      "campo_scheda": "fasce_cross",
+      "punteggio": {
+        "basso": -1,
+        "medio": 0,
+        "alto": 1
+      },
+      "effetti": [
+        {
+          "tasso": "cross",
+          "segno": 1,
+          "beta": null,
+          "intervallo": null,
+          "n": 0,
+          "fonte": null
+        },
+        {
+          "tasso": "tiri_da_cross",
+          "segno": 1,
+          "beta": null,
+          "intervallo": null,
+          "n": 0,
+          "fonte": null
+        },
+        {
+          "tasso": "corner_fasce",
+          "segno": 1,
+          "beta": null,
+          "intervallo": null,
+          "n": 0,
+          "fonte": null
+        }
+      ]
+    },
+    "gestione_blocco_basso": {
+      "campo_scheda": "gestione_blocco_basso",
+      "punteggio": {
+        "scarsa": -1,
+        "media": 0,
+        "buona": 1
+      },
+      "effetti": [
+        {
+          "tasso": "tiri_contro_blocco_basso",
+          "segno": 1,
+          "beta": null,
+          "intervallo": null,
+          "n": 0,
+          "fonte": null
+        }
+      ]
+    },
+    "adattabilita": {
+      "campo_scheda": "adattabilita",
+      "punteggio": {
+        "bassa": -1,
+        "media": 0,
+        "alta": 1
+      },
+      "effetti": [
+        {
+          "tasso": "attenuazione_incroci",
+          "segno": -1,
+          "beta": null,
+          "intervallo": null,
+          "n": 0,
+          "fonte": null
+        }
+      ],
+      "nota": "valori fissi della fase Q (tactical_sheets.ADAPTABILITY: 1, 0.75, 0.5) finché la stima non li sostituisce"
+    },
+    "reazione_svantaggio": {
+      "campo_scheda": "se_in_svantaggio",
+      "punteggio": {
+        "aggressiva": 1,
+        "neutra": 0,
+        "passiva": -1
+      },
+      "testo_libero": true,
+      "effetti": [
+        {
+          "tasso": "spinta_in_svantaggio",
+          "segno": 1,
+          "beta": null,
+          "intervallo": null,
+          "n": 0,
+          "fonte": null
+        }
+      ]
+    },
+    "reazione_vantaggio": {
+      "campo_scheda": "se_in_vantaggio",
+      "punteggio": {
+        "aggressiva": 1,
+        "neutra": 0,
+        "passiva": -1
+      },
+      "testo_libero": true,
+      "effetti": [
+        {
+          "tasso": "spinta_in_vantaggio",
+          "segno": 1,
+          "beta": null,
+          "intervallo": null,
+          "n": 0,
+          "fonte": null
+        }
+      ]
+    }
+  }
+}
