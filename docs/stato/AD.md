@@ -12,9 +12,9 @@ Ramo: `fase-ad-stile-forma-wf`.
 - `timeline.py`/cache StatsBomb (fasi O/Q): non servono qui.
 
 ## Stadi
-1. Proxy xG + `config/stile.json` + `style_profile.py` + foglio «Stile»: DA FARE
-2. Opzione `forma_reale` nel motore (`engine.py`, formula_ledger): DA FARE
-3. Banco `tools/backtest_wf.py` (walk-forward, mercati, CSV/MD): DA FARE
+1. Proxy xG (R² 0.545 fuori campione, usabile) + `config/stile.json` + `style_profile.py`: FATTO; foglio «Stile» nell'Excel (day_workbook + ui_memory): DA FARE; collegamento in today.prepare: DA FARE
+2. Opzione `forma_reale` nel motore (`StyleModelParams`, `MatchConfig.style`, voce `forma_reale` nel formula_ledger): FATTO. NB: il modello calibrato ha `form_weight=0` e `attack_xg_share=1`, quindi la forma reale AGGIUNGE un termine dove prima non c'era forma; `k_xg` agisce solo sulla difesa (0.84).
+3. Banco `tools/backtest_wf.py` (walk-forward, 25 mercati, CSV/MD, `run(...)`): FATTO, prova 1 stagione/3 campionati ok (26 s)
 4. Backtest `forma_reale` (Serie A, Premier, Bundesliga, SC0, D2): DA FARE
 5. Test, merge, push, riepilogo: DA FARE
 
