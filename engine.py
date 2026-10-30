@@ -431,6 +431,9 @@ DEFAULT_TIMELINE = _timeline.load(GOAL_MODEL_PATH)
 import event_engine as _event_engine  # noqa: E402  (motore a eventi, fase AK)
 
 
+EVENT_ENGINE_GROUPS = ("tempi", "corner", "cartellini")
+
+
 @dataclass(frozen=True)
 class EventEngineParams:
     """Fase AK: motore a eventi (sezione ``motore_eventi`` di ``config/goal_model.json``). Con ``active`` i punteggi restano
@@ -446,6 +449,12 @@ class EventEngineParams:
     minimum: int = 20_000
     tolerance_pp: float = 0.25
     lanes: bool = False
+    # Gruppi di mercati presi dal motore a eventi quando è acceso: «tempi» (gol del primo/secondo tempo), «corner»,
+    # «cartellini». Gli altri restano del motore attuale (sugli stessi punteggi Dixon-Coles).
+    markets: tuple[str, ...] = EVENT_ENGINE_GROUPS
+
+    def uses(self, group: str) -> bool:
+        return self.active and group in self.markets
 
 
 def load_event_engine(path: Path = GOAL_MODEL_PATH) -> EventEngineParams:
@@ -457,6 +466,7 @@ def load_event_engine(path: Path = GOAL_MODEL_PATH) -> EventEngineParams:
         pilot=int(section.get("pilota", 10_000)), passes=int(section.get("passate", 2)),
         batch=int(section.get("lotto", 10_000)), minimum=int(section.get("minimo", 20_000)),
         tolerance_pp=float(section.get("tolleranza_pp", 0.25)), lanes=bool(section.get("corsie", False)),
+        markets=tuple(group for group in section.get("mercati", EVENT_ENGINE_GROUPS) if group in EVENT_ENGINE_GROUPS),
     )
 
 
@@ -2013,6 +2023,7 @@ def event_engine_sample(config: MatchConfig, lambda_: float, mu: float, scores: 
             for side, value in (("home", home), ("away", away))},
         "ledger": sample["ledger"], "warnings": sample["warnings"],
         "medie": {key: round(value, 4) for key, value in _event_engine.summary(sample).items()},
+        "andamento": _event_engine.timeline_summary(sample),
         "falli": "media del campionato (StatsBomb) senza effetto dell'arbitro: i gialli seguono già la media attuale",
     }
     return sample, details
@@ -2194,24 +2205,33 @@ def simulate_match(config: MatchConfig) -> dict[str, Any]:
     event_details = {"active": False}
     if config.event_engine.active:
         # Fase AK: stessi punteggi Dixon-Coles; primo tempo, corner e cartellini dal motore a eventi (medie attuali come
-        # vincolo). Con l'arresto adattivo il campione si accorcia ai primi n punteggi, per TUTTI i mercati.
+        # vincolo), solo per i gruppi di ``event_engine.markets``. Con l'arresto adattivo il campione si accorcia ai primi n
+        # punteggi, per TUTTI i mercati.
         sample, event_details = event_engine_sample(config, lambda_, mu, (goals_home, goals_away),
                                                     (home_corner_signal, away_corner_signal), yellow_mean, home_card_share)
+        event_details["mercati"] = list(config.event_engine.markets)
         size = event_details["simulazioni"]
         if size < config.simulations:
             config = replace(config, simulations=size)
         goals_home, goals_away = goals_home[:size], goals_away[:size]
-        first_home, first_away = sample["first_home"], sample["first_away"]
+        first_home, first_away = first_home[:size], first_away[:size]
+        home_corners, away_corners, home_cards, away_cards = (values[:size] for values in counts[:4])
+        counts = tuple(values[:size] for values in counts)
+        if config.event_engine.uses("tempi"):
+            first_home, first_away = sample["first_home"], sample["first_away"]
         second_home, second_away = goals_home - first_home, goals_away - first_away
-        home_corners, away_corners = sample["corners_home"], sample["corners_away"]
+        if config.event_engine.uses("corner"):
+            home_corners, away_corners = sample["corners_home"], sample["corners_away"]
+            counts = (home_corners, away_corners, *counts[2:4], sample["corners_first_home"], sample["corners_first_away"],
+                      *counts[6:])
+        if config.event_engine.uses("cartellini"):
+            home_cards = card_points(sample["yellows_home"], sample["reds_home"], rule, sample["double_yellows_home"])
+            away_cards = card_points(sample["yellows_away"], sample["reds_away"], rule, sample["double_yellows_away"])
+            counts = (*counts[:2], home_cards, away_cards, *counts[4:6],
+                      card_points(sample["yellows_first_home"], sample["reds_first_home"], rule),
+                      card_points(sample["yellows_first_away"], sample["reds_first_away"], rule))
         corners = home_corners + away_corners
-        home_cards = card_points(sample["yellows_home"], sample["reds_home"], rule, sample["double_yellows_home"])
-        away_cards = card_points(sample["yellows_away"], sample["reds_away"], rule, sample["double_yellows_away"])
         cards = home_cards + away_cards
-        counts = (home_corners, away_corners, home_cards, away_cards,
-                  sample["corners_first_home"], sample["corners_first_away"],
-                  card_points(sample["yellows_first_home"], sample["reds_first_home"], rule),
-                  card_points(sample["yellows_first_away"], sample["reds_first_away"], rule))
 
     events = _events_for_scores(config, (goals_home, goals_away, first_home, first_away), counts)
     finale, recalibrated = apply_recalibration(_event_percentages(events), config.v2)
@@ -2359,6 +2379,7 @@ def simulate_match(config: MatchConfig) -> dict[str, Any]:
         if event_details.get("active"):
             # Fase AK: percorsi grezzi del motore a eventi (tiri, corner per origine, falli, cartellini, minuti), stesso campione.
             result["event_engine_sample"] = {key: value for key, value in sample.items() if isinstance(value, np.ndarray)}
+            result["event_engine_sample"]["passi"] = sample["passi"]
     result["statistical_report"] = statistical_report(config, result)
     result["dashboard"] = {
         "goals_distribution": {

@@ -501,8 +501,20 @@ def _run(rng: np.random.Generator, n: int, home: Tables, away: Tables, params: E
     future = {side: _suffix(rate) for side, rate in goal_rate.items()}
     rows = np.arange(n)
     other = {"home": "away", "away": "home"}
+    # Stadio 15: somme per passo (tiri, gol, corner, gialli, rossi per squadra; partite con almeno un gol nel passo).
+    track = {f"{key}_{side}": np.zeros(state.steps) for key in ("shots", "goals", "corners", "yellows", "reds")
+             for side in ("home", "away")}
+    track["goal_any"] = np.zeros(state.steps)
+
+    def totals(side):
+        if counts is None:
+            return 0.0, 0.0, 0.0
+        return (float(out[f"corners_by_origin_{side}"].sum()), float(out[f"yellows_{side}"].sum() + out[f"double_yellows_{side}"].sum()),
+                float(out[f"reds_{side}"].sum()))
+
     for step in range(state.steps):
         state.step = step
+        before = {side: (float(out[f"shots_{side}"].sum()), *totals(side)) for side in ("home", "away")}
         index = {"home": state.state_index(True), "away": state.state_index(False)}
         out["state_steps_home"][rows, index["home"]] += 1
         # Uomini in campo all'inizio del passo: espulsi dell'avversario meno i propri, limitati a −1…+1.
@@ -539,6 +551,12 @@ def _run(rng: np.random.Generator, n: int, home: Tables, away: Tables, params: E
             if counts is not None:
                 _count_step(rng, out, counts[side], params, side, s, step, saved.sum(axis=1), men[side],
                             state.minute + step_minutes / 2, mix)
+        for side in ("home", "away"):
+            after = (float(out[f"shots_{side}"].sum()), *totals(side))
+            for key, low, high in zip(("shots", "corners", "yellows", "reds"), before[side], after):
+                track[f"{key}_{side}"][step] = high - low
+            track[f"goals_{side}"][step] = float(scored[side].sum())
+        track["goal_any"][step] = float(((scored["home"] + scored["away"]) > 0).sum())
         # Primo gol: minuto uniforme nel passo; se segnano entrambe nello stesso passo, squadra ∝ gol del passo.
         new = np.isnan(out["first_goal_minute"]) & ((scored["home"] + scored["away"]) > 0)
         if new.any():
@@ -554,6 +572,7 @@ def _run(rng: np.random.Generator, n: int, home: Tables, away: Tables, params: E
                     for key in ("fouls", "yellows", "reds"):
                         out[f"{key}_first_{side}"] = out[f"{key}_{side}"].copy()
     out["goals_home"], out["goals_away"] = state.goals_home, state.goals_away
+    out["passi"] = {"minuto": np.arange(state.steps) * step_minutes, **track}
     if counts is not None:
         for side in ("home", "away"):
             out[f"corners_{side}"] = out[f"corners_by_origin_{side}"].sum(axis=1)
@@ -842,6 +861,9 @@ def _concat(parts: list[dict[str, Any]], n: int) -> dict[str, Any]:
     for key, value in parts[0].items():
         if isinstance(value, np.ndarray) and value.ndim and value.shape[0] == len(parts[0]["goals_home"]):
             out[key] = np.concatenate([part[key] for part in parts])[:n]
+    if "passi" in parts[0]:
+        out["passi"] = {key: (value if key == "minuto" else sum(part["passi"][key] for part in parts))
+                        for key, value in parts[0]["passi"].items()}
     return out
 
 
@@ -907,6 +929,33 @@ def summary(sample: Mapping[str, Any]) -> dict[str, float]:
     out["nessun_gol"] = float(np.mean(sample["first_goal_team"] == 0))
     out["minuto_primo_gol"] = float(np.nanmean(sample["first_goal_minute"])) if np.any(sample["first_goal_team"]) else math.nan
     return out
+
+
+STORY_BANDS = ((0, 15), (15, 30), (30, 45), (45, 60), (60, 75), (75, 90))
+
+
+def timeline_summary(sample: Mapping[str, Any], bands: tuple[tuple[int, int], ...] = STORY_BANDS) -> dict[str, Any]:
+    """Stadio 15 («Vedi come andrà»): medie per fascia di minuti (tiri, gol, corner, gialli, rossi per squadra; probabilità
+    di almeno un gol nella fascia, dai passi) e minuto del primo gol per fascia, dai percorsi del motore a eventi."""
+    steps, n = sample["passi"], len(sample["goals_home"])
+    minutes = np.asarray(steps["minuto"])
+    rows = []
+    for low, high in bands:
+        inside = (minutes >= low) & (minutes < high)
+        row = {"fascia": f"{low}-{high}"}
+        for key in ("shots", "goals", "corners", "yellows", "reds"):
+            for side in ("home", "away"):
+                row[f"{key}_{side}"] = round(float(np.asarray(steps[f"{key}_{side}"])[inside].sum()) / n, 4)
+        rows.append(row)
+    first = np.asarray(sample["first_goal_minute"], float)
+    first_goal = {f"{low}-{high}": round(float(((first >= low) & (first < high)).mean()), 4) for low, high in bands}
+    first_goal["nessun gol"] = round(float(np.isnan(first).mean()), 4)
+    team = np.asarray(sample["first_goal_team"])
+    reds = np.asarray(sample["reds_home"]) + np.asarray(sample["reds_away"])
+    return {"fasce": rows, "primo_gol": first_goal, "almeno_un_rosso": round(float((reds > 0).mean()), 4), "primo_gol_casa": round(float((team == 1).mean()), 4),
+            "primo_gol_ospite": round(float((team == 2).mean()), 4),
+            "gol_nel_passo": {"minuto": minutes.tolist(), "probabilita": (np.asarray(steps["goal_any"]) / n).round(4).tolist()},
+            "simulazioni": int(n)}
 
 
 def card_points(sample: Mapping[str, Any], rule, side: str | None = None) -> np.ndarray:

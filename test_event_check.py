@@ -1,5 +1,7 @@
 """Fase AK, stadio 14: logica del banco fuori campione (``tools.event_check``) su dati sintetici."""
 
+import json
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -58,3 +60,47 @@ def test_risultati_parziali_e_ripresa(tmp_path):
     assert back["motore a eventi"]["probabilita"]["Over 9.5 corner"].tolist() == [0.4, 0.6]
     assert back["motore attuale"]["medie"] == (9.8, 4.1) and ec.load_partial("E0", tmp_path) == {}
     assert ec.row_key({"date": "2021-09-12 20:45", "home_team": "Roma", "away_team": "Lazio"}) == "2021-09-12|Roma|Lazio"
+
+
+def _group(diff, error=0.001, ece_before=0.02, ece_after=0.02):
+    return {"differenza": diff, "errore_standard": error, "ece_prima": ece_before, "ece_dopo": ece_after,
+            "log_loss_prima": 0.6, "log_loss_dopo": 0.6 + diff}
+
+
+def test_decisione_solo_corner_quando_corner_e_combo_migliorano():
+    full = {"tempi": _group(0.0), "corner": _group(-0.003), "cartellini": _group(0.003), "combo": _group(-0.003),
+            "tutti": _group(-0.0005)}
+    hybrid = {"tempi": _group(0.0), "corner": _group(-0.003), "cartellini": _group(0.0), "combo": _group(-0.001),
+              "tutti": _group(-0.001)}
+    decision = ec.decide(full, hybrid)
+    assert decision["accendere"] and decision["mercati"] == ["corner"] and decision["gruppi_peggiori"] == ["cartellini"]
+    # Combo pari: resta spento anche se i corner migliorano.
+    assert not ec.decide({**full, "combo": _group(-0.0005)}, hybrid)["accendere"]
+    # La variante solo corner peggiora un gruppo: spento.
+    assert not ec.decide(full, {**hybrid, "tempi": _group(0.004)})["accendere"]
+    # ECE dei corner peggiore: la regola del gruppo non passa.
+    assert not ec.decide({**full, "corner": _group(-0.003, ece_after=0.03)}, hybrid)["accendere"]
+    # Tutto meglio: motore completo.
+    better = {group: _group(-0.003) for group in full}
+    assert ec.decide(better, hybrid)["mercati"] == ["tempi", "corner", "cartellini"]
+
+
+def test_campione_nuovo_senza_partite_del_primo_banco(tmp_path):
+    rows = ec.new_rows(tmp_path)
+    assert set(rows["season"]) == set(ec.NEW_SEASONS) and not set(rows["season"]) & {*ec.SEASONS, *ec.HOLDOUT}
+    first = rows.iloc[0].to_dict()
+    (tmp_path / "E0.jsonl").write_text(json.dumps({"key": ec.row_key(first)}) + "\n", encoding="utf-8")
+    assert len(ec.new_rows(tmp_path)) == len(rows) - 1
+
+
+def test_probabilita_del_motore_completo_dai_percorsi():
+    import engine
+
+    sample = {"goals_home": np.array([2, 0]), "goals_away": np.array([1, 0]), "first_home": np.array([1, 0]),
+              "first_away": np.array([0, 0]), "corners_home": np.array([6, 2]), "corners_away": np.array([5, 3]),
+              "yellows_home": np.array([2, 1]), "yellows_away": np.array([1, 0]), "reds_home": np.array([1, 0]),
+              "reds_away": np.array([0, 0]), "double_yellows_home": np.array([1, 0]), "double_yellows_away": np.array([0, 0])}
+    probs = ec.sample_probabilities(sample, engine.DEFAULT_CARD_RULE)
+    assert probs["Over 9.5 corner"].tolist() == [0.5, 0.5] and probs["1X2 1T"].tolist() == [0.5, 0.5, 0.0]
+    assert probs["Casa Over 2.5 cartellini"][1] == 0.5 and probs["1 & Casa Over 4.5 corner"][1] == 0.5
+    assert set(probs) == {key for group in ec.GROUPS for key in ec._market_keys(group)}

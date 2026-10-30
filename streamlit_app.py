@@ -31,6 +31,7 @@ from ui_eurobet import find_paste, render_apply, render_paste, render_sharp_valu
 from ui_memory import RESTART_WARNING, flags_key, remember, remember_claude, render_registry_table, render_sidebar
 from ui_odds import render_credits, render_odds
 from ui_performance import render_performance
+from ui_story import render_story
 from ui_tactical import current_effects, render_match as render_match_sheets
 import day_archive
 from datasources.sources import league_code
@@ -1052,6 +1053,7 @@ if result:
     financial_rows = {row["market"]: row for row in result["financial"]["markets"]}
     with tabs[0]:
         _overview_tab(result, financial_rows)
+        render_story(result, st.session_state.get("result_config"))
     with tabs[1]:
         _goals_tab(result, financial_rows)
     with tabs[2]:

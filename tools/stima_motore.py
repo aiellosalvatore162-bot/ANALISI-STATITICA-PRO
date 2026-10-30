@@ -728,6 +728,11 @@ def run(bootstrap: int = 200, update_dictionary: bool = True) -> dict:
         "arbitri": referee_section(matches),
     }
     config["stato_partita"]["attenuazione"] = attenuation_section(matches, config)
+    if CONFIG.exists():
+        # Il legame cartellini si stima a parte (``python -m tools.event_cards``): resta quello già salvato.
+        link = json.loads(CONFIG.read_text(encoding="utf-8")).get("stato_partita", {}).get("legame_cartellini")
+        if link:
+            config["stato_partita"]["legame_cartellini"] = link
     CONFIG.write_text(json.dumps(config, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     if update_dictionary:
         tactical_dictionary.PATH.write_text(json.dumps(updated, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")

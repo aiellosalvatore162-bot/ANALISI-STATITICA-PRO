@@ -461,3 +461,19 @@ def test_motore_a_eventi_e_blocchi_non_insieme():
     config = dataclasses.replace(config, timeline=dataclasses.replace(config.timeline, active=True))
     with pytest.raises(ValueError, match="non possono essere accesi insieme"):
         engine.simulate_match(config)
+
+
+def test_motore_a_eventi_solo_per_i_corner():
+    """``markets = ("corner",)``: corner dal motore a eventi, primo tempo e cartellini identici al motore attuale."""
+    import engine
+
+    base = dataclasses.replace(_engine_config(), simulations=20_000)
+    settings = dataclasses.replace(base.event_engine, active=True, minimum=20_000, batch=20_000, pilot=5_000)
+    off = engine.simulate_match(base)
+    only = engine.simulate_match(dataclasses.replace(base, event_engine=dataclasses.replace(settings, markets=("corner",))))
+    full = engine.simulate_match(dataclasses.replace(base, event_engine=settings))
+    assert only["event_engine"]["mercati"] == ["corner"] and only["model"]["simulation_count"] == 20_000
+    assert only["markets"]["cards"] == off["markets"]["cards"]
+    assert only["markets"]["first_half_1x2"] == off["markets"]["first_half_1x2"]
+    assert only["markets"]["corners"] == full["markets"]["corners"] != off["markets"]["corners"]
+    assert full["markets"]["cards"] != off["markets"]["cards"]
