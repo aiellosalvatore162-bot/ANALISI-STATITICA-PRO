@@ -204,7 +204,28 @@ Ramo: `fase-ak-motore-eventi` (da `main` dopo la fase AH). `docs/FONTI.md` non e
 13. FATTO (30/10): `test_event_sense.py` (7): attenuazione stimata e applicata, punteggi ed esatti identici con medie attuali,
    chi è sotto spinge/chi è avanti gestisce, espulsione presto, arbitro severo contro permissivo, ritmo (primo gol, quote 1T),
    partita calda.
-14. Banco fuori campione (3 stagioni, 5 campionati) → `docs/backtest/AK_motore_eventi.md`: DA FARE
+14. FATTO (30/10): banco `python -m tools.event_check [--per-stagione 100] [--processi 2] [--salva] [--ricomincia]` →
+   `docs/backtest/AK_motore_eventi.md` e `motore_eventi.verifica` di `config/goal_model.json`. 1.454 partite football-data
+   (Premier, Liga, Serie A, Bundesliga: 100 per campionato e stagione 2020/21-2022/23 + tutto il 2026/27; la Ligue 1 non ha righe
+   complete nel dataset, quindi 4 campionati e non 5), fuori dalla taratura (2024-26) e dalla stima (StatsBomb 2015/16). Stessa
+   `MatchConfig` dell'app con quote di chiusura, `simulate_match` spento contro acceso (stesso seme), 20.000 simulazioni al
+   massimo, 40 mercati: tempi, corner e cartellini (totali, per squadra, 1X2) e 14 combo. Risultati parziali per campionato in
+   `data/cache/event_check/<campionato>.jsonl` con ripresa; avanzamento in `data/cache/event_check/avanzamento.txt`.
+   Regola: log-loss media giù di oltre 2 e.s. appaiati, ECE media non peggiore, nessun gruppo peggiore di oltre 2 e.s.
+   **Esito: SPENTO** (`motore_eventi.attivo: false`).
+   - Tutti: log-loss 0,62234 → 0,62204 (−0,00031 ± 0,00036: non significativo); ECE 0,02223 → 0,02123.
+   - Corner: −0,00123 ± 0,00056 (meglio; 1X2 corner −0,0057 ± 0,0021, Casa Over 4.5 −0,0027 ± 0,0012), ECE 0,0258 → 0,0218.
+   - Combo: −0,00105 ± 0,00068 (meglio; «1 & 2 corner» −0,0134 ± 0,0065, «1 & Casa Over 4.5 corner» −0,0043 ± 0,0037).
+   - Tempi: +0,00024 ± 0,00025 (pari: la quota del primo tempo era già tarata).
+   - Cartellini: +0,00130 ± 0,00080 (PEGGIO; Ospite Over 1.5 +0,0037 ± 0,0018, Ospite Over 2.5 +0,0019 ± 0,0014; ECE
+     0,0181 → 0,0213).
+   - Medie invariate (corner 9,63/9,63, reali 9,67; punti cartellino 4,41/4,39, reali 4,40). Tempo 0,69 s → 3,13 s a partita.
+   - Correlazioni dei residui (reale / motore a eventi): diff. gol-diff. corner −0,139 / −0,215 (ancora un po' troppo forte);
+     gol-corner −0,030 / −0,005; |diff. gol|-gialli −0,184 / −0,066 (troppo debole); gialli in più con un rosso +0,96 / +0,11
+     (troppo debole). La parte dei cartellini è quella che non regge: divisione tra le squadre peggiore della fase T e legame
+     con punteggio ed espulsioni troppo debole.
+   - Possibile passo successivo (NON fatto, servirebbe un nuovo banco con campione diverso per non scegliere sui dati della
+     verifica): motore a eventi solo per corner e combo gol+corner, cartellini dal motore attuale.
 15. «Vedi come andrà»: DA FARE
 16. Test, merge, push: DA FARE
 
@@ -213,9 +234,10 @@ Ramo: `fase-ak-motore-eventi` (da `main` dopo la fase AH). `docs/FONTI.md` non e
   esattamente 34 partite, tutte del Bayer Leverkusen (34 su 34). Il download è COMPLETO: è StatsBomb che pubblica solo quelle.
   DECISIONE: nessun effetto proprio per la Bundesliga; le 34 partite entrano solo nelle stime comuni (non per campionato) e per la
   Bundesliga si usano i valori stimati sugli altri campionati, dichiarato in `config/motore_eventi.json`.
-- Prossimo: stadi 12-13 (realismo e test di buon senso del motore acceso su partite tipo: favorita netta, partita chiusa,
-  espulsione presto, arbitro severo), poi il banco dello stadio 14 che decide `motore_eventi.attivo`. Il modo «libero» resta
-  solo nello strumento (non collegato all'app: cambierebbe i punteggi Dixon-Coles).
+- Prossimo: stadio 15 («Vedi come andrà», usa `result["event_engine_sample"]`) e 16. Il motore a eventi resta SPENTO dopo il
+  banco dello stadio 14; per riprovarlo: corner/combo da soli oppure cartellini rivisti (uomo in meno, partita calda, divisione
+  per squadra), poi `python -m tools.event_check --ricomincia --salva`.
+- 30/10: stadi 12-14 fatti (banco: motore spento) e uniti a `main`.
 - 30/10: stadi 9-11 fatti in una nuova sessione e uniti a `main`; il motore a eventi è collegato ma SPENTO
   (`config/goal_model.json` → `motore_eventi.attivo: false`): l'app non cambia finché lo stadio 14 non lo accende.
 - 30/10: stadi 6-8 fatti in una nuova sessione sul ramo `fase-ak-motore-eventi` e uniti a `main` (motore ancora non collegato).

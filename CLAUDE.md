@@ -362,6 +362,9 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   attuale), arresto adattivo `simulate_adaptive` (errore Monte Carlo ≤ `tolleranza_pp`, max 100.000, primi n punteggi per tutti i
   mercati), aggancio `MatchConfig.event_engine` / `event_inputs` (sezione `motore_eventi` di `config/goal_model.json`, `attivo:
   false` finché lo stadio 14 non lo verifica; incompatibile con la fase O accesa), dettagli in `result["event_engine"]`.
+  Stadi 12-14: attenuazione degli effetti di stato stimata (`stato_partita.attenuazione`, esponente 0,53), scenari
+  `python -m tools.event_sense`, banco `python -m tools.event_check [--salva] [--ricomincia]` (parziali con ripresa in
+  `data/cache/event_check/`). Esito del 30/10 su 1.454 partite: SPENTO (corner e combo meglio, cartellini peggio).
 - Le fonti remote devono degradare con un avviso (come `historical.py` ricade
   al 100% manuale), mai bloccare la simulazione manuale.
 
