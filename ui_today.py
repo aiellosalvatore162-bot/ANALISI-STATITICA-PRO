@@ -125,7 +125,7 @@ def render_today() -> None:
             st.warning(warning)
         st.session_state["today_events"] = (day, events)
     from ui_quotes import (archive, render_collection, render_combo, render_my_markets, render_paste_box,
-                           render_paste_summary, render_selection)
+                           render_paste_summary, render_quote_report, render_selection)
 
     found = st.session_state.get("today_events")
     events = found[1] if found else None
@@ -144,6 +144,7 @@ def render_today() -> None:
     render_paste_box()
     render_paste_summary()
     render_collection(api)
+    render_quote_report(api)
     _render_analyze_all(entries, simulations, settings)
     _render_problems()
     _render_timing()

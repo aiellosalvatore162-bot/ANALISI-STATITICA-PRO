@@ -272,6 +272,47 @@ def render_collection(api) -> None:
             st.dataframe(pd.DataFrame(ledger), hide_index=True, width="stretch")
 
 
+def report_rows():
+    """Report dalla sola archivio della giornata: si ricalcola a ogni rerun, senza simulare né chiamare l'API."""
+    import quote_report
+
+    missing = [row for rows in st.session_state.get("not_collected", {}).values() for row in rows]
+    return quote_report.build(archive(), missing)
+
+
+def render_quote_report(api) -> None:
+    import quote_report
+    from datetime import date as _date
+    from quotes.collect import ledger_rows
+
+    rows = report_rows()
+    if not rows:
+        return
+    store = archive()
+    try:
+        ledger = ledger_rows(api)
+    except Exception:  # il report si legge anche se il registro crediti non è raggiungibile
+        ledger = []
+    info = quote_report.summary(store, rows, ledger, _date.today(), int(api.settings.get("budget_mensile", 500)))
+    with st.expander(f"Report quote · {info['complete']} complete, {info['incomplete']} incomplete", expanded=False):
+        st.markdown("**Riepilogo**")
+        columns = st.columns(3)
+        columns[0].metric("Crediti usati oggi", info["crediti_oggi"])
+        columns[1].metric("Residui del mese", info["residui_mese"])
+        projection = info["proiezione"]
+        columns[2].metric("Proiezione 30 giorni", f"{projection['totale_mese']} / {projection['budget']}")
+        st.caption("Quote lette per fonte: " + (", ".join(f"{name} {n}" for name, n in sorted(info["per_fonte"].items())) or "nessuna")
+                   + " · per bookmaker: " + (", ".join(f"{name} {n}" for name, n in sorted(info["per_bookmaker"].items())) or "nessuno")
+                   + ". Crediti dal registro della raccolta.")
+        st.dataframe(pd.DataFrame(quote_report.table(rows)), hide_index=True, width="stretch")
+        items = quote_report.to_paste(store, rows)
+        st.markdown(f"**Da incollare a mano** ({len(items)} mercati)")
+        if items:
+            st.code(quote_report.paste_text(items), language=None)
+        else:
+            st.caption("Niente da incollare: tutte le partite selezionate hanno ogni mercato.")
+
+
 # --- 8. I miei mercati e 9. combo builder -----------------------------------------------------------------
 
 def my_market_rows(analyses) -> list[dict]:

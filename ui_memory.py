@@ -122,13 +122,20 @@ def day_file_bytes() -> bytes:
     return day_workbook(registry_log().rows(session_id()), list(_store().values()),
                         st.session_state.get("tactical_sheets", []), st.session_state.get("dual_choices", []),
                         st.session_state.get("analyst_reports", []), st.session_state.get("saved_slips", []),
-                        analyst_records(), manual_items(), _archive(), _my_market_rows())
+                        analyst_records(), manual_items(), _archive(), _my_market_rows(), _quote_report())
 
 
 def _archive() -> dict:
     from ui_quotes import archive
 
     return archive()
+
+
+def _quote_report() -> list[dict]:
+    import quote_report
+    from ui_quotes import report_rows
+
+    return quote_report.table(report_rows())
 
 
 def _my_market_rows() -> list[dict]:
