@@ -28,6 +28,7 @@ HELP = {
 GROUPS = ("Gol, 1X2, multigol, GG/NG", "Primo e secondo tempo", "Corner", "Cartellini", "Combo")
 
 # Avvisi per mercato e motore (testo breve e onesto). I numeri vengono dai documenti citati sopra.
+_AO = "563 partite 2025-27 con tutti i dati (docs/backtest/AO_verifica.md)"
 _AK = "campione nuovo di 2.672 partite (docs/backtest/AK_motore_eventi_nuovo.md)"
 WARNINGS: dict[str, dict[str, str]] = {
     CURRENT: {
@@ -38,16 +39,14 @@ WARNINGS: dict[str, dict[str, str]] = {
         GROUPS[4]: "Verificato; molte combo hanno poche partite per fascia: etichetta «poco verificata».",
     },
     FULL: {
-        GROUPS[0]: "Prova rapida su 72 partite (docs/backtest/AN_libero.md): nessuna differenza misurabile dal calcolo attuale "
-                   "(1X2 log-loss +0,0015 ± 0,029; Over 2.5 +0,0008 ± 0,0057; Over 1.5 −0,0078 ± 0,0044). Campione troppo "
-                   "piccolo per dirlo verificato. Nessuna taratura della fase AM.",
-        GROUPS[1]: "Tempi del motore a eventi: pari al calcolo attuale su 2.672 partite (differenza non significativa). "
+        GROUPS[0]: f"Con tutti i dati (formazione, corsie, stile) su {_AO}: log-loss +0,0010 ± 0,0028, ECE 0,017 → 0,019: "
+                   "nessuna differenza misurabile dal calcolo attuale. Nessuna taratura della fase AM.",
+        GROUPS[1]: f"Tempi su {_AO}: +0,0006 ± 0,0011 (pari), ECE 0,023 → 0,026. Nessuna taratura per questo motore.",
+        GROUPS[2]: f"Corner su {_AO}: −0,0010 ± 0,0011 (leggermente meglio, non significativo); sul {_AK}: −0,00075 ± 0,00039. "
                    "Nessuna taratura per questo motore.",
-        GROUPS[2]: f"Corner: meglio del calcolo attuale su {_AK}: log-loss −0,00075 ± 0,00039, ECE 0,0168 → 0,0151. "
-                   "Nessuna taratura per questo motore.",
-        GROUPS[3]: f"Cartellini: PEGGIO del calcolo attuale su {_AK}: log-loss +0,0042 ± 0,0014, ECE 0,0201 → 0,0319. "
-                   "Usali con cautela.",
-        GROUPS[4]: "Combo: nel motore completo pari al calcolo attuale su 2.672 partite; con i gol dai tiri non verificate.",
+        GROUPS[3]: f"Cartellini su {_AO}: +0,0015 ± 0,0029 (pari), ECE 0,023 → 0,027; sul {_AK} erano PEGGIO "
+                   "(+0,0042 ± 0,0014). Usali con cautela.",
+        GROUPS[4]: f"Combo su {_AO}: −0,0008 ± 0,0012 (pari), ECE 0,028 → 0,024.",
     },
     CORNER: {
         GROUPS[0]: "Come il calcolo attuale (verificato e tarato).",

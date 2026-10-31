@@ -72,3 +72,16 @@ del dizionario tattico, `module`, scale del vincolo di coerenza) + `RefereeInput
   (che contiene già l'arbitro): nessuna doppia conta. Quote: ancoraggio invariato (gol, corner, cartellini).
 - Scheda: tabella «Dati della partita nel Simulatore reale» in «Vedi come andrà» (`result["event_engine"]["schede"]`).
 - Limite: la pagina Partita singola non costruisce `event_inputs` (formazione e stile vengono caricati solo in Oggi).
+
+## Stadio 6 – Verifica (FATTO, 31/10)
+- `python -m tools.ao_check` (parziali `data/cache/ao_check/parziali.jsonl`, ripresa automatica; ~1 h con 2 processi) →
+  `docs/backtest/AO_verifica.md`. Un terzo stratificato (campionato × stagione) delle partite 2025/26-2026/27 di E0, SP1, I1, D1:
+  563 partite, formazione dai titolari ufficiali in 538, corsie dai titolari Understat in 552, stile misurato. Calcolo attuale
+  contro «Simulatore reale – completo» con tutti i dati, stesso seme, 10.000 simulazioni. Differenza log-loss (± 2 e.s.):
+  gol +0,0010 ± 0,0028, tempi +0,0006 ± 0,0011, corner −0,0010 ± 0,0011, cartellini +0,0015 ± 0,0029, combo −0,0008 ± 0,0012.
+  ECE: gol 0,017 → 0,019, tempi 0,023 → 0,026, corner 0,023 → 0,025, cartellini 0,023 → 0,027, combo 0,028 → 0,024.
+  Nessun gruppo cambia in modo misurabile. Arbitro dei falli non verificabile (manca il nome nel dataset storico).
+- Buon senso (test in `test_event_inputs.py`): senza i due attaccanti meno tiri e xG/tiro più basso; modulo con esterni alti →
+  più corner da cross; arbitro severo → più falli e gialli; pressing alto → più falli (recuperi alti non stimabili, dichiarato).
+- Avvisi del selettore (`engine_choice.WARNINGS[FULL]`) aggiornati con questi numeri. Il motore predefinito resta scelto
+  dall'utente (nessun cambio di `data/impostazioni.json`).
