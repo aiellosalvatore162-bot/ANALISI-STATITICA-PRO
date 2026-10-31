@@ -46,7 +46,7 @@ from dataclasses import dataclass, field, replace as dataclasses_replace
 import json
 import math
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 import numpy as np
 
@@ -335,6 +335,41 @@ def _profile_multipliers(profile: Mapping[str, Any], dictionary) -> tuple[dict[s
     if not profile:
         return {}, [], []
     return tactical_dictionary.apply_profile(profile, dictionary)
+
+
+def _score(profile: Mapping[str, Any], term: str, dictionary) -> float:
+    raw = profile.get(term) if profile else None
+    if raw in (None, ""):
+        return 0.0
+    value, _ = tactical_dictionary.normalize(term, raw, dictionary)
+    return 0.0 if value is None else float(dictionary["termini"][term]["punteggio"][value])
+
+
+def apply_crossings(mult_home: Mapping[str, float], mult_away: Mapping[str, float], profile_home: Mapping[str, Any],
+                    profile_away: Mapping[str, Any], crossings: Sequence[Mapping[str, Any]], dictionary
+                    ) -> tuple[dict[str, float], dict[str, float]]:
+    """Incroci di stile (fase AP): moltiplicatore exp(beta·punteggio attacco·punteggio difesa avversaria). La colonna stimata
+    «falli_subiti» è la quota di falli che l'attaccante subisce: il tasso «falli_fatti» cambia quindi per l'AVVERSARIO."""
+    out = {"home": dict(mult_home), "away": dict(mult_away)}
+    profiles = {"home": profile_home, "away": profile_away}
+    for item in crossings:
+        for side, other in (("home", "away"), ("away", "home")):
+            product = _score(profiles[side], item["attacco"], dictionary) * _score(profiles[other], item["difesa"], dictionary)
+            if not product:
+                continue
+            target = other if item.get("colonna") == "falli_subiti" else side
+            rate = item["tasso"]
+            out[target][rate] = out[target].get(rate, 1.0) * math.exp(float(item["beta"]) * product)
+    return out["home"], out["away"]
+
+
+def active_crossings(data: Mapping[str, Any] | None, groups: Sequence[str] | None = None) -> tuple[dict, ...]:
+    """Incroci con ``attiva`` in ``config/motore_eventi.json`` (e, se indicati, per uno dei ``groups``)."""
+    found = []
+    for item in ((data or {}).get("incroci") or {}).values():
+        if item.get("attiva") and (groups is None or not item.get("mercati") or set(item["mercati"]) & set(groups)):
+            found.append(dict(item))
+    return tuple(found)
 
 
 def _low_block(profile: Mapping[str, Any], dictionary) -> bool:
@@ -639,7 +674,8 @@ def _count_step(rng: np.random.Generator, out: dict, table: CountTables, params:
 def simulate(rng: np.random.Generator, n: int, home: TeamInput, away: TeamInput, params: EventParams, *,
              scores: tuple[np.ndarray, np.ndarray] | None = None, step_minutes: int = 5, dictionary=None,
              pilot: int = 20_000, passes: int = 3, referee: RefereeInput | None = None,
-             lanes: bool = False, mix: Mapping[str, float] | None = None) -> dict[str, Any]:
+             lanes: bool = False, mix: Mapping[str, float] | None = None,
+             crossings: Sequence[Mapping[str, Any]] = ()) -> dict[str, Any]:
     """``n`` partite a eventi. Con ``scores`` (punteggi Dixon-Coles) i gol finali sono quelli; senza, nascono dai tiri e la
     forza si riscala sui gol attesi ``home.goals`` / ``away.goals``. Restituisce gli array per simulazione (tiri, gol e
     parate per tipo, xG, primo tempo, primo gol, passi per stato, corner per origine, falli, gialli, rossi e doppie
@@ -649,6 +685,8 @@ def simulate(rng: np.random.Generator, n: int, home: TeamInput, away: TeamInput,
     dictionary = dictionary if dictionary is not None else (tactical_dictionary.load() if home.profile or away.profile else None)
     mult_home, rows_home, warn_home = _profile_multipliers(home.profile, dictionary)
     mult_away, rows_away, warn_away = _profile_multipliers(away.profile, dictionary)
+    if crossings:
+        mult_home, mult_away = apply_crossings(mult_home, mult_away, home.profile, away.profile, crossings, dictionary)
     types_home = team_types(home, type_multipliers(mult_home, mult_away, _low_block(away.profile, dictionary)))
     types_away = team_types(away, type_multipliers(mult_away, mult_home, _low_block(home.profile, dictionary)))
     strength = {"home": home.goals / base_goals(params, types_home, home.quality_scale),

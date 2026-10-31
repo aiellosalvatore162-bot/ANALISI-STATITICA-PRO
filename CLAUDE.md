@@ -379,6 +379,10 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   (`formation.wide_players`, `tools.ao_corsie`, `motore_eventi.corsie`), stile importato > misurato > scheda (`tools.ao_stile`,
   `soglie_stile`) e arbitro (`RefereeInput` dai dati grezzi di `referee_profile`). Uomo/zona, recuperi alti e reazioni per
   squadra: neutri e dichiarati. Verifica `python -m tools.ao_check`: nessuna differenza misurabile dal calcolo attuale.
+- Fase AP (Simulatore unico, stato in `docs/stato/AP.md`): quarta posizione del selettore (`engine_choice.UNIQUE`), sorgente per
+  famiglia in `config/simulatore_unico.json` (`python -m tools.ap_scegli --salva`; motore a eventi solo se < −2 e.s. ED ECE non
+  peggiore, altrimenti calcolo AM): oggi solo corner (e combo con corner). Incroci di stile collegati (`apply_crossings`) ma
+  spenti dopo `python -m tools.ap_check` (dentro l'errore). Predefinito dell'app invariato.
 - Le fonti remote devono degradare con un avviso (come `historical.py` ricade
   al 100% manuale), mai bloccare la simulazione manuale.
 
