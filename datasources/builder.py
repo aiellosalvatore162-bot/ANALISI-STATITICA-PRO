@@ -414,7 +414,8 @@ class DataProvider:
             competition=competition or (leagues["home"] if leagues["home"] == leagues["away"] else None),
             home_fields=sheet_fields["home"], away_fields=sheet_fields["away"],
             referee_fields={"yellow": ref.yellow, "fouls": ref.fouls},
-            extras={"home": profiles["home"].extra, "away": profiles["away"].extra},
+            extras={"home": profiles["home"].extra, "away": profiles["away"].extra,
+                    "arbitro": {"nome": ref.name, **ref.competitions.get("campionato", {})}},
         )
         with fase("quote dal calendario"):
             sheet.odds = self._odds(sheet, odds)

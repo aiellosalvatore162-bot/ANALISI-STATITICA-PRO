@@ -245,6 +245,12 @@ class TeamInput:
     card_scale: float = 1.0
     red_scale: float = 1.0               # rossi diretti per fallo (stadio 9)
     second_yellow_scale: float = 1.0     # seconde gialle (stadio 9)
+    # Fase AO: formazione e assenti (``event_inputs.lineup_scales``) su tiri non su rigore e npxG per tiro, stimati.
+    shot_scale: float = 1.0
+    quality_scale: float = 1.0
+    # Fase AO: moltiplicatori diretti per tipo di tiro / origine dei corner (corsie dei moduli, stile importato), stimati.
+    type_scale: Mapping[str, float] = field(default_factory=dict)
+    corner_cross_scale: float = 1.0
 
 
 @dataclass(frozen=True)
@@ -371,7 +377,7 @@ class Tables:
 
 
 def build_tables(params: EventParams, strength: float, types: np.ndarray, step_minutes: int,
-                 first_share: float | None = None, spin: tuple[float, float] = (1.0, 1.0)) -> Tables:
+                 first_share: float | None = None, spin: tuple[float, float] = (1.0, 1.0), quality_scale: float = 1.0) -> Tables:
     """Tabelle dei tassi di una squadra. Le normalizzazioni tengono le medie per partita uguali a quelle stimate quando gli
     stati seguono la distribuzione osservata; ``first_share`` riporta la quota di gol del primo tempo a quella tarata."""
     steps = MINUTES // step_minutes
@@ -390,7 +396,7 @@ def build_tables(params: EventParams, strength: float, types: np.ndarray, step_m
                       * (band_xg / band_shots)[None, :]) / np.sum(state_weight[:, None] * band_length[None, :] * weight)
     base = np.asarray(params.shots) * types * strength * step_minutes / MINUTES
     shots = base[:, None, None] * count[None, :, :]
-    conversion = np.clip(np.asarray(params.conversion)[:, None, None] * quality[None, :, :], 0.0, 0.99)
+    conversion = np.clip(np.asarray(params.conversion)[:, None, None] * quality[None, :, :] * quality_scale, 0.0, 0.99)
     # Rigori: niente effetti di stato e fascia (stimati senza rigori).
     shots[PENALTY] = base[PENALTY]
     conversion[PENALTY] = params.conversion[PENALTY]
@@ -464,9 +470,21 @@ def build_count_tables(params: EventParams, step_minutes: int, *, cross: float =
                        second_yellow=min(params.second_yellow * second, 1.0))
 
 
-def base_goals(params: EventParams, types: np.ndarray) -> float:
+def base_goals(params: EventParams, types: np.ndarray, quality_scale: float = 1.0) -> float:
     """Gol attesi per partita con forza 1 e stati tipici (Σ tiri × conversione per tipo)."""
-    return float(np.sum(np.asarray(params.shots) * types * np.asarray(params.conversion)))
+    conversion = np.asarray(params.conversion, float).copy()
+    conversion[np.arange(len(conversion)) != PENALTY] *= quality_scale
+    return float(np.sum(np.asarray(params.shots) * types * conversion))
+
+
+def team_types(team: TeamInput, types: np.ndarray) -> np.ndarray:
+    """Moltiplicatori per tipo del dizionario × formazione (tiri non su rigore) × ``type_scale`` (corsie, stile)."""
+    out = np.asarray(types, float).copy()
+    out[np.arange(len(out)) != PENALTY] *= team.shot_scale
+    for kind, value in (team.type_scale or {}).items():
+        if kind in SHOT_TYPES:
+            out[SHOT_TYPES.index(kind)] *= float(value)
+    return out
 
 
 # ---------------------------------------------------------------------------------------------------------------- stadio 5
@@ -631,15 +649,16 @@ def simulate(rng: np.random.Generator, n: int, home: TeamInput, away: TeamInput,
     dictionary = dictionary if dictionary is not None else (tactical_dictionary.load() if home.profile or away.profile else None)
     mult_home, rows_home, warn_home = _profile_multipliers(home.profile, dictionary)
     mult_away, rows_away, warn_away = _profile_multipliers(away.profile, dictionary)
-    types_home = type_multipliers(mult_home, mult_away, _low_block(away.profile, dictionary))
-    types_away = type_multipliers(mult_away, mult_home, _low_block(home.profile, dictionary))
-    strength = {"home": home.goals / base_goals(params, types_home), "away": away.goals / base_goals(params, types_away)}
+    types_home = team_types(home, type_multipliers(mult_home, mult_away, _low_block(away.profile, dictionary)))
+    types_away = team_types(away, type_multipliers(mult_away, mult_home, _low_block(home.profile, dictionary)))
+    strength = {"home": home.goals / base_goals(params, types_home, home.quality_scale),
+                "away": away.goals / base_goals(params, types_away, away.quality_scale)}
 
     def tables(scale_home=1.0, scale_away=1.0):
         return (build_tables(params, strength["home"] * scale_home, types_home, step_minutes, home.first_share,
-                             (mult_home.get(SPIN_RATES[0], 1.0), mult_home.get(SPIN_RATES[1], 1.0))),
+                             (mult_home.get(SPIN_RATES[0], 1.0), mult_home.get(SPIN_RATES[1], 1.0)), home.quality_scale),
                 build_tables(params, strength["away"] * scale_away, types_away, step_minutes, away.first_share,
-                             (mult_away.get(SPIN_RATES[0], 1.0), mult_away.get(SPIN_RATES[1], 1.0))))
+                             (mult_away.get(SPIN_RATES[0], 1.0), mult_away.get(SPIN_RATES[1], 1.0)), away.quality_scale))
 
     referee_fouls, referee_yellows, referee_warnings = (referee.factors(params.referee_k) if referee is not None
                                                         else (1.0, 1.0, []))
@@ -651,7 +670,8 @@ def simulate(rng: np.random.Generator, n: int, home: TeamInput, away: TeamInput,
     def count_tables(team: TeamInput, own: Mapping[str, float], opponent: Mapping[str, float], side: str) -> CountTables:
         conceded = opponent.get("corner_concessi", 1.0)
         return build_count_tables(
-            params, step_minutes, cross=own.get("corner_fasce", 1.0) * conceded * lane[side] * team.corner_scale,
+            params, step_minutes, cross=own.get("corner_fasce", 1.0) * conceded * lane[side] * team.corner_scale
+            * team.corner_cross_scale,
             other=conceded * team.corner_scale, fouls=own.get("falli_fatti", 1.0) * referee_fouls * team.foul_scale,
             yellow=(referee_yellows / referee_fouls) * team.card_scale / team.foul_scale,
             red=team.red_scale, second=team.second_yellow_scale)
@@ -690,6 +710,11 @@ def simulate(rng: np.random.Generator, n: int, home: TeamInput, away: TeamInput,
                   f"{params.referee_k[1]} ({params.referee_source})") if referee is not None else "nessun arbitro: effetto 1"},
         {"voce": "corsie", "valore": {"casa": round(lane["home"], 4), "ospite": round(lane["away"], 4)},
          "nota": "corner da cross per le corsie dei moduli (pesi dichiarati, non verificati)" if lanes else "spente"},
+        {"voce": "dati_partita", "valore": {side: {"tiri": round(team.shot_scale, 4), "qualita": round(team.quality_scale, 4),
+                                                   "corner_da_cross": round(team.corner_cross_scale, 4),
+                                                   "tipi": {k: round(float(v), 4) for k, v in (team.type_scale or {}).items()}}
+                                            for side, team in (("casa", home), ("ospite", away))},
+         "nota": "fase AO: formazione e assenti (tiri, qualità), corsie dei moduli, stile (stime in event_inputs)"},
         {"voce": "conteggi", "valore": {"corner_scala": (home.corner_scale, away.corner_scale),
                                         "falli_scala": (home.foul_scale, away.foul_scale),
                                         "gialli_scala": (home.card_scale, away.card_scale)},

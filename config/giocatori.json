@@ -91,5 +91,90 @@
   "turnover": {
     "n_rotazioni": 3,
     "nota": "Fase AH: con TURNOVER probabile si sostituiscono n_rotazioni titolari con i migliori di panchina (effetto dichiarato, poi ^esponente come il resto del fattore)."
+  },
+  "motore_eventi": {
+    "nota": "Fase AO: tiri = rapporto_tiri^attacco · exp(Σ difesa_RUOLO·(mancanti avversario − media)); qualità (npxG/tiro) uguale. Stimati con python -m tools.ao_giocatori --salva; valori usati come stimati, intervallo nella scheda.",
+    "data": "2026-10-31",
+    "partite": 1839,
+    "campionati": [
+      "D1",
+      "E0",
+      "F1",
+      "I1",
+      "SP1"
+    ],
+    "media_mancanti": {
+      "POR": 0.0941,
+      "DIF": 0.2538,
+      "CEN": 0.2696
+    },
+    "tiri": {
+      "attacco": {
+        "stima": 0.5766,
+        "se": 0.0777,
+        "ic95": [
+          0.4243,
+          0.7288
+        ]
+      },
+      "difesa_POR": {
+        "stima": 0.0324,
+        "se": 0.0204,
+        "ic95": [
+          -0.0076,
+          0.0725
+        ]
+      },
+      "difesa_DIF": {
+        "stima": 0.0436,
+        "se": 0.0292,
+        "ic95": [
+          -0.0137,
+          0.1009
+        ]
+      },
+      "difesa_CEN": {
+        "stima": 0.0603,
+        "se": 0.0297,
+        "ic95": [
+          0.0021,
+          0.1185
+        ]
+      }
+    },
+    "qualita": {
+      "attacco": {
+        "stima": 0.4199,
+        "se": 0.1308,
+        "ic95": [
+          0.1635,
+          0.6763
+        ]
+      },
+      "difesa_POR": {
+        "stima": 0.0384,
+        "se": 0.0251,
+        "ic95": [
+          -0.0108,
+          0.0876
+        ]
+      },
+      "difesa_DIF": {
+        "stima": -0.0142,
+        "se": 0.0351,
+        "ic95": [
+          -0.0831,
+          0.0546
+        ]
+      },
+      "difesa_CEN": {
+        "stima": 0.0223,
+        "se": 0.0372,
+        "ic95": [
+          -0.0507,
+          0.0952
+        ]
+      }
+    }
   }
 }

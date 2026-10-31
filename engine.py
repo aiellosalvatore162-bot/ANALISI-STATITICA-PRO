@@ -762,6 +762,11 @@ def expected_goals(config: MatchConfig) -> tuple[float, float, dict[str, Any]]:
         **(real or {}),
     )
     lineup = config.lineup
+    # Fase AO: col motore a eventi acceso la formazione passa dai tiri e dalla qualità stimati (``event_inputs``), che
+    # SOSTITUISCONO il fattore della fase AL (mai uno sopra l'altro).
+    event_lineup = (config.event_inputs or {}).get("formazione") if config.event_engine.active else None
+    if event_lineup:
+        lineup = event_lineup
     if lineup:
         lambda_ = float(np.clip(lambda_ * lineup["home"]["attack"] * lineup["away"]["defense"], 0.05, 5.0))
         mu = float(np.clip(mu * lineup["away"]["attack"] * lineup["home"]["defense"], 0.05, 5.0))
@@ -792,7 +797,9 @@ def expected_goals(config: MatchConfig) -> tuple[float, float, dict[str, Any]]:
     if lineup:
         ledger["formazione"] = {"usata": True, "casa": dict(lineup["home"]), "ospite": dict(lineup["away"]),
                                 "formula": "λ × attacco casa × difesa ospite; μ × attacco ospite × difesa casa "
-                                           "(fase AL: XI atteso vs XI tipo, esponente e pesi di ruolo stimati dal backtest)"}
+                                           + ("(fase AO: tiri × qualità dell'XI atteso e reparti mancanti, coefficienti stimati "
+                                              "su Understat, motore a eventi)" if event_lineup else
+                                              "(fase AL: XI atteso vs XI tipo, esponente e pesi di ruolo stimati dal backtest)")}
     style_model = config.style_model
     if style_model.active:
         ledger["forma_reale"] = _real_form_ledger(config, real)
@@ -2043,7 +2050,14 @@ def event_engine_sample(config: MatchConfig, lambda_: float, mu: float, scores: 
 
     def team(side: str, goals: float, share: float) -> _event_engine.TeamInput:
         extra = inputs.get(side) or {}
-        return _event_engine.TeamInput(goals, profile=extra.get("profile") or {}, first_share=share, module=extra.get("module"))
+        return _event_engine.TeamInput(goals, profile=extra.get("profile") or {}, first_share=share, module=extra.get("module"),
+                                       shot_scale=float(extra.get("shot_scale", 1.0)),
+                                       quality_scale=float(extra.get("quality_scale", 1.0)),
+                                       type_scale=dict(extra.get("type_scale") or {}),
+                                       corner_cross_scale=float(extra.get("corner_cross_scale", 1.0)))
+
+    referee = inputs.get("arbitro")
+    referee = _event_engine.RefereeInput(**referee) if referee else None
 
     sigma = config.v2.uncertainty_active
     rule = config.card_rule
@@ -2058,7 +2072,7 @@ def event_engine_sample(config: MatchConfig, lambda_: float, mu: float, scores: 
                                                      config.v2.sigma_cards if sigma else 0.0),
         first_share=shares,
     )
-    options = {"step_minutes": settings.step_minutes, "lanes": settings.lanes}
+    options = {"step_minutes": settings.step_minutes, "lanes": settings.lanes, "referee": referee}
     home, away, mix, rows = _event_engine.coherence(
         np.random.default_rng([config.seed, 4]), team("home", lambda_, shares[0]), team("away", mu, shares[1]), params, targets,
         scores=None if settings.free else scores, pilot=settings.pilot, passes=settings.passes, **options)
@@ -2080,7 +2094,9 @@ def event_engine_sample(config: MatchConfig, lambda_: float, mu: float, scores: 
         "medie": {key: round(value, 4) for key, value in _event_engine.summary(sample).items()},
         "andamento": _event_engine.timeline_summary(sample),
         "modo": "libero" if free else "punteggi", "dixon_coles": dixon,
-        "falli": "media del campionato (StatsBomb) senza effetto dell'arbitro: i gialli seguono già la media attuale",
+        "falli": ("media del campionato (StatsBomb) × arbitro (shrinkage k stimato); i gialli restano riportati alla media attuale"
+                  if referee is not None else "media del campionato (StatsBomb), arbitro senza storico"),
+        "schede": list(inputs.get("schede") or []),
     }
     return sample, details
 

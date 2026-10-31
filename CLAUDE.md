@@ -373,6 +373,12 @@ Football-Data.co.uk (`historical.py`). Test: `test_engine.py`, `test_parser.py`,
   corner»): SPENTO (corner meglio, combo del motore completo pari, cartellini peggio; «solo corner» candidata per un terzo
   campione). Stadio 15 «Vedi come andrà»: `match_story.py` + `ui_story.py` nella Panoramica (andamento per fasce dagli stessi
   percorsi, oppure illustrativo dichiarato col motore spento; `event_engine.timeline_summary`, `result["event_engine"]["andamento"]`).
+- Fase AO (tutti i dati nel motore a eventi, stato in `docs/stato/AO.md`): `event_inputs.py` costruisce
+  `MatchConfig.event_inputs` (`today.match_event_inputs`) da formazione e assenti (tiri e npxG/tiro: `tools.ao_giocatori`,
+  `config/giocatori.json` → `motore_eventi`; col motore a eventi acceso sostituisce il fattore AL su λ/μ), corsie dei moduli
+  (`formation.wide_players`, `tools.ao_corsie`, `motore_eventi.corsie`), stile importato > misurato > scheda (`tools.ao_stile`,
+  `soglie_stile`) e arbitro (`RefereeInput` dai dati grezzi di `referee_profile`). Uomo/zona, recuperi alti e reazioni per
+  squadra: neutri e dichiarati. Verifica `python -m tools.ao_check`: nessuna differenza misurabile dal calcolo attuale.
 - Le fonti remote devono degradare con un avviso (come `historical.py` ricade
   al 100% manuale), mai bloccare la simulazione manuale.
 

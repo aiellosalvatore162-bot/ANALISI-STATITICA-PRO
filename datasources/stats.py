@@ -355,7 +355,8 @@ def referee_profile(
         found,
         FieldValue(round(float(yellow), 2), "football-data.co.uk", footballdata_updated, last_own, note, level),
         FieldValue(round(float(fouls), 1), "football-data.co.uk", footballdata_updated, last_own, note, level),
-        {"campionato": {"partite": count, "gialli_medi": float(own["yellows"].mean()), "falli_medi": float(own["fouls"].mean())},
+        {"campionato": {"partite": count, "gialli_medi": float(own["yellows"].mean()), "falli_medi": float(own["fouls"].mean()),
+                        "media_gialli_competizione": competition_yellow, "media_falli_competizione": competition_fouls},
          "coppe_europee": cups},
         warnings,
     )
