@@ -39,3 +39,36 @@ del dizionario tattico, `module`, scale del vincolo di coerenza) + `RefereeInput
   `today.simulate`). Sui gol, col motore a eventi acceso, `event_inputs["formazione"]` (tiri × qualità dell'XI, difesa dei
   reparti) SOSTITUISCE il fattore della AL prima dell'ancoraggio (λ resta il vincolo del motore a eventi; i tiri seguono).
 - Prova: XI senza i due attaccanti (tiri ×0,75, qualità ×0,85) → tiri 15,2 → 12,6, xG 1,48 → 1,17, xG/tiro in calo.
+
+## Stadio 3 – Moduli e corsie (FATTO)
+- Posizioni iniziali StatsBomb scaricate una volta: `python -m tools.minute_data --statsbomb-formazioni` →
+  `data/cache/minuto/statsbomb_formazioni_*.json.gz` (1.551 partite). `formation.wide_players` (modulo dell'app),
+  `wide_from_positions` (StatsBomb) e `wide_from_understat` (titolari Understat) danno le stesse misure: larghi in attacco
+  (esterni, ali, quinti) e larghi difensivi (terzini, esterni, quinti); scontro = larghi propri − larghi difensivi avversari.
+- Stima `python -m tools.ao_corsie --salva` → `config/motore_eventi.json` → `corsie` (attive, valori come stimati), report
+  `docs/backtest/AO_corsie.md`. 3.058 squadre-partita, quasi-Poisson con offset (campionato × concessi dall'avversario):
+  - cross: fasce **+0,039** (IC +0,010…+0,068), scontro −0,010 (−0,026…+0,007);
+  - corner da cross: fasce +0,074 (−0,006…+0,154), scontro −0,042 (−0,085…+0,002);
+  - tiri di testa da cross: fasce +0,075 (−0,007…+0,157), scontro −0,018 (−0,063…+0,027).
+  Effetti piccoli (pochi moduli diversi nel 2015/16: 90% delle squadre con 2 larghi); lo scontro esterno-terzino ha segno
+  negativo e intervallo che tocca lo zero: usato come stimato e dichiarato. Le vecchie corsie a pesi dichiarati (`lanes`)
+  restano spente.
+- Nel motore: `corner_cross_scale` (corner da cross) e `type_scale["testa_da_cross"]`; il totale dei corner resta quello del
+  motore attuale (vincolo di coerenza): le corsie spostano la parte da cross.
+
+## Stadio 4 – Stile completo (FATTO)
+- `event_inputs.style_terms`: priorità dato importato > misura Understat > scheda tattica (qualitativa, solo dove manca la
+  misura; se diversa dal dato è segnalata «NON usata»). Possesso: importato (soglie StatsBomb) o proxy quota di tiri (terzile
+  del campionato); pressing: PPDA importato o Understat (terzili del campionato, PPDA basso = pressing alto); cross: solo
+  importato. Soglie StatsBomb `python -m tools.ao_stile --salva` (`soglie_stile`: possesso 0,444/0,522, cross 10,8/12,8).
+  Terzili di campionato `event_inputs.league_cuts` (in `today._attach_style`, `Analysis.style_cuts`).
+- Difesa a uomo/zona, recuperi alti, reazioni per squadra: nessun indicatore nei dati aperti → neutri, la scheda dice
+  «dato mancante, importalo in data/import/». Pressioni importate senza passaggi avversari: non convertibili, vale il PPDA.
+
+## Stadio 5 – Arbitro e quote (FATTO)
+- `datasources.stats.referee_profile` espone partite e medie grezze con la media della competizione; il builder le mette in
+  `sheet.extras["arbitro"]`; `event_inputs.referee` → `RefereeInput` (falli e gialli per fallo del motore a eventi, shrinkage k
+  stimato in `motore_eventi.arbitri`: falli 20,8, gialli 80,7 in Premier). I gialli restano riportati alla media attuale
+  (che contiene già l'arbitro): nessuna doppia conta. Quote: ancoraggio invariato (gol, corner, cartellini).
+- Scheda: tabella «Dati della partita nel Simulatore reale» in «Vedi come andrà» (`result["event_engine"]["schede"]`).
+- Limite: la pagina Partita singola non costruisce `event_inputs` (formazione e stile vengono caricati solo in Oggi).

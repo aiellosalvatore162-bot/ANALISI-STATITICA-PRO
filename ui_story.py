@@ -56,5 +56,10 @@ def render_story(result: dict, config) -> None:
         with right:
             st.markdown("**Primo gol**")
             st.dataframe(pd.DataFrame(match_story.first_goal_rows(timeline)), hide_index=True, use_container_width=True)
+        rows = (data.get("dettagli") or result.get("event_engine") or {}).get("schede") or []
+        if rows:
+            st.markdown("**Dati della partita nel Simulatore reale** (fase AO: effetti stimati, intervallo al 95%)")
+            st.dataframe(pd.DataFrame(rows, columns=["dato", "lato", "valore", "effetto", "fonte"]), hide_index=True,
+                         use_container_width=True)
         st.caption(f"{timeline['simulazioni']:,} partite simulate dal motore a eventi ({data.get('parametri') or 'parametri comuni'}). "
                    "Solo presentazione: queste medie non cambiano probabilità, EV o registro.".replace(",", "."))

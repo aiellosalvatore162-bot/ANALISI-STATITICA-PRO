@@ -27,12 +27,13 @@ def _shots(sample, side="home"):
 
 
 def test_lineup_scales_use_estimated_coefficients():
-    scales, goals, rows = ei.lineup_scales(_lineup(0.8, 0.9))
     cfg = ei._load(ei.PLAYERS_PATH)["motore_eventi"]
+    center = dict(cfg["media_mancanti"])          # reparti mancanti nella media: nessun effetto difensivo
+    scales, goals, rows = ei.lineup_scales(_lineup(0.8, 0.9, dict(center), dict(center)))
     assert scales["home"]["shot_scale"] == pytest.approx(0.8 ** cfg["tiri"]["attacco"]["stima"])
     assert scales["home"]["quality_scale"] == pytest.approx(0.9 ** cfg["qualita"]["attacco"]["stima"])
     assert goals["home"]["attack"] == pytest.approx(scales["home"]["shot_scale"] * scales["home"]["quality_scale"])
-    assert scales["away"] == {"shot_scale": 1.0, "quality_scale": 1.0}
+    assert scales["away"] == pytest.approx({"shot_scale": 1.0, "quality_scale": 1.0})
     assert any("IC 95%" in row["fonte"] for row in rows)
 
 

@@ -1291,5 +1291,67 @@
       10.7553,
       12.7643
     ]
+  },
+  "corsie": {
+    "attive": true,
+    "data": "2026-10-31",
+    "partite": 1529,
+    "fonte": "Data: StatsBomb Open Data 2015/16, python -m tools.ao_corsie",
+    "media_larghi": 1.8806,
+    "media_scontro": -0.6864,
+    "cross": {
+      "fasce": {
+        "stima": 0.0387,
+        "se": 0.0148,
+        "ic95": [
+          0.0097,
+          0.0677
+        ]
+      },
+      "scontro": {
+        "stima": -0.0095,
+        "se": 0.0086,
+        "ic95": [
+          -0.0263,
+          0.0074
+        ]
+      }
+    },
+    "corner_da_cross": {
+      "fasce": {
+        "stima": 0.0737,
+        "se": 0.0407,
+        "ic95": [
+          -0.0061,
+          0.1535
+        ]
+      },
+      "scontro": {
+        "stima": -0.0415,
+        "se": 0.0224,
+        "ic95": [
+          -0.0854,
+          0.0024
+        ]
+      }
+    },
+    "testa_da_cross": {
+      "fasce": {
+        "stima": 0.075,
+        "se": 0.0418,
+        "ic95": [
+          -0.0069,
+          0.1569
+        ]
+      },
+      "scontro": {
+        "stima": -0.018,
+        "se": 0.0228,
+        "ic95": [
+          -0.0627,
+          0.0266
+        ]
+      }
+    }
   }
 }

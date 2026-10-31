@@ -287,6 +287,8 @@ def simulate(analysis: Analysis, *, flags: Sequence[str] | None = None, claude: 
         analysis.claude = claude
     if extra_odds:
         analysis.odds = {**analysis.odds, **{key: float(value) for key, value in extra_odds.items()}}
+    # Fase AO: tutti i dati come ingressi del motore a eventi (anche per «Vedi come andrà», che usa analysis.config)
+    analysis.config = replace(analysis.config, event_inputs=match_event_inputs(analysis))
     effects = analysis.tactical
     adjustment = combined_adjustment(analysis.flags, analysis.claude, settings, effects.factors if effects else None)
     referee = analysis.claude.referee_yellow(analysis.config.referee_yellow_avg) if analysis.claude else None
@@ -294,7 +296,6 @@ def simulate(analysis: Analysis, *, flags: Sequence[str] | None = None, claude: 
                      referee_yellow_avg=referee if referee is not None else analysis.config.referee_yellow_avg)
     if effects is not None:
         config = replace(config, timeline=effects.timeline(config.timeline))
-    config = replace(config, event_inputs=match_event_inputs(analysis))
     with fase("simulazione"):
         analysis.result = simulate_match(config)
     if effects is not None:
