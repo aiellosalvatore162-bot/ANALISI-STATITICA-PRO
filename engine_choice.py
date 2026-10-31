@@ -16,14 +16,17 @@ import taratura
 
 SETTINGS_PATH = Path(__file__).resolve().parent / "data" / "impostazioni.json"
 
-CURRENT, FULL, CORNER = "attuale", "completo", "corner"
-NAMES = {CURRENT: "Calcolo attuale", FULL: "Simulatore reale – completo", CORNER: "Simulatore reale – solo corner"}
+CURRENT, FULL, CORNER, UNIQUE = "attuale", "completo", "corner", "unico"
+NAMES = {CURRENT: "Calcolo attuale", FULL: "Simulatore reale – completo", CORNER: "Simulatore reale – solo corner",
+         UNIQUE: "Simulatore unico"}
 HELP = {
     CURRENT: "Il calcolo verificato: punteggi Dixon-Coles ancorati alle quote, corner e cartellini dalle medie.",
     FULL: "Gioca tutta la partita: i gol nascono dai tiri, stile e formazione agiscono sulla partita intera. "
           "Più lento (alcuni secondi) e non verificato sullo storico come il calcolo attuale.",
     CORNER: "Motore a eventi solo per i corner; gol, tempi e cartellini come nel calcolo attuale. Candidato: verificato "
             "su un campione, non ancora su un terzo.",
+    UNIQUE: "Ogni mercato usa la sorgente migliore secondo le verifiche (calcolo tarato dalla AM oppure motore a eventi), "
+            "con la sua etichetta di affidabilità. Non cerca di battere le quote: le percentuali devono essere vere.",
 }
 GROUPS = ("Gol, 1X2, multigol, GG/NG", "Primo e secondo tempo", "Corner", "Cartellini", "Combo")
 
@@ -58,6 +61,50 @@ WARNINGS: dict[str, dict[str, str]] = {
     },
 }
 UNCALIBRATED = "poco verificata (nessuna taratura per questo motore)"
+UNIQUE_PATH = Path(__file__).resolve().parent / "config" / "simulatore_unico.json"
+UNIQUE_EVENT_LABEL = "verificata a eventi (non tarata)"
+FAMILY_GROUP = {"tempi": "tempi", "corner": "corner", "cartellini": "cartellini"}
+CROSSING_GROUP = {"possesso_contro_pressing": "cartellini", "cross_contro_blocco_basso": "corner"}
+
+
+def load_unified(path: Path = UNIQUE_PATH) -> dict:
+    """Scelta della sorgente per famiglia (``tools.ap_scegli``); senza file tutto resta del calcolo attuale."""
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"famiglie": {}, "incroci_gruppi_tenuti": []}
+
+
+def unified_markets(data: dict | None = None) -> tuple[str, ...]:
+    data = data if data is not None else load_unified()
+    return tuple(group for key, group in FAMILY_GROUP.items() if data.get("famiglie", {}).get(key, {}).get("sorgente") == "eventi")
+
+
+def groups_of(key: str) -> set[str]:
+    """Gruppi del motore a eventi da cui dipende il mercato (una combo dipende da tutti i suoi pezzi)."""
+    found = set()
+    if "corner" in key:
+        found.add("corner")
+    if "cartellini" in key:
+        found.add("cartellini")
+    if any(part in key for part in ("1T", "2T", "tempo")):
+        found.add("tempi")
+    return found
+
+
+def unified_table(data: dict | None = None) -> list[dict]:
+    """Tabella mercato → sorgente → etichetta del Simulatore unico, con i numeri che la motivano."""
+    data = data if data is not None else load_unified()
+    rows = []
+    for item in data.get("famiglie", {}).values():
+        events = item.get("sorgente") == "eventi"
+        united = item.get("unito") or {}
+        proof = (f"{united['diff']:+.5f} ± {2 * united['se']:.5f} (2 e.s.), ECE {united['ece_prima']:.4f} → {united['ece_dopo']:.4f}, "
+                 f"{united['partite']} partite" if united else "—")
+        rows.append({"Mercati": item["nome"], "Sorgente": "motore a eventi" if events else "calcolo attuale (tarato AM)",
+                     "Etichetta": UNIQUE_EVENT_LABEL if events else "dalla taratura AM: verificata / poco verificata / non affidabile",
+                     "Differenza eventi − attuale (log-loss)": proof, "Motivo": item.get("motivo", "")})
+    return rows
 
 
 def preset(choice: str, base):
@@ -66,7 +113,24 @@ def preset(choice: str, base):
         return replace(base, active=True, free=True, markets=("tempi", "corner", "cartellini"))
     if choice == CORNER:
         return replace(base, active=True, free=False, markets=("corner",))
+    if choice == UNIQUE:
+        data = load_unified()
+        markets = unified_markets(data)
+        crossings = ()
+        if markets:
+            wanted = [name for name, group in CROSSING_GROUP.items() if group in markets and group in data.get("incroci_gruppi_tenuti", [])]
+            crossings = tuple(dict(item) for name, item in (engine_config().get("incroci") or {}).items() if name in wanted)
+        return replace(base, active=bool(markets), free=False, markets=markets or base.markets, crossings=crossings, unified=True)
     return replace(base, active=False, free=False)
+
+
+def engine_config() -> dict:
+    import event_engine
+
+    try:
+        return json.loads(event_engine.PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
 
 
 def apply(config, choice: str):
@@ -82,13 +146,17 @@ def apply(config, choice: str):
 
 
 def choice_of(settings) -> str:
+    if getattr(settings, "unified", False):
+        return UNIQUE
     if not settings.active:
         return CURRENT
     return FULL if settings.free else CORNER
 
 
-def driven_mode(mode: str, key: str) -> bool:
-    """``mode`` = «attuale», «libero» (completo) o «punteggi» (solo corner): il mercato viene dal motore a eventi?"""
+def driven_mode(mode: str, key: str, markets: tuple[str, ...] | list[str] | None = None) -> bool:
+    """``mode`` = «attuale», «libero» (completo) o «punteggi» (solo corner / unico): il mercato viene dal motore a eventi?"""
+    if markets is not None:
+        return mode == "libero" or (mode == "punteggi" and bool(groups_of(key) & set(markets)))
     return mode == "libero" or (mode == "punteggi" and "corner" in key)
 
 
@@ -98,15 +166,16 @@ def driven(settings, key: str) -> bool:
         return False
     if settings.free:
         return True
-    return "corner" in settings.markets and "corner" in key
+    return bool(groups_of(key) & set(settings.markets))
 
 
 def result_label(result, tar: taratura.Taratura, market: str, pct: float | None) -> str | None:
     """Come ``label`` ma dal risultato di una simulazione (usa il motore registrato in ``result["motore"]``)."""
     if pct is None:
         return None
-    if driven_mode((result.get("motore") or {}).get("modo", "attuale"), market):
-        return UNCALIBRATED
+    motor = result.get("motore") or {}
+    if driven_mode(motor.get("modo", "attuale"), market, motor.get("mercati") if motor.get("chiave") == UNIQUE else None):
+        return UNIQUE_EVENT_LABEL if motor.get("chiave") == UNIQUE else UNCALIBRATED
     return tar.label(market, pct)
 
 
@@ -120,7 +189,7 @@ def label(settings, tar: taratura.Taratura, market: str, pct: float | None) -> s
     if pct is None:
         return None
     if driven(settings, market):
-        return UNCALIBRATED
+        return UNIQUE_EVENT_LABEL if getattr(settings, "unified", False) else UNCALIBRATED
     return tar.label(market, pct)
 
 

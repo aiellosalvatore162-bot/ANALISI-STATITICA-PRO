@@ -319,15 +319,24 @@ def _scoped(result: Mapping, keys: Mapping[str, str]) -> dict:
     """Etichette: i mercati prodotti dal motore a eventi non hanno la taratura della fase AM."""
     import engine_choice
 
-    mode = (result.get("motore") or {}).get("modo", "attuale")
-    return {label: (None if engine_choice.driven_mode(mode, market) else market) for label, market in keys.items()}
+    motor = result.get("motore") or {}
+    unified = motor.get("chiave") == engine_choice.UNIQUE
+    markets = motor.get("mercati") if unified else None
+    return {label: ((("§" + engine_choice.UNIQUE_EVENT_LABEL) if unified else None)
+                    if engine_choice.driven_mode(motor.get("modo", "attuale"), market, markets) else market)
+            for label, market in keys.items()}
 
 
 def _tag(keys: Mapping[str, str] | None, label: str, value: float) -> str:
     """Fase AM: etichetta di affidabilità («verificata», …) accanto alla percentuale, se il mercato è noto."""
     if not keys or label not in keys:
         return ""
-    text = _taratura().label(keys[label], float(value)) if keys[label] is not None else _UNCAL
+    if keys[label] is None:
+        text = _UNCAL
+    elif keys[label].startswith("§"):
+        text = keys[label][1:]
+    else:
+        text = _taratura().label(keys[label], float(value))
     return f' <small class="tag" title="Quanto è verificata questa percentuale nello storico">{esc(text)}</small>' if text else ""
 
 

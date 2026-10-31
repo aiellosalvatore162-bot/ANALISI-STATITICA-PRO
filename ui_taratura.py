@@ -59,8 +59,13 @@ def render_engine_choice() -> str:
                       help="Vale per la partita in analisi e resta salvata con la partita.")
     st.caption(ec.HELP[choice])
     with st.expander("Quanto è verificato questo motore, mercato per mercato", expanded=choice != ec.CURRENT):
-        st.dataframe(pd.DataFrame([{"Mercati": group, "Avviso": text} for group, text in ec.WARNINGS[choice].items()]),
-                     hide_index=True, width="stretch")
+        if choice == ec.UNIQUE:
+            st.dataframe(pd.DataFrame(ec.unified_table()), hide_index=True, width="stretch")
+            st.caption("Sorgente scelta con `python -m tools.ap_scegli` (config/simulatore_unico.json): motore a eventi solo "
+                       "dove migliora di oltre 2 errori standard senza peggiorare l'ECE; altrimenti il calcolo tarato dalla AM.")
+        else:
+            st.dataframe(pd.DataFrame([{"Mercati": group, "Avviso": text} for group, text in ec.WARNINGS[choice].items()]),
+                         hide_index=True, width="stretch")
         st.caption("Gli avvisi informano, non bloccano: tutte le posizioni restano disponibili.")
         default = ec.load_default()
         if choice != default and st.button(f"Usa «{ec.NAMES[choice]}» come predefinito dell'app", key="engine_set_default"):

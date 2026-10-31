@@ -470,6 +470,10 @@ class EventEngineParams:
     # Fase AN, «Simulatore reale – completo»: modo «libero» del motore (i gol nascono dai tiri, riscalati su λ e μ), poi
     # ripesatura Dixon-Coles dei punteggi bassi per ricampionamento dell'intera partita. Tutti i gruppi dal motore a eventi.
     free: bool = False
+    # Fase AP: incroci di stile accesi (dizionari con id, attacco, difesa, tasso, colonna, beta); vuoto = come prima.
+    crossings: tuple = ()
+    # Fase AP: preimpostazione «Simulatore unico» (sorgente per famiglia di mercati da ``config/simulatore_unico.json``).
+    unified: bool = False
 
     def uses(self, group: str) -> bool:
         return self.active and (self.free or group in self.markets)
@@ -485,7 +489,15 @@ def load_event_engine(path: Path = GOAL_MODEL_PATH) -> EventEngineParams:
         batch=int(section.get("lotto", 10_000)), minimum=int(section.get("minimo", 20_000)),
         tolerance_pp=float(section.get("tolleranza_pp", 0.25)), lanes=bool(section.get("corsie", False)),
         markets=tuple(group for group in section.get("mercati", EVENT_ENGINE_GROUPS) if group in EVENT_ENGINE_GROUPS),
+        crossings=_event_engine.active_crossings(_event_engine_config()),
     )
+
+
+def _event_engine_config() -> dict:
+    try:
+        return json.loads(_event_engine.PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
 
 
 DEFAULT_EVENT_ENGINE = load_event_engine()
@@ -2072,7 +2084,8 @@ def event_engine_sample(config: MatchConfig, lambda_: float, mu: float, scores: 
                                                      config.v2.sigma_cards if sigma else 0.0),
         first_share=shares,
     )
-    options = {"step_minutes": settings.step_minutes, "lanes": settings.lanes, "referee": referee}
+    options = {"step_minutes": settings.step_minutes, "lanes": settings.lanes, "referee": referee,
+               "crossings": settings.crossings}
     home, away, mix, rows = _event_engine.coherence(
         np.random.default_rng([config.seed, 4]), team("home", lambda_, shares[0]), team("away", mu, shares[1]), params, targets,
         scores=None if settings.free else scores, pilot=settings.pilot, passes=settings.passes, **options)
@@ -2443,6 +2456,7 @@ def simulate_match(config: MatchConfig) -> dict[str, Any]:
 
     result["motore"] = {"chiave": engine_choice.choice_of(config.event_engine), "scelta": engine_choice.NAMES[engine_choice.choice_of(config.event_engine)],
                         "modo": ("libero" if config.event_engine.free else "punteggi") if config.event_engine.active else "attuale",
+                        "mercati": list(config.event_engine.markets) if config.event_engine.active else [],
                         "etichetta": engine_choice.tag(config.event_engine)}
     result["taratura"] = {"attiva": bool(config.v2.taratura is not None and config.v2.taratura.attiva),
                           "mercati_cambiati": list(recalibrated)}

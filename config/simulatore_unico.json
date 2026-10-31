@@ -1,0 +1,189 @@
+{
+ "nota": "Fase AP: sorgente per famiglia di mercati nel Simulatore unico. Si rigenera con `python -m tools.ap_scegli --salva`. Predefinito dell'app invariato.",
+ "regola": "motore a eventi solo se differenza unita < −2 e.s. ED ECE non peggiore; altrimenti calcolo attuale (AM)",
+ "famiglie": {
+  "gol": {
+   "nome": "1X2, gol, multigol, GG/NG",
+   "sorgente": "attuale",
+   "motivo": "differenza dentro l'errore statistico: resta il calcolo tarato dalla AM",
+   "campioni": [
+    {
+     "campione": "AO (tutti i dati)",
+     "partite": 563,
+     "diff": 0.001031177624805595,
+     "se": 0.001394031878551116,
+     "ece_prima": 0.01676870337477799,
+     "ece_dopo": 0.019054529307282412
+    }
+   ],
+   "unito": {
+    "diff": 0.00103,
+    "se": 0.00139,
+    "partite": 563,
+    "ece_prima": 0.01677,
+    "ece_dopo": 0.01905
+   }
+  },
+  "tempi": {
+   "nome": "Primo e secondo tempo",
+   "sorgente": "attuale",
+   "motivo": "differenza dentro l'errore statistico: resta il calcolo tarato dalla AM",
+   "campioni": [
+    {
+     "campione": "AK primo banco",
+     "partite": 1454,
+     "diff": 0.00024,
+     "se": 0.00012,
+     "ece_prima": 0.02228,
+     "ece_dopo": 0.02164
+    },
+    {
+     "campione": "AK campione nuovo",
+     "partite": 2672,
+     "diff": 3e-05,
+     "se": 9e-05,
+     "ece_prima": 0.01967,
+     "ece_dopo": 0.01926
+    },
+    {
+     "campione": "AO (tutti i dati)",
+     "partite": 563,
+     "diff": 0.0005597545471035145,
+     "se": 0.0005541591770523414,
+     "ece_prima": 0.022458371159792115,
+     "ece_dopo": 0.025866357476481812
+    }
+   ],
+   "unito": {
+    "diff": 0.00011,
+    "se": 7e-05,
+    "partite": 4689,
+    "ece_prima": 0.02081,
+    "ece_dopo": 0.02079
+   }
+  },
+  "corner": {
+   "nome": "Corner (totali, 1X2, per squadra)",
+   "sorgente": "eventi",
+   "motivo": "log-loss giù di oltre 2 e.s. ed ECE non peggiore",
+   "campioni": [
+    {
+     "campione": "AK primo banco",
+     "partite": 1454,
+     "diff": -0.00123,
+     "se": 0.00028,
+     "ece_prima": 0.02582,
+     "ece_dopo": 0.02182
+    },
+    {
+     "campione": "AK campione nuovo",
+     "partite": 2672,
+     "diff": -0.00075,
+     "se": 0.0002,
+     "ece_prima": 0.01679,
+     "ece_dopo": 0.0151
+    },
+    {
+     "campione": "AO (tutti i dati)",
+     "partite": 563,
+     "diff": -0.0010090218434553647,
+     "se": 0.0005576407424867565,
+     "ece_prima": 0.023225666074600353,
+     "ece_dopo": 0.024707238010657204
+    }
+   ],
+   "unito": {
+    "diff": -0.00092,
+    "se": 0.00016,
+    "partite": 4689,
+    "ece_prima": 0.02036,
+    "ece_dopo": 0.01834
+   }
+  },
+  "cartellini": {
+   "nome": "Cartellini (totali, 1X2, per squadra)",
+   "sorgente": "attuale",
+   "motivo": "il motore a eventi è PEGGIORE di oltre 2 e.s.",
+   "campioni": [
+    {
+     "campione": "AK primo banco",
+     "partite": 1454,
+     "diff": 0.0013,
+     "se": 0.0004,
+     "ece_prima": 0.01814,
+     "ece_dopo": 0.02129
+    },
+    {
+     "campione": "AK campione nuovo",
+     "partite": 2672,
+     "diff": 0.00421,
+     "se": 0.00068,
+     "ece_prima": 0.02006,
+     "ece_dopo": 0.03188
+    },
+    {
+     "campione": "AO (tutti i dati)",
+     "partite": 563,
+     "diff": 0.0014797882672144087,
+     "se": 0.0014338251155661386,
+     "ece_prima": 0.02294049733570159,
+     "ece_dopo": 0.02654868265245708
+    }
+   ],
+   "unito": {
+    "diff": 0.00202,
+    "se": 0.00034,
+    "partite": 4689,
+    "ece_prima": 0.01981,
+    "ece_dopo": 0.02796
+   }
+  },
+  "combo_corner": {
+   "nome": "Combo con i corner",
+   "sorgente": "eventi",
+   "motivo": "stesso campione dei corner (un solo campione per partita)",
+   "campioni": [
+    {
+     "campione": "AK primo banco",
+     "partite": 1454,
+     "diff": -0.00105,
+     "se": 0.00034,
+     "ece_prima": 0.02247,
+     "ece_dopo": 0.02059
+    },
+    {
+     "campione": "AK campione nuovo",
+     "partite": 2672,
+     "diff": -0.00029,
+     "se": 0.00029,
+     "ece_prima": 0.01851,
+     "ece_dopo": 0.01871
+    },
+    {
+     "campione": "AO (tutti i dati)",
+     "partite": 563,
+     "diff": -0.0008276876219290365,
+     "se": 0.0005936295391800237,
+     "ece_prima": 0.028339875666074602,
+     "ece_dopo": 0.02421660746003552
+    }
+   ],
+   "unito": {
+    "diff": -0.00064,
+    "se": 0.00021,
+    "partite": 4689,
+    "ece_prima": 0.02092,
+    "ece_dopo": 0.01995
+   },
+   "nota": "Tutte le combo (con e senza corner) unite: informativo. Le combo con i corner seguono i corner."
+  },
+  "combo_altre": {
+   "nome": "Combo senza corner",
+   "sorgente": "attuale",
+   "motivo": "gol e cartellini restano del calcolo attuale: stessa distribuzione",
+   "campioni": [],
+   "unito": {}
+  }
+ },
+ "incroci_gruppi_tenuti": []
+}
