@@ -22,6 +22,7 @@ import json
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
+import data_import
 import numpy as np
 import pandas as pd
 from scipy.stats import poisson
@@ -230,12 +231,30 @@ def _team_param(store: StyleStore, league: str, key: str, venue: str, when: pd.T
     return ParamValue(float(value), n, fonte, warning)
 
 
+def _imported_forma_reale(store: StyleStore, key: str, when: pd.Timestamp, base: ParamValue) -> ParamValue | None:
+    """Fase AN: se per la squadra c'è un xG/xGA importato (``data_dati`` prima della partita) e la stima attuale viene dal proxy
+    dei tiri o dai soli gol, vince il dato importato (media per gara riavvicinata a 0 con n/(n+k)). Altrimenti nessun effetto."""
+    if not data_import.ENABLED or ("Understat" in base.fonte and base.campione):
+        return None
+    row = data_import.style_row(key, when)
+    if row is None or "xg" not in row or "xga" not in row or not row.get("partite"):
+        return None
+    n = float(row["partite"])
+    k = float(store.config["shrinkage_k"].get("forma_reale", 8.0))
+    value = (row["xg"] - row["xga"]) / n * n / (n + k)
+    return ParamValue(float(value), int(n), f"forma reale: xG−xGA importato, {int(n)} gare, shrinkage {int(n)}/({int(n)}+{k:g}); "
+                      + data_import.provenance(row))
+
+
 def forma_reale(store: StyleStore, league: str, key: str, venue: str, when: pd.Timestamp) -> ParamValue:
     """Forma reale = (xG − xGA) per gara, centrata sulla media del campionato per lo stesso campo.
 
     Con xG mancante (nessun proxy utilizzabile) si usa la differenza reti. Sostituisce la covariata W-D-L.
     """
     base = _team_param(store, league, key, venue, when, "xg_diff")
+    imported = _imported_forma_reale(store, key, when, base)
+    if imported is not None:
+        return imported
     if base.valore is not None and base.campione:
         mean = store.league_stats(league, venue, "xg_diff", when)[0]
         return ParamValue(base.valore - mean, base.campione, "forma reale: " + base.fonte, base.avviso)
@@ -286,6 +305,12 @@ def get_style_params(team: str, when: date | datetime | pd.Timestamp, home: bool
                                   "Understat, dato di stagione (non per data: non entra nei backtest)" if value is not None
                                   else "non disponibile (serve la pagina squadra di Understat)").to_dict()
     params["cross"] = ParamValue(None, 0, "non disponibile da fonti gratuite funzionanti").to_dict()
+    imported = data_import.style_row(team, when) if data_import.ENABLED else None
+    if imported:
+        # Fase AN: il dato importato prevale su «non disponibile» e sul proxy; la fonte e la data restano dichiarate.
+        for name in (*SEASONAL_PARAMS, "cross"):
+            if name in imported:
+                params[name] = ParamValue(float(imported[name]), int(imported.get("partite", 1)), data_import.provenance(imported)).to_dict()
     real = forma_reale(store, chosen, key, venue, when)
     warnings = [f"{name}: {item['avviso']}" for name, item in params.items() if item.get("avviso")]
     if real.avviso:

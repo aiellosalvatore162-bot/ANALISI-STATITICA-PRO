@@ -27,6 +27,9 @@ def engine_label(settings: engine.EventEngineParams) -> str:
     if not settings.active or not settings.markets:
         return ("Motore attivo: motore attuale (punteggi Dixon-Coles, corner e cartellini dalle medie). Il motore a eventi è "
                 "spento per i mercati: l'andamento qui sotto è solo illustrativo e non cambia le probabilità.")
+    if settings.free:
+        return ("Motore attivo: «Simulatore reale – completo» (i gol nascono dai tiri della partita giocata, con ripesatura "
+                "Dixon-Coles dei punteggi bassi). L'andamento viene dagli stessi percorsi che producono le probabilità.")
     used = [GROUP_NAMES[group] for group in engine.EVENT_ENGINE_GROUPS if group in settings.markets]
     others = [GROUP_NAMES[group] for group in engine.EVENT_ENGINE_GROUPS if group not in settings.markets]
     text = f"Motore attivo: motore a eventi per {', '.join(used)}"

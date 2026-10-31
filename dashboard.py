@@ -312,11 +312,22 @@ def grid(cards: Iterable[str], wide: bool = False) -> str:
     return f'<div class="dash-grid{" wide" if wide else ""}">{"".join(cards)}</div>'
 
 
+_UNCAL = "poco verificata (nessuna taratura per questo motore)"
+
+
+def _scoped(result: Mapping, keys: Mapping[str, str]) -> dict:
+    """Etichette: i mercati prodotti dal motore a eventi non hanno la taratura della fase AM."""
+    import engine_choice
+
+    mode = (result.get("motore") or {}).get("modo", "attuale")
+    return {label: (None if engine_choice.driven_mode(mode, market) else market) for label, market in keys.items()}
+
+
 def _tag(keys: Mapping[str, str] | None, label: str, value: float) -> str:
     """Fase AM: etichetta di affidabilità («verificata», …) accanto alla percentuale, se il mercato è noto."""
     if not keys or label not in keys:
         return ""
-    text = _taratura().label(keys[label], float(value))
+    text = _taratura().label(keys[label], float(value)) if keys[label] is not None else _UNCAL
     return f' <small class="tag" title="Quanto è verificata questa percentuale nello storico">{esc(text)}</small>' if text else ""
 
 
@@ -351,6 +362,12 @@ def legend() -> str:
             '<span><i style="background:var(--good)"></i>Conviene (EV positivo)</span>'
             '<span><i style="background:var(--neutral)"></i>Nessuna quota o da verificare</span>'
             '<span><i style="background:var(--bad)"></i>Non conviene</span></div>')
+
+
+def engine_badge(result: Mapping) -> str:
+    """Fase AN: quale motore ha prodotto le percentuali (sempre dichiarato in scheda)."""
+    motor = result.get("motore") or {}
+    return f'<div class="axis-note">Motore usato: <b>{esc(motor.get("scelta", "Calcolo attuale"))}</b></div>'
 
 
 def anchoring_badge(result: Mapping) -> str:
@@ -402,7 +419,7 @@ def outcome_card(result: Mapping) -> str:
                 "2": f"{away} vince in circa {count} partite su 10."}[favorite]
     return card("Esito finale 1X2", "split", pct(one_x_two[favorite]), sentence,
                 split_bar(home, away, one_x_two["1"], one_x_two["X"], one_x_two["2"]),
-                note=esc("Affidabilità: " + ", ".join(f"{k} {_taratura().label(k, one_x_two[k]) or '—'}" for k in ("1", "X", "2"))),
+                note=esc("Affidabilità: " + ", ".join(f"{k} {__import__('engine_choice').result_label(result, _taratura(), k, one_x_two[k]) or '—'}" for k in ("1", "X", "2"))),
                 big_small={"1": f"vittoria {home}", "X": "pareggio", "2": f"vittoria {away}"}[favorite])
 
 
@@ -411,7 +428,7 @@ def goals_card(result: Mapping) -> str:
     over25 = over_under["Over_2.5"]["percentage"]
     rows = [(f"Over {line}", over_under[f"Over_{line}"]["percentage"]) for line in ("0.5", "1.5", "2.5", "3.5", "4.5")]
     return card("Gol", "ball", pct(over25), f"Almeno 3 gol (Over 2.5) in circa {out_of_ten(over25)} partite su 10.",
-                bars(rows, keys={f"Over {line}": f"Over {line} gol" for line in ("0.5", "1.5", "2.5", "3.5", "4.5")}),
+                bars(rows, keys=_scoped(result, {f"Over {line}": f"Over {line} gol" for line in ("0.5", "1.5", "2.5", "3.5", "4.5")})),
                 big_small="Over 2.5", note=f"Under 2.5: {pct(over_under['Under_2.5']['percentage'])}")
 
 
@@ -424,8 +441,8 @@ def team_goals_card(result: Mapping) -> str:
     two_plus = finale["Casa Over 1.5 gol"]
     return card("Gol per squadra", "goal", pct(finale["Goal"]),
                 f"{home} segna almeno 2 gol in circa {out_of_ten(two_plus)} partite su 10.",
-                bars(rows, keys={rows[0][0]: "Casa segna", rows[1][0]: "Ospite segna", rows[2][0]: "Casa Over 1.5 gol",
-                                 rows[3][0]: "Ospite Over 1.5 gol", rows[4][0]: "Goal"}), big_small="Goal")
+                bars(rows, keys=_scoped(result, {rows[0][0]: "Casa segna", rows[1][0]: "Ospite segna", rows[2][0]: "Casa Over 1.5 gol",
+                                                 rows[3][0]: "Ospite Over 1.5 gol", rows[4][0]: "Goal"})), big_small="Goal")
 
 
 def multigol_card(result: Mapping) -> str:
@@ -433,7 +450,7 @@ def multigol_card(result: Mapping) -> str:
     rows = [(f"Multigol {key}", value["percentage"]) for key, value in multigol.items()]
     best = max(rows, key=lambda row: row[1])
     return card("Multigol", "ball", pct(best[1]), f"{best[0]}: il totale gol cade in questa fascia in circa "
-                f"{out_of_ten(best[1])} partite su 10.", bars(rows, keys={label: label for label, _ in rows}), big_small=best[0])
+                f"{out_of_ten(best[1])} partite su 10.", bars(rows, keys=_scoped(result, {label: label for label, _ in rows})), big_small=best[0])
 
 
 def first_half_card(result: Mapping) -> str:
@@ -543,7 +560,7 @@ def solid_picks(result: Mapping, limit: int = 4, low: float = 55.0, high: float 
         market, probability = max(options, key=lambda option: option[1])
         picks.append({"family": family, "market": market, "probability": probability, "fair_odds": 100.0 / probability,
                       "odds": financial.get(market, {}).get("odds"), "ev": financial.get(market, {}).get("ev_pct"),
-                      "label": _taratura().label(market, probability)})
+                      "label": __import__("engine_choice").result_label(result, _taratura(), market, probability)})
     return sorted(picks, key=lambda pick: -pick["probability"])[:limit]
 
 

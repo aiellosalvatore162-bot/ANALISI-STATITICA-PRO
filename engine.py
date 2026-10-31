@@ -467,9 +467,12 @@ class EventEngineParams:
     # Gruppi di mercati presi dal motore a eventi quando è acceso: «tempi» (gol del primo/secondo tempo), «corner»,
     # «cartellini». Gli altri restano del motore attuale (sugli stessi punteggi Dixon-Coles).
     markets: tuple[str, ...] = EVENT_ENGINE_GROUPS
+    # Fase AN, «Simulatore reale – completo»: modo «libero» del motore (i gol nascono dai tiri, riscalati su λ e μ), poi
+    # ripesatura Dixon-Coles dei punteggi bassi per ricampionamento dell'intera partita. Tutti i gruppi dal motore a eventi.
+    free: bool = False
 
     def uses(self, group: str) -> bool:
-        return self.active and group in self.markets
+        return self.active and (self.free or group in self.markets)
 
 
 def load_event_engine(path: Path = GOAL_MODEL_PATH) -> EventEngineParams:
@@ -2004,6 +2007,30 @@ def _first_half_targets(config: MatchConfig, lambda_: float, mu: float) -> tuple
     return float(home_share), float(away_share)
 
 
+def dixon_coles_resample(sample: dict, lambda_: float, mu: float, rho: float,
+                         rng: np.random.Generator) -> tuple[dict, dict]:
+    """Fase AN: i gol del modo «libero» nascono dai tiri e sono quasi indipendenti; la correzione Dixon-Coles per i punteggi
+    0-0, 1-0, 0-1 e 1-1 si applica ricampionando partite INTERE (con tiri, tempi, corner e cartellini) con peso uguale al
+    fattore di Dixon-Coles del loro punteggio: un solo campione per tutti i mercati, niente gol ricampionati per mercato."""
+    goals_home, goals_away = np.asarray(sample["goals_home"]), np.asarray(sample["goals_away"])
+    n = len(goals_home)
+    factor = {(0, 0): 1 - lambda_ * mu * rho, (0, 1): 1 + mu * rho, (1, 0): 1 + lambda_ * rho, (1, 1): 1 - rho}
+    weight = np.ones(n)
+    for (home, away), value in factor.items():
+        weight[(goals_home == home) & (goals_away == away)] = max(value, 0.0)
+    keep_before = {key: round(float(np.mean((goals_home == h) & (goals_away == a))), 4) for key, (h, a) in
+                   (("0-0", (0, 0)), ("1-0", (1, 0)), ("0-1", (0, 1)), ("1-1", (1, 1)))}
+    index = rng.choice(n, size=n, replace=True, p=weight / weight.sum())
+    out = {key: (value[index] if isinstance(value, np.ndarray) and value.ndim >= 1 and len(value) == n else value)
+           for key, value in sample.items()}
+    new_home, new_away = out["goals_home"], out["goals_away"]
+    after = {key: round(float(np.mean((new_home == h) & (new_away == a))), 4) for key, (h, a) in
+             (("0-0", (0, 0)), ("1-0", (1, 0)), ("0-1", (0, 1)), ("1-1", (1, 1)))}
+    return out, {"rho": rho, "prima": keep_before, "dopo": after,
+                 "nota": "ricampionamento delle partite intere con peso Dixon-Coles sui punteggi 0-0, 1-0, 0-1, 1-1; i percorsi "
+                         "minuto per minuto restano quelli generati (illustrativi)"}
+
+
 def event_engine_sample(config: MatchConfig, lambda_: float, mu: float, scores: tuple[np.ndarray, np.ndarray],
                         corners: tuple[float, float], yellow_mean: float, home_card_share: float) -> tuple[dict, dict]:
     """Fase AK: eventi della partita dal motore a eventi sui punteggi Dixon-Coles ``scores``, con le medie attuali come
@@ -2034,10 +2061,15 @@ def event_engine_sample(config: MatchConfig, lambda_: float, mu: float, scores: 
     options = {"step_minutes": settings.step_minutes, "lanes": settings.lanes}
     home, away, mix, rows = _event_engine.coherence(
         np.random.default_rng([config.seed, 4]), team("home", lambda_, shares[0]), team("away", mu, shares[1]), params, targets,
-        scores=scores, pilot=settings.pilot, passes=settings.passes, **options)
+        scores=None if settings.free else scores, pilot=settings.pilot, passes=settings.passes, **options)
+    free = settings.free
     sample = _event_engine.simulate_adaptive(
         np.random.default_rng([config.seed, 5]), home, away, params, maximum=len(scores[0]), batch=settings.batch,
-        minimum=settings.minimum, tolerance_pp=settings.tolerance_pp, scores=scores, rule=rule, mix=mix, **options)
+        minimum=settings.minimum, tolerance_pp=settings.tolerance_pp, scores=None if free else scores, rule=rule, mix=mix,
+        **options)
+    dixon = None
+    if free:
+        sample, dixon = dixon_coles_resample(sample, lambda_, mu, config.dixon_coles_rho, np.random.default_rng([config.seed, 6]))
     details = {
         "active": True, "parametri": params.source, "nota": params.note, "simulazioni": sample["adaptive"]["simulazioni"],
         "arresto": sample["adaptive"], "coerenza": rows, "dispersione": mix,
@@ -2047,6 +2079,7 @@ def event_engine_sample(config: MatchConfig, lambda_: float, mu: float, scores: 
         "ledger": sample["ledger"], "warnings": sample["warnings"],
         "medie": {key: round(value, 4) for key, value in _event_engine.summary(sample).items()},
         "andamento": _event_engine.timeline_summary(sample),
+        "modo": "libero" if free else "punteggi", "dixon_coles": dixon,
         "falli": "media del campionato (StatsBomb) senza effetto dell'arbitro: i gialli seguono già la media attuale",
     }
     return sample, details
@@ -2232,11 +2265,13 @@ def simulate_match(config: MatchConfig) -> dict[str, Any]:
         # punteggi, per TUTTI i mercati.
         sample, event_details = event_engine_sample(config, lambda_, mu, (goals_home, goals_away),
                                                     (home_corner_signal, away_corner_signal), yellow_mean, home_card_share)
-        event_details["mercati"] = list(config.event_engine.markets)
+        event_details["mercati"] = list(EVENT_ENGINE_GROUPS if config.event_engine.free else config.event_engine.markets)
         size = event_details["simulazioni"]
         if size < config.simulations:
             config = replace(config, simulations=size)
         goals_home, goals_away = goals_home[:size], goals_away[:size]
+        if config.event_engine.free:
+            goals_home, goals_away = sample["goals_home"], sample["goals_away"]
         first_home, first_away = first_home[:size], first_away[:size]
         home_corners, away_corners, home_cards, away_cards = (values[:size] for values in counts[:4])
         counts = tuple(values[:size] for values in counts)
@@ -2258,7 +2293,13 @@ def simulate_match(config: MatchConfig) -> dict[str, Any]:
 
     events = _events_for_scores(config, (goals_home, goals_away, first_home, first_away), counts)
     raw_percentages = _event_percentages(events)
-    finale, recalibrated = apply_recalibration(raw_percentages, config.v2)
+    v2 = config.v2
+    if config.event_engine.active and v2.taratura is not None:
+        # Fase AN: la taratura della fase AM è stimata sul calcolo attuale; i mercati prodotti dal motore a eventi restano grezzi.
+        import engine_choice
+
+        v2 = replace(v2, taratura=v2.taratura.excluding(lambda key: engine_choice.driven(config.event_engine, key)))
+    finale, recalibrated = apply_recalibration(raw_percentages, v2)
     _DISPLAY_OVERRIDE.set({id(events[key]): finale[key] for key in recalibrated if key in events})
     components = {"finale": finale, "modello": None, "mercato": None}
     exact_scores = {"finale": _score_percentages(goals_home, goals_away), "modello": None, "mercato": None}
@@ -2382,6 +2423,11 @@ def simulate_match(config: MatchConfig) -> dict[str, Any]:
     result["card_split"] = card_split_details
     result["timeline"] = timeline_details
     result["event_engine"] = event_details
+    import engine_choice
+
+    result["motore"] = {"chiave": engine_choice.choice_of(config.event_engine), "scelta": engine_choice.NAMES[engine_choice.choice_of(config.event_engine)],
+                        "modo": ("libero" if config.event_engine.free else "punteggi") if config.event_engine.active else "attuale",
+                        "etichetta": engine_choice.tag(config.event_engine)}
     result["taratura"] = {"attiva": bool(config.v2.taratura is not None and config.v2.taratura.attiva),
                           "mercati_cambiati": list(recalibrated)}
     result["recalibrated"] = recalibrated  # fase P, punto 4: mercati con la mappa finale accesa

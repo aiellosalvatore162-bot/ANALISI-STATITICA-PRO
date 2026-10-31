@@ -8,3 +8,8 @@ __pycache__/
 
 # Cache dei CSV scaricati dagli strumenti di taratura
 data/cache/
+
+# Dati importati dall utente (fase AN)
+data/impostazioni.json
+data/import/registro.json
+data/import/nomi.json

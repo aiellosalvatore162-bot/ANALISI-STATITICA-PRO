@@ -80,6 +80,7 @@ def make_record(result: Mapping[str, Any], *, block: str, odds: Mapping[str, flo
         "eurobet_text": eurobet_text or "", "claude_answer": claude_answer or "", "claude_applied": bool(claude_applied),
         "flags": list(flags),
         "warnings": notes, "simulations": simulations, "seed": seed,
+        "motore": (result.get("motore") or {}).get("chiave", "attuale"),
         "saved_at": (saved_at or datetime.now()).isoformat(timespec="seconds"),
         "summary": {
             "lambda": result["model"]["lambda"], "mu": result["model"]["mu"],
