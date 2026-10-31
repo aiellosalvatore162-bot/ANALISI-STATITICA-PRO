@@ -60,6 +60,7 @@ class Analysis:
     extras: Any = None                         # match_extras.MatchExtras del report (fase AH)
     context: dict | None = None                # match_context.match_context (riquadro «Stile»)
     lineup: dict | None = None                 # ``lineup.get_lineup_params`` (fase AL): XI atteso, minuti, assenti pesati, rigorista
+    style_cuts: dict = field(default_factory=dict)  # fase AO: terzili di campionato (quota tiri, PPDA) per il motore a eventi
 
     @property
     def ok(self) -> bool:
@@ -186,6 +187,12 @@ def _attach_style(analysis: "Analysis", style_loader: Callable[[str], Any] | Non
         analysis.warnings.append(f"Stile non disponibile ({type(exc).__name__}): resta la forma W-D-L.")
         return
     analysis.style_profiles = profiles
+    try:
+        import event_inputs
+
+        analysis.style_cuts = event_inputs.league_cuts(store, league, analysis.match.commence_time.date())
+    except Exception:  # le soglie servono solo al motore a eventi: senza, lo stile misurato resta fuori (dichiarato)
+        analysis.style_cuts = {}
     analysis.warnings.extend(f"Stile: {message}" for message in warnings)
     if style is not None:
         analysis.config = replace(analysis.config, style=style)
@@ -287,12 +294,39 @@ def simulate(analysis: Analysis, *, flags: Sequence[str] | None = None, claude: 
                      referee_yellow_avg=referee if referee is not None else analysis.config.referee_yellow_avg)
     if effects is not None:
         config = replace(config, timeline=effects.timeline(config.timeline))
+    config = replace(config, event_inputs=match_event_inputs(analysis))
     with fase("simulazione"):
         analysis.result = simulate_match(config)
     if effects is not None:
         analysis.result["tactical_sheet"] = effects.any_sheet
         analysis.result["analyst_rules"] = effects.analyst_rules
     return analysis
+
+
+def match_event_inputs(analysis: Analysis) -> dict[str, Any] | None:
+    """Fase AO: tutti i dati della partita come ingressi del motore a eventi (formazione, stile misurato o importato, scheda
+    tattica, modulo, arbitro). Conta solo col motore a eventi acceso; un dato mancante resta neutro e dichiarato."""
+    try:
+        import data_import
+        import event_inputs
+        import tactical_dictionary
+
+        when = analysis.match.commence_time.date()
+        names = {"home": analysis.config.home.name, "away": analysis.config.away.name}
+        effects = analysis.tactical
+        sheets = {"home": getattr(effects, "home", None), "away": getattr(effects, "away", None)}
+        profiles = {side: next((p for p in analysis.style_profiles if p.get("squadra") == names[side]), None)
+                    for side in names}
+        imported = {side: (data_import.style_row(names[side], when) if data_import.ENABLED else None) for side in names}
+        extras = getattr(analysis.auto_sheet, "extras", None) or {}
+        return event_inputs.build(
+            lineup=analysis.lineup, styles=profiles, imported=imported,
+            sheets={side: tactical_dictionary.from_sheet(sheet) if sheet is not None else {} for side, sheet in sheets.items()},
+            modules={side: (sheet.modulo or None) if sheet is not None else None for side, sheet in sheets.items()},
+            referee_extra=extras.get("arbitro"), cuts=analysis.style_cuts)
+    except Exception as exc:  # mai bloccare la simulazione: il motore a eventi resta sulle medie
+        analysis.warnings.append(f"Ingressi del motore a eventi non disponibili ({type(exc).__name__}).")
+        return None
 
 
 def observer_adjustment(flags: Iterable[str], settings: Mapping[str, Any] | None = None) -> dict[str, float]:

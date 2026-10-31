@@ -92,7 +92,8 @@ def expected_minutes(index: Mapping[str, Mapping], xi: Sequence[str], unavailabl
 def production(index: Mapping[str, Mapping], minutes: Mapping[str, tuple[float, str]]) -> dict[str, float]:
     npxg = sum(value / 90.0 * index[pid]["npxg90"] for pid, (value, _) in minutes.items())
     xa = sum(value / 90.0 * index[pid]["xa90"] for pid, (value, _) in minutes.items())
-    return {"npxg": npxg, "xa": xa, "totale": npxg + xa}
+    shots = sum(value / 90.0 * index[pid]["shots90"] for pid, (value, _) in minutes.items())
+    return {"npxg": npxg, "xa": xa, "totale": npxg + xa, "tiri": shots}
 
 
 def _match_names(names: Iterable[str], index: Mapping[str, Mapping]) -> tuple[list[str], list[str]]:
@@ -156,6 +157,7 @@ def team_lineup(store: pl.PlayerStore, league: str, key: str, when: pd.Timestamp
     factor = now["totale"] / base["totale"] if base["totale"] > 0 else 1.0
     external_loss = min(sum(float(item["peso"]) for item in external), 0.9)
     factor *= 1.0 - external_loss
+    side_loss = 1.0 - external_loss        # assenti esterni e turnover tolgono tiri (non qualità) anche nel motore a eventi
     turnover_info = None
     if turnover:
         rotated = int(cfg.get("turnover", {}).get("n_rotazioni", 3))
@@ -166,6 +168,7 @@ def team_lineup(store: pl.PlayerStore, league: str, key: str, when: pd.Timestamp
         bench_rate = float(np.mean([row["prod90"] for row in bench])) if bench else xi_rate
         turnover_factor = 1.0 - (rotated / 11.0) * max(0.0, 1.0 - bench_rate / xi_rate) if xi_rate > 0 else 1.0
         factor *= turnover_factor
+        side_loss *= turnover_factor
         turnover_info = {"rotazioni": rotated, "fattore": round(turnover_factor, 4),
                          "fonte": f"{rotated} titolari sostituiti dai migliori di panchina (produzione npxG+xA per 90 di Understat)"}
     limits = cfg["fattore_attacco"].get("limiti")
@@ -213,7 +216,14 @@ def team_lineup(store: pl.PlayerStore, league: str, key: str, when: pd.Timestamp
                          "origine": origin if how == "titolare" else "panchina: entrate × minuti da subentrato"})
     penalty = {} if light else penalty_params(store, league, key, when, index, xi, unavailable, components.get("rigorista", True))
     performing = {} if light else performing_params(store, league, key, when, index, components.get("performando", True))
-    return {"disponibile": True, "origine_formazione": origin, "xi": [row for row in on_field if row["come"] == "titolare"],
+    # Fase AO: chi tira e con che qualità (XI atteso ÷ XI tipo): tiri e npxG per tiro, per il motore a eventi.
+    shots_ratio = (now["tiri"] / base["tiri"] if base["tiri"] > 0 else 1.0) * side_loss
+    quality_ratio = ((now["npxg"] / now["tiri"]) / (base["npxg"] / base["tiri"])
+                     if min(now["tiri"], base["tiri"], base["npxg"]) > 0 else 1.0)
+    events = {"rapporto_tiri": round(shots_ratio, 4), "rapporto_qualita": round(quality_ratio, 4),
+              "tiri_xi": round(now["tiri"], 3), "tiri_tipo": round(base["tiri"], 3),
+              "quota_minuti_mancanti": {r: round(v, 4) for r, v in missing_share.items()}}
+    return {"disponibile": True, "origine_formazione": origin, "eventi": events, "xi": [row for row in on_field if row["come"] == "titolare"],
             "panchina": [row for row in on_field if row["come"] == "panchina"], "assenti": weighted,
             "turnover": turnover_info, "assenti_esterni": [{**item, "effetto": item["peso"]} for item in external],
             "fattore_attacco": {"valore": round(factor, 4), "campione": int(squad["partite"].sum()),

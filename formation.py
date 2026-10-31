@@ -79,3 +79,49 @@ def matchups(home_module: str | None, away_module: str | None) -> list[dict]:
     return [{"corsia_casa": lane, "corsia_ospite": MIRROR[lane], "attacco_casa": home[lane]["attacco"],
              "difesa_ospite": away[MIRROR[lane]]["difesa"], "attacco_ospite": away[MIRROR[lane]]["attacco"],
              "difesa_casa": home[lane]["difesa"]} for lane in LANES]
+
+
+# Fase AO: giocatori larghi del modulo, le stesse misure usate nella stima sulle posizioni StatsBomb (``tools.ao_corsie``).
+SB_WIDE_ATTACK = ("Right Wing Back", "Left Wing Back", "Right Midfield", "Left Midfield", "Right Wing", "Left Wing")
+SB_WIDE_DEFENSE = ("Right Back", "Left Back", "Right Wing Back", "Left Wing Back", "Right Midfield", "Left Midfield")
+
+
+def wide_players(module: str | None) -> dict[str, float]:
+    """{«attacco»: esterni e ali, «difesa»: terzini ed esterni} del modulo (chi spinge e chi copre le fasce), allineato alle
+    posizioni StatsBomb: difesa a 5 = quinti (spingono e coprono), linea di 3 dietro una punta sola = ali (solo attacco)."""
+    lines, _ = parse_module(module)
+    players, _ = roles(module)
+    out = {"attacco": 0.0, "difesa": 0.0}
+    start = 0
+    for position, count in enumerate(lines):
+        line_players = players[start:start + count]
+        start += count
+        behind_single = position == len(lines) - 2 and lines[-1] == 1 and position > 0
+        for player in line_players:
+            if player["corsia"] == "centro":
+                continue
+            if player["linea"] == "difesa":
+                out["difesa"] += 1
+                out["attacco"] += 1 if count >= 5 else 0
+            elif player["linea"] == "attacco" or (behind_single and count == 3):
+                out["attacco"] += 1
+            else:
+                out["attacco"] += 1
+                out["difesa"] += 1
+    return out
+
+
+def wide_from_positions(positions: list[str]) -> dict[str, float]:
+    """Le stesse misure dalle posizioni iniziali StatsBomb di una squadra."""
+    return {"attacco": float(sum(position in SB_WIDE_ATTACK for position in positions)),
+            "difesa": float(sum(position in SB_WIDE_DEFENSE for position in positions))}
+
+
+UNDERSTAT_WIDE_ATTACK = ("DMR", "DML", "MR", "ML", "AMR", "AML", "FWR", "FWL")
+UNDERSTAT_WIDE_DEFENSE = ("DR", "DL", "DMR", "DML", "MR", "ML")
+
+
+def wide_from_understat(positions: list[str]) -> dict[str, float]:
+    """Le stesse misure dalle posizioni Understat dei titolari (DR/DL terzini, DMR/DML quinti, MR/ML esterni, AMR/AML e FWR/FWL ali)."""
+    return {"attacco": float(sum(position in UNDERSTAT_WIDE_ATTACK for position in positions)),
+            "difesa": float(sum(position in UNDERSTAT_WIDE_DEFENSE for position in positions))}

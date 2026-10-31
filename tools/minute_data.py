@@ -215,11 +215,51 @@ def download_statsbomb_detail(pause: float = 1.0) -> None:
         print(f"{target.name}: {len(rows)} partite", flush=True)
 
 
+def starting_positions(lineups: list[dict]) -> dict[str, list[str]]:
+    """Posizioni StatsBomb dei titolari per squadra («Right Back», «Left Wing»…), dalla formazione iniziale."""
+    out = {}
+    for team in lineups:
+        out[team["team_name"]] = [position["position"] for player in team.get("lineup", [])
+                                  for position in player.get("positions", [])[:1]
+                                  if position.get("start_reason") == "Starting XI"]
+    return out
+
+
+def download_statsbomb_lineups(pause: float = 0.3) -> None:
+    """Fase AO: posizioni iniziali (moduli e corsie) delle stesse partite, una volta, con ripresa dal file parziale."""
+    CACHE.mkdir(parents=True, exist_ok=True)
+    for competition, season in SB_SEASONS:
+        target = CACHE / f"statsbomb_formazioni_{competition}_{season}.json.gz"
+        partial = CACHE / f"statsbomb_formazioni_{competition}_{season}.parziale.json.gz"
+        if target.exists():
+            print(f"già in cache: {target.name}", flush=True)
+            continue
+        matches = _get(f"{SB_BASE}/matches/{competition}/{season}.json").json()
+        rows = json.load(gzip.open(partial, "rt", encoding="utf-8")) if partial.exists() else []
+        done = {row["id"] for row in rows}
+        for position, match in enumerate(matches, start=1):
+            if match["match_id"] in done:
+                continue
+            lineups = _get(f"{SB_BASE}/lineups/{match['match_id']}.json").json()
+            rows.append({"id": match["match_id"], "home": match["home_team"]["home_team_name"],
+                         "away": match["away_team"]["away_team_name"], "posizioni": starting_positions(lineups)})
+            time.sleep(pause)
+            if position % 50 == 0:
+                with gzip.open(partial, "wt", encoding="utf-8") as handle:
+                    json.dump(rows, handle)
+                print(f"{competition}_{season}: {position}/{len(matches)}", flush=True)
+        with gzip.open(target, "wt", encoding="utf-8") as handle:
+            json.dump(rows, handle)
+        partial.unlink(missing_ok=True)
+        print(f"{target.name}: {len(rows)} partite", flush=True)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--understat", nargs="*", type=int, help="Stagioni Understat (anno d'inizio)")
     parser.add_argument("--statsbomb", action="store_true")
     parser.add_argument("--statsbomb-dettaglio", action="store_true", help="riassunto ricco per la fase AK (una volta)")
+    parser.add_argument("--statsbomb-formazioni", action="store_true", help="posizioni iniziali per la fase AO (una volta)")
     args = parser.parse_args()
     if args.understat:
         download_understat(args.understat)
@@ -227,6 +267,8 @@ def main() -> None:
         download_statsbomb()
     if args.statsbomb_dettaglio:
         download_statsbomb_detail()
+    if args.statsbomb_formazioni:
+        download_statsbomb_lineups()
 
 
 if __name__ == "__main__":

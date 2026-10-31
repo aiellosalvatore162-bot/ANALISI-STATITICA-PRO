@@ -1278,5 +1278,18 @@
       }
     },
     "nota": "k = shrinkage stimato (valore arbitro = media + n/(n+k)·scarto); l'app oggi usa k=10 fisso (datasources.stats.REFEREE_PRIOR_MATCHES): il cambio si decide con il banco dello stadio 14. Effetti confusi con le squadre arbitrate (designazioni non casuali)."
+  },
+  "soglie_stile": {
+    "data": "2026-10-31",
+    "fonte": "Data: StatsBomb Open Data 2015/16, python -m tools.ao_stile",
+    "squadre_stagione": 98,
+    "possesso": [
+      0.4437,
+      0.5218
+    ],
+    "cross": [
+      10.7553,
+      12.7643
+    ]
   }
 }
