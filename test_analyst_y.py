@@ -115,7 +115,7 @@ def test_registry_notes_for_analyst_rules_and_eurobet_vs_sharp():
     result["analyst_rules"] = True
     info = SaveInfo(date(2026, 10, 26), "15:00", "Serie A", "A carta", "test")
     row = prediction_rows(result, ["1"], info, extra_notes={"1": sharp_value.note(4.2)})[0]
-    assert row["Note"] == "regole_analista: sì; eurobet_vs_sharp: +4.2%"
+    assert row["Note"] == "motore: Calcolo attuale; regole_analista: sì; eurobet_vs_sharp: +4.2%"
 
 
 def test_eurobet_against_the_fair_sharp_price():

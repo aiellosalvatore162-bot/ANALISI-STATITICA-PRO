@@ -103,6 +103,7 @@ def _reopen(record_id: str) -> None:
     if record.get("fields"):  # valore, origine e fonte di ogni campo, anche per i dati a mano (fase R)
         st.session_state["auto_sheet_rows"] = record["fields"]
         st.session_state["auto_sheet_warnings"] = []
+    st.session_state["engine_choice"] = record.get("motore") or "attuale"   # fase AN: il motore usato per la partita
     st.session_state["auto_simulate"] = True
 
 

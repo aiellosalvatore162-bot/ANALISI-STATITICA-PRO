@@ -199,11 +199,11 @@ def test_combined_adjustment_multiplies_the_crossing_factors():
 def test_registry_note_says_whether_a_tactical_sheet_was_used():
     result = simulate_match(config_from_input(parse_match_input(VALID), simulations=2000, seed=3))
     info = SaveInfo(date(2026, 10, 25), "20:45", "Serie A", "Giocata", "test", "confidenza Claude alta")
-    assert prediction_rows(result, ["1"], info)[0]["Note"] == "confidenza Claude alta"
+    assert prediction_rows(result, ["1"], info)[0]["Note"] == "confidenza Claude alta; motore: Calcolo attuale"
     result["tactical_sheet"] = True
-    assert prediction_rows(result, ["1"], info)[0]["Note"] == "confidenza Claude alta; scheda tattica: sì"
+    assert prediction_rows(result, ["1"], info)[0]["Note"] == "confidenza Claude alta; scheda tattica: sì; motore: Calcolo attuale"
     result["tactical_sheet"] = False
-    assert prediction_rows(result, ["1"], replace(info, note=""))[0]["Note"] == "scheda tattica: no"
+    assert prediction_rows(result, ["1"], replace(info, note=""))[0]["Note"] == "scheda tattica: no; motore: Calcolo attuale"
 
 
 def test_today_analysis_passes_the_coach_change_to_the_data_layer():

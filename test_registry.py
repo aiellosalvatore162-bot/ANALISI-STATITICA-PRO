@@ -87,7 +87,7 @@ def test_rows_carry_every_component(simulations):
     assert one["Quota_presa"] == 1.9 and one["Puntata"] == 10.0 and one["Tipo"] == "Reale"
     assert one["Quota_chiusura"] is None and one["Esito"] is None
     assert rows[2]["Mercato"] == "Cartellini" and rows[2]["Quota_presa"] is None
-    assert rows[2]["Note"] == "" and rows[0]["Note"] == ""
+    assert rows[2]["Note"] == "motore: Calcolo attuale" and rows[0]["Note"] == "motore: Calcolo attuale"   # fase AN: motore sempre dichiarato
     # Senza Claude né stile la finale è la simulazione di base.
     plain = prediction_rows(base, ["X"], INFO)[0]
     assert plain["Prob_finale"] == pytest.approx(base["components"]["finale"]["X"] / 100)
@@ -128,7 +128,7 @@ def test_session_log_avoids_duplicates_and_migrates_phase_g(tmp_path, simulation
     assert log.save(prediction_rows(base, ["1"], replace(INFO, note="di nuovo")), "s1") == (0, 1)
     stored = log.rows("s1")
     assert len(stored) == 2 and {row["ID"] for row in stored} == {row["ID"] for row in rows}
-    assert next(row for row in stored if row["Selezione"] == "1")["Note"] == "di nuovo"
+    assert next(row for row in stored if row["Selezione"] == "1")["Note"] == "di nuovo; motore: Calcolo attuale"
 
 
 def test_excel_export_has_only_columns_a_to_s(simulations):

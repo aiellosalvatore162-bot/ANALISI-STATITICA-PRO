@@ -58,6 +58,11 @@ class Taratura:
     mercati: Mapping[str, Mapping[str, Any]] = field(default_factory=dict)
     data: str = ""
 
+    def excluding(self, predicate) -> "Taratura":
+        """Stessa taratura senza i mercati per cui ``predicate(chiave)`` è vero (es. quelli prodotti da un altro motore)."""
+        kept = {key: item for key, item in self.mercati.items() if not predicate(key)}
+        return Taratura(self.attiva, self.parametri, kept, self.data)
+
     def has_map(self, key: str) -> bool:
         return bool(self.attiva and self.mercati.get(key, {}).get("mappa"))
 

@@ -47,3 +47,25 @@ def render_calibration(result: dict | None = None) -> None:
                 st.write(f"Ora per questa partita: {value:.1f}% → {cell_label(market, value)}")
         st.caption(" · ".join(f"{name}: {text}" for name, text in LABEL_HELP.items()))
         st.dataframe(pd.DataFrame(summary), hide_index=True)
+
+
+def render_engine_choice() -> str:
+    """Fase AN: selettore a tre posizioni del motore, avvisi per mercato e impostazione del predefinito. Ritorna la chiave."""
+    import engine_choice as ec
+
+    if "engine_choice" not in st.session_state:
+        st.session_state["engine_choice"] = ec.load_default()
+    choice = st.radio("Motore di calcolo", list(ec.NAMES), format_func=ec.NAMES.get, horizontal=True, key="engine_choice",
+                      help="Vale per la partita in analisi e resta salvata con la partita.")
+    st.caption(ec.HELP[choice])
+    with st.expander("Quanto è verificato questo motore, mercato per mercato", expanded=choice != ec.CURRENT):
+        st.dataframe(pd.DataFrame([{"Mercati": group, "Avviso": text} for group, text in ec.WARNINGS[choice].items()]),
+                     hide_index=True, width="stretch")
+        st.caption("Gli avvisi informano, non bloccano: tutte le posizioni restano disponibili.")
+        default = ec.load_default()
+        if choice != default and st.button(f"Usa «{ec.NAMES[choice]}» come predefinito dell'app", key="engine_set_default"):
+            ec.save_default(choice)
+            st.success("Predefinito salvato.")
+        else:
+            st.caption(f"Predefinito dell'app: {ec.NAMES[default]}.")
+    return choice

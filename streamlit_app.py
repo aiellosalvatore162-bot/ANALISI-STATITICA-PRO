@@ -27,7 +27,9 @@ from ui_data import (
     render_automatic, render_claude, render_create, render_registry, render_style, render_tactical, show_provenance,
 )
 from ui_exact import render_exact_scores
-from ui_taratura import render_calibration
+from ui_imported import render_imported
+from ui_taratura import render_calibration, render_engine_choice
+import engine_choice
 from ui_eurobet import find_paste, render_apply, render_paste, render_sharp_value, sharp_for
 from ui_memory import RESTART_WARNING, flags_key, remember, remember_claude, render_registry_table, render_sidebar
 from ui_odds import render_credits, render_odds
@@ -555,6 +557,7 @@ with st.container(border=True):
         simulations = st.number_input("Simulazioni Monte Carlo", min_value=1_000, max_value=200_000, value=100000, step=1_000)
     with col2:
         seed = st.number_input("Seed riproducibile", min_value=0, value=42, step=1)
+    engine_pick = render_engine_choice()
 
 with st.container(border=True):
     st.markdown('<div class="input-card-title">Quote e analisi valore</div>', unsafe_allow_html=True)
@@ -662,6 +665,7 @@ current_signature = (
     text,
     int(simulations),
     int(seed),
+    engine_pick,
     tuple(sorted(odds_input.items())),
     tactical_factors,
     tactical_switches,
@@ -704,6 +708,7 @@ if st.button("Esegui simulazione", type="primary", width="stretch") or st.sessio
         config = config.__class__(**{**config.__dict__, "timeline": sheet_effects.timeline(config.timeline),
                                      "league": league_code((st.session_state.get("match_meta") or {}).get("competition")),
                                      "strength_inputs": _strengths(parsed.home.name, parsed.away.name)})
+        config = engine_choice.apply(config, engine_pick)
         st.session_state["result_flags"] = flags
         st.session_state["anchor_sources"] = anchor_sources
         result = simulate_match(config)
@@ -833,6 +838,7 @@ def _catalog_cards_section(group: str, result: dict, financial_rows: dict) -> No
 def _overview_tab(result: dict, financial_rows: dict) -> None:
     model, summary = result["model"], result["summary"]
     st.html(dashboard.in_brief(result))
+    st.html(dashboard.engine_badge(result))
     st.html(dashboard.scoreboard(result))
     st.html(dashboard.legend())
     st.html(dashboard.grid([dashboard.outcome_card(result), dashboard.goals_card(result), dashboard.value_card(result)]))
@@ -1048,7 +1054,7 @@ result = st.session_state.get("result")
 if result and st.session_state.get("result_signature") != current_signature:
     st.info("Configurazione modificata: riesegui la simulazione per aggiornare i risultati.")
     result = None
-tab_names = ["Panoramica", "Gol", "Corner e cartellini", "Risultati esatti", "Claude", "Registro", "Prestazioni"]
+tab_names = ["Panoramica", "Gol", "Corner e cartellini", "Risultati esatti", "Claude", "Registro", "Prestazioni", "Dati aggiunti"]
 tabs = st.tabs(tab_names)
 if result:
     financial_rows = {row["market"]: row for row in result["financial"]["markets"]}
@@ -1081,6 +1087,8 @@ else:
 with tabs[6]:
     render_performance()
     render_calibration(result)
+with tabs[7]:
+    render_imported()
 
 # In fondo allo script: l'elenco include già la partita simulata in questo passaggio.
 with st.sidebar:

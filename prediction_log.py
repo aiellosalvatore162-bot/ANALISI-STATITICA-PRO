@@ -123,6 +123,7 @@ def model_version(config, *, claude: bool = False) -> str:
 
 
 TACTICAL_NOTE = "scheda tattica: "
+ENGINE_NOTE = "motore: "   # fase AN: il motore che ha prodotto la previsione
 ANALYST_NOTE = "regole_analista: "
 
 
@@ -174,6 +175,9 @@ def prediction_rows(base: Mapping[str, Any], selections: Sequence[str], info: Sa
         # Fase Q: per confrontare nella pagina Prestazioni le previsioni con e senza scheda tattica.
         present = bool(marked[0])
         note = "; ".join(part for part in (note, f"{TACTICAL_NOTE}{'sì' if present else 'no'}") if part)
+    engines = [item["motore"]["scelta"] for item in (claude, styled, base) if item is not None and item.get("motore")]
+    if engines:
+        note = "; ".join(part for part in (note, f"{ENGINE_NOTE}{engines[0]}") if part)
     analyst = [item["analyst_rules"] for item in (claude, styled, base) if item is not None and "analyst_rules" in item]
     if analyst:
         # Fase Y: regole dell'Analista non ancora verificate applicate alla partita.
